@@ -772,6 +772,35 @@ describe('published package surface', () => {
     expect(macosJob).not.toContain('- run: yarn dist:mac-smoke')
   })
 
+  it('publishes unsigned installers to GitHub Releases only from trusted non-PR runs', () => {
+    const windowsJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  desktop-windows:'),
+      ciWorkflow.indexOf('  desktop-macos:'),
+    )
+    const macosJob = ciWorkflow.slice(
+      ciWorkflow.indexOf('  desktop-macos:'),
+      ciWorkflow.indexOf('  upstream-command-windows:'),
+    )
+    const releaseJob = ciWorkflow.slice(ciWorkflow.indexOf('  github-release:'))
+
+    expect(windowsJob).toContain('uses: actions/upload-artifact@v4')
+    expect(windowsJob).toContain('name: windows-packages')
+    expect(windowsJob).toContain('dsh-plugin-desktop/dist/DSH-Desktop-*-x64-Setup.exe')
+    expect(windowsJob).toContain('dsh-plugin-desktop/dist/DSH-Desktop-*-x64-Portable.zip')
+    expect(macosJob).toContain('uses: actions/upload-artifact@v4')
+    expect(macosJob).toContain('name: macos-package')
+    expect(macosJob).toContain('dsh-plugin-desktop/dist/mac-smoke/*.dmg')
+    expect(releaseJob).toContain('permissions:')
+    expect(releaseJob).toContain('contents: write')
+    expect(releaseJob).toContain("github.event_name != 'pull_request'")
+    expect(ciWorkflow).toContain("tags: ['v*']")
+    expect(releaseJob).toContain('gh release create')
+    expect(releaseJob).toContain('gh release upload')
+    expect(releaseJob).toContain('--clobber')
+    expect(releaseJob).toContain('--prerelease')
+    expect(releaseJob).toContain('DSH-Desktop-${version}-mac-universal.dmg')
+  })
+
   it('skips product packaging only for documentation-only changes', () => {
     const classifier = fileURLToPath(new URL('../../scripts/classify-ci-changes.mjs', import.meta.url))
     const classify = (paths: string[]): string => execFileSync(
