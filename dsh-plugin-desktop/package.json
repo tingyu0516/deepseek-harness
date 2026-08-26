@@ -80,7 +80,7 @@
   "files": [
     "build/app-icon.png",
     "build/app-icon-mac.png",
-    "build/themes/*.png",
+    "build/themes/*.jpg",
     "build/tray-icon.svg",
     "build/tray-icon*.png",
     "cordis.patch.yml",
@@ -310,7 +310,7 @@
     "files": [
       "build/app-icon.png",
       "build/app-icon-mac.png",
-      "build/themes/*.png",
+      "build/themes/*.jpg",
       "build/tray-icon.svg",
       "build/tray-icon*.png",
       "cordis.patch.yml",

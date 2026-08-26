@@ -72,14 +72,14 @@ describe('Desktop settings API', () => {
       hutao: [{
         id: 'default',
         theme: 'hutao' as const,
-        url: '/themes/hutao.png',
+        url: '/themes/hutao.jpg',
         label: 'default',
         deletable: false,
       }],
       furina: [{
         id: 'default',
         theme: 'furina' as const,
-        url: '/themes/furina.png',
+        url: '/themes/furina.jpg',
         label: 'default',
         deletable: false,
       }, {
@@ -107,7 +107,7 @@ describe('Desktop settings API', () => {
         expect(init?.body).toBe(JSON.stringify({ theme: 'furina', id: 'wp_0123456789abcdef' }))
         return json({
           hutao: catalog.hutao,
-          furina: catalog.hutao.map(item => ({ ...item, theme: 'furina', url: '/themes/furina.png' })),
+          furina: catalog.hutao.map(item => ({ ...item, theme: 'furina', url: '/themes/furina.jpg' })),
         })
       }
       throw new Error(path)

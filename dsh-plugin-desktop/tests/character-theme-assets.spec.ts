@@ -32,7 +32,7 @@ function tempPng(name: string): string {
 async function request(
   handler: (req: IncomingMessage, res: ServerResponse) => void,
   method: string,
-  path = '/themes/hutao.png',
+  path = '/themes/hutao.jpg',
 ): Promise<{ status: number; headers: Headers; body: Buffer }> {
   const server = createServer((req, res) => { handler(req, res) })
   await new Promise<void>((resolve, reject) => {
@@ -56,30 +56,30 @@ async function request(
 describe('character theme assets', () => {
   it('exposes exact Hu Tao and Furina loopback paths', () => {
     expect(CHARACTER_THEME_ASSET_ROUTES).toEqual([
-      { id: 'hutao', path: '/themes/hutao.png', file: 'hutao.png' },
-      { id: 'furina', path: '/themes/furina.png', file: 'furina.png' },
+      { id: 'hutao', path: '/themes/hutao.jpg', file: 'hutao.jpg' },
+      { id: 'furina', path: '/themes/furina.jpg', file: 'furina.jpg' },
     ])
   })
 
   it('rejects path traversal before reading the packaged directory', () => {
-    expect(() => characterThemeAssetFile('/tmp', '../hutao.png')).toThrow('unknown character theme asset')
-    expect(() => characterThemeAssetFile('/tmp', 'missing.png')).toThrow('unknown character theme asset')
+    expect(() => characterThemeAssetFile('/tmp', '../hutao.jpg')).toThrow('unknown character theme asset')
+    expect(() => characterThemeAssetFile('/tmp', 'missing.jpg')).toThrow('unknown character theme asset')
   })
 
-  it('serves a packaged PNG on GET and omits the body on HEAD', async () => {
-    const filePath = tempPng('hutao.png')
+  it('serves a packaged JPEG on GET and omits the body on HEAD', async () => {
+    const filePath = tempPng('hutao.jpg')
     const get = await request((req, res) => handleCharacterThemeAsset(req, res, filePath), 'GET')
     const head = await request((req, res) => handleCharacterThemeAsset(req, res, filePath), 'HEAD')
 
     expect(get.status).toBe(200)
-    expect(get.headers.get('content-type')).toBe('image/png')
+    expect(get.headers.get('content-type')).toBe('image/jpeg')
     expect(get.body.equals(PNG)).toBe(true)
     expect(head.status).toBe(200)
     expect(head.body.length).toBe(0)
   })
 
   it('rejects non-GET methods and missing files', async () => {
-    const missing = join(mkdtempSync(join(tmpdir(), 'dsh-character-theme-')), 'hutao.png')
+    const missing = join(mkdtempSync(join(tmpdir(), 'dsh-character-theme-')), 'hutao.jpg')
     const post = await request((req, res) => handleCharacterThemeAsset(req, res, missing), 'POST')
     const absent = await request((req, res) => handleCharacterThemeAsset(req, res, missing), 'GET')
 
@@ -96,10 +96,10 @@ describe('character theme assets', () => {
     const upstream = join(workspace, 'deepseek-harness', 'themes', 'images')
     mkdirSync(packaged, { recursive: true })
     mkdirSync(upstream, { recursive: true })
-    writeFileSync(join(packaged, 'hutao.png'), PNG)
-    writeFileSync(join(packaged, 'furina.png'), PNG)
-    writeFileSync(join(upstream, 'hutao.png'), PNG)
-    writeFileSync(join(upstream, 'furina.png'), PNG)
+    writeFileSync(join(packaged, 'hutao.jpg'), PNG)
+    writeFileSync(join(packaged, 'furina.jpg'), PNG)
+    writeFileSync(join(upstream, 'hutao.jpg'), PNG)
+    writeFileSync(join(upstream, 'furina.jpg'), PNG)
     expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(packaged)
   })
 
@@ -109,8 +109,8 @@ describe('character theme assets', () => {
     const packageRoot = join(workspace, 'dsh-plugin-desktop')
     const owned = join(packageRoot, 'assets', 'themes')
     mkdirSync(owned, { recursive: true })
-    writeFileSync(join(owned, 'hutao.png'), PNG)
-    writeFileSync(join(owned, 'furina.png'), PNG)
+    writeFileSync(join(owned, 'hutao.jpg'), PNG)
+    writeFileSync(join(owned, 'furina.jpg'), PNG)
     expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(owned)
   })
 
@@ -123,8 +123,8 @@ describe('character theme assets', () => {
 
     const upstream = join(workspace, 'deepseek-harness', 'themes', 'images')
     mkdirSync(upstream, { recursive: true })
-    writeFileSync(join(upstream, 'hutao.png'), PNG)
-    writeFileSync(join(upstream, 'furina.png'), PNG)
+    writeFileSync(join(upstream, 'hutao.jpg'), PNG)
+    writeFileSync(join(upstream, 'furina.jpg'), PNG)
     expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(upstream)
   })
 })

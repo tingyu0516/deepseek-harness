@@ -645,7 +645,7 @@ describe('published package surface', () => {
     expect(manifest.files).toEqual(expect.arrayContaining([
       'build/app-icon.png',
       'build/app-icon-mac.png',
-      'build/themes/*.png',
+      'build/themes/*.jpg',
       'build/tray-icon.svg',
       'build/tray-icon*.png',
       'docs/**',
@@ -653,7 +653,7 @@ describe('published package surface', () => {
     expect(manifest.build?.files).toEqual([
       'build/app-icon.png',
       'build/app-icon-mac.png',
-      'build/themes/*.png',
+      'build/themes/*.jpg',
       'build/tray-icon.svg',
       'build/tray-icon*.png',
       'cordis.patch.yml',

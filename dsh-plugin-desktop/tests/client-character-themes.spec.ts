@@ -24,8 +24,8 @@ describe('desktop character themes', () => {
     expect(CHARACTER_THEMES.map(theme => theme.id)).toEqual(['hutao', 'furina'])
     expect(HUTAO_THEME.colorScheme).toBe('dark')
     expect(FURINA_THEME.colorScheme).toBe('dark')
-    expect(HUTAO_THEME.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.png")')
-    expect(FURINA_THEME.tokens['--dsw-character-bg-image']).toContain('url("/themes/furina.png")')
+    expect(HUTAO_THEME.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.jpg")')
+    expect(FURINA_THEME.tokens['--dsw-character-bg-image']).toContain('url("/themes/furina.jpg")')
     expect(HUTAO_THEME.tokens['--dsw-alias-brand-primary']).toBe('#e05252')
     expect(FURINA_THEME.tokens['--dsw-alias-brand-primary']).toBe('#4cc9f0')
   })
@@ -70,8 +70,10 @@ describe('desktop character themes', () => {
 
     const dispose = installCharacterThemeBackgroundStyles()
     expect(style.dataset.pluginCss).toBe('dsh-plugin-desktop/character-theme-background')
-    expect(css).toContain('body[data-dsh-character-theme]')
+    expect(css).toContain('body[data-dsh-character-theme]::before')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
+    expect(css).toContain('contain: paint')
+    expect(css).not.toMatch(/body\[data-dsh-character-theme\] \{[^}]*background-image: var\(--dsw-character-bg-image/)
     expect(css).toContain('#root')
     expect(css).toMatch(/body\[data-dsh-character-theme\]:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\)\s+\.dshDesktopSidebarSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-layer-1\) 42%, var\(--dsw-alias-bg-layer-3\)\) !important;/)
     expect(css).not.toMatch(/body\[data-dsh-character-theme\] \.dshDesktopSidebarSurface \{[^}]*background-color: transparent !important;/)
@@ -179,12 +181,12 @@ describe('desktop character theme preference', () => {
     expect(snapshotWithCharacterTheme(snapshot, 'off')).toBe(snapshot)
     const overlaid = snapshotWithCharacterTheme(snapshot, 'hutao')
     expect(overlaid.active.id).toBe('hutao')
-    expect(overlaid.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.png")')
+    expect(overlaid.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.jpg")')
     expect(overlaid.active.tokens['--dsw-alias-bg-base']).toBe('rgba(23, 16, 20, 0.45)')
     const custom = snapshotWithCharacterTheme(snapshot, 'hutao', 'wp_0123456789abcdef')
     expect(custom.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/custom/hutao/wp_0123456789abcdef")')
     expect(custom.active.tokens['--dsw-character-bg-image']).toContain('linear-gradient')
-    expect(custom.active.tokens['--dsw-character-bg-image']).not.toContain('url("/themes/hutao.png")')
+    expect(custom.active.tokens['--dsw-character-bg-image']).not.toContain('url("/themes/hutao.jpg")')
   })
 
   it('projects character tokens onto the style target and clears them when off', () => {
@@ -219,18 +221,24 @@ describe('desktop character theme preference', () => {
 
   it('writes an !important token sheet and wallpaper marker onto the document', () => {
     let css = ''
+    let cssWrites = 0
     const remove = vi.fn()
     let attached: { id: string; textContent: string; remove: ReturnType<typeof vi.fn> } | null = null
     const style = {
       id: '',
       get textContent() { return css },
-      set textContent(value: string) { css = value },
+      set textContent(value: string) {
+        cssWrites += 1
+        css = value
+      },
       remove,
     }
+    const attributes = new Map<string, string>()
     const body = {
-      setAttribute: vi.fn(),
-      removeAttribute: vi.fn(),
-      hasAttribute: vi.fn(() => false),
+      setAttribute: vi.fn((name: string, value: string) => { attributes.set(name, value) }),
+      getAttribute: (name: string) => attributes.get(name) ?? null,
+      removeAttribute: vi.fn((name: string) => { attributes.delete(name) }),
+      hasAttribute: (name: string) => attributes.has(name),
     }
     const appendChild = vi.fn((node: typeof style) => { attached = node })
     vi.stubGlobal('document', {
@@ -247,6 +255,11 @@ describe('desktop character theme preference', () => {
     expect(body.setAttribute).toHaveBeenCalledWith('data-dsh-character-theme', 'hutao')
     expect(body.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
     expect(appendChild).toHaveBeenCalledWith(style)
+    expect(cssWrites).toBe(1)
+
+    applyCharacterThemeToDocument('hutao')
+    expect(cssWrites).toBe(1)
+    expect(body.setAttribute).toHaveBeenCalledTimes(2)
 
     applyCharacterThemeToDocument('off')
     expect(remove).toHaveBeenCalledOnce()

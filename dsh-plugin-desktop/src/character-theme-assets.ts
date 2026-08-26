@@ -1,14 +1,21 @@
-/** Loopback PNG routes for Desktop-registered character themes. */
+/** Loopback wallpaper routes for Desktop-registered character themes. */
 
 import { createReadStream, existsSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { basename, join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 
 /** Exact loopback paths served for Hu Tao and Furina wallpapers. */
 export const CHARACTER_THEME_ASSET_ROUTES = [
-  { id: 'hutao', path: '/themes/hutao.png', file: 'hutao.png' },
-  { id: 'furina', path: '/themes/furina.png', file: 'furina.png' },
+  { id: 'hutao', path: '/themes/hutao.jpg', file: 'hutao.jpg' },
+  { id: 'furina', path: '/themes/furina.jpg', file: 'furina.jpg' },
 ] as const
+
+const ASSET_CONTENT_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+}
 
 /** Theme ids that own a packaged wallpaper. */
 export type CharacterThemeId = (typeof CHARACTER_THEME_ASSET_ROUTES)[number]['id']
@@ -38,7 +45,7 @@ export function resolveCharacterThemeAssetsDir(packageRoot: string): string | un
 
 /**
  * Resolve one packaged wallpaper inside the Desktop theme asset directory.
- * @param assetsDir - directory containing the copied PNG files.
+ * @param assetsDir - directory containing the copied wallpaper files.
  * @param file - basename of one registered wallpaper.
  * @returns the absolute file path.
  */
@@ -54,7 +61,7 @@ export function characterThemeAssetFile(assetsDir: string, file: string): string
  * Serve one exact wallpaper from the packaged Desktop theme directory.
  * @param req - incoming loopback request.
  * @param res - loopback response.
- * @param filePath - absolute PNG path produced by {@link characterThemeAssetFile}.
+ * @param filePath - absolute wallpaper path produced by {@link characterThemeAssetFile}.
  */
 export function handleCharacterThemeAsset(
   req: IncomingMessage,
@@ -73,7 +80,10 @@ export function handleCharacterThemeAsset(
     return
   }
   res.statusCode = 200
-  res.setHeader('content-type', 'image/png')
+  res.setHeader(
+    'content-type',
+    ASSET_CONTENT_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream',
+  )
   res.setHeader('cache-control', 'public, max-age=31536000, immutable')
   if (req.method === 'HEAD') {
     res.end()
