@@ -64,6 +64,20 @@ import {
   handleCharacterThemeAsset,
   resolveCharacterThemeAssetsDir,
 } from './character-theme-assets.ts'
+import {
+  CHARACTER_WALLPAPER_ASSET_PREFIX,
+  DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
+  DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+  DESKTOP_CHARACTER_WALLPAPERS_PATH,
+  type CharacterWallpaperThemeId,
+} from './character-wallpaper-contract.ts'
+import {
+  handleCharacterWallpaperAssetRequest,
+  handleCharacterWallpaperDeleteRequest,
+  handleCharacterWallpaperImportRequest,
+  handleCharacterWallpaperListRequest,
+} from './character-wallpaper-route.ts'
+import { CharacterWallpaperStore } from './character-wallpaper-store.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
@@ -106,6 +120,10 @@ export interface DesktopSettings {
   logLevel: 'debug' | 'info' | 'warn' | 'error'
   /** Client character theme; does not require a process restart. */
   characterTheme: DesktopCharacterTheme
+  /** Wallpaper selected for Hu Tao; `default` is the bundled PNG. */
+  hutaoWallpaper: string
+  /** Wallpaper selected for Furina; `default` is the bundled PNG. */
+  furinaWallpaper: string
 }
 
 /** Schema registered with the standard settings service. */
@@ -116,6 +134,8 @@ export const DesktopSettingsSchema: z<DesktopSettings> = z.object({
   port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
   logLevel: z.union(['debug', 'info', 'warn', 'error'] as const).default('info'),
   characterTheme: z.union(['off', 'hutao', 'furina'] as const).default('off'),
+  hutaoWallpaper: z.string().min(1).max(32).default('default'),
+  furinaWallpaper: z.string().min(1).max(32).default('default'),
 })
 
 /**
@@ -307,6 +327,74 @@ export function apply(ctx: Context, config: Config): void {
       `dsh-plugin-desktop: character theme asset ${asset.path}`,
     )
   }
+  const wallpaperStore = new CharacterWallpaperStore(runtime.userDataDir)
+  const wallpaperSelection = {
+    selected(theme: CharacterWallpaperThemeId): string {
+      const current = settings.get()
+      return theme === 'hutao' ? current.hutaoWallpaper : current.furinaWallpaper
+    },
+    async select(theme: CharacterWallpaperThemeId, id: string): Promise<void> {
+      await settings.update(theme === 'hutao' ? { hutaoWallpaper: id } : { furinaWallpaper: id })
+    },
+  }
+  const reportWallpaperError = (operation: string, cause: unknown): void => {
+    ctx.logger.error(
+      `dsh-plugin-desktop: failed to ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    )
+  }
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPERS_PATH,
+      handler: (req, res) => handleCharacterWallpaperListRequest(
+        req,
+        res,
+        rendererOrigin,
+        wallpaperStore,
+        reportWallpaperError,
+      ),
+    }),
+    'dsh-plugin-desktop: character wallpaper list route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+      handler: (req, res) => handleCharacterWallpaperImportRequest(
+        req,
+        res,
+        rendererOrigin,
+        wallpaperStore,
+        () => runtime.pickImageFile(),
+        wallpaperSelection,
+        reportWallpaperError,
+      ),
+    }),
+    'dsh-plugin-desktop: character wallpaper import route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
+      handler: (req, res) => handleCharacterWallpaperDeleteRequest(
+        req,
+        res,
+        rendererOrigin,
+        wallpaperStore,
+        wallpaperSelection,
+        reportWallpaperError,
+      ),
+    }),
+    'dsh-plugin-desktop: character wallpaper delete route',
+  )
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'prefix',
+      path: CHARACTER_WALLPAPER_ASSET_PREFIX,
+      handler: (req, res) => { void handleCharacterWallpaperAssetRequest(req, res, wallpaperStore) },
+    }),
+    'dsh-plugin-desktop: character wallpaper asset prefix',
+  )
   if (runtime.platform === 'win32') {
     ctx.effect(
       () => ctx.webServer.register({

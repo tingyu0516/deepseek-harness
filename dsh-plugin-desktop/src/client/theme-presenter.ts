@@ -2,6 +2,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import {
   readDesktopCharacterThemePreference,
+  readDesktopCharacterWallpaperId,
   snapshotWithCharacterTheme,
   type DesktopCharacterThemePreference,
 } from './character-theme-sync.ts'
@@ -51,13 +52,19 @@ export class DesktopThemePresenter {
  */
 export function installDesktopThemePresenter(ctx: ClientContext): () => void {
   const presenter = new DesktopThemePresenter()
-  const desktopSettings = ctx.settingsScope.bind<{ characterTheme?: DesktopCharacterThemePreference }>({
+  const desktopSettings = ctx.settingsScope.bind<{
+    characterTheme?: DesktopCharacterThemePreference
+    hutaoWallpaper?: string
+    furinaWallpaper?: string
+  }>({
     namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
   })
   const applySnapshot = (snapshot: ThemeSnapshot): void => {
+    const preference = readDesktopCharacterThemePreference(desktopSettings.getSnapshot())
     presenter.apply(snapshotWithCharacterTheme(
       snapshot,
-      readDesktopCharacterThemePreference(desktopSettings.getSnapshot()),
+      preference,
+      readDesktopCharacterWallpaperId(desktopSettings.getSnapshot(), preference),
     ))
   }
   applySnapshot(ctx.theme.getTheme())

@@ -8,8 +8,10 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type {
   DesktopMarketProvider, DesktopProfileView, DesktopSettingsApi, DesktopSettingsView,
 } from './desktop-settings-api.ts'
+import { DesktopWallpaperApiError } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import type { DesktopClientPlatform } from './environment.ts'
+import type { CharacterWallpaperCatalog, CharacterWallpaperThemeId } from '../character-wallpaper-contract.ts'
 
 /** Browser view of the Host `dsh-desktop` settings namespace. */
 export interface DesktopShellSettings {
@@ -19,6 +21,8 @@ export interface DesktopShellSettings {
   readonly port: number
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'
   readonly characterTheme: 'off' | 'hutao' | 'furina'
+  readonly hutaoWallpaper: string
+  readonly furinaWallpaper: string
 }
 
 /** Browser view of the Host `dsh-desktop-notifications` settings namespace. */
@@ -47,7 +51,7 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'wallpaper-select' | 'wallpaper-import' | 'wallpaper-delete' | 'notification'
 type RestartState = 'none' | 'restarting' | 'required'
 
 function useScope<T>(scope: SettingsScope<T>) {
@@ -209,6 +213,9 @@ export function DesktopSettingsSection({
   const [operationFailed, setOperationFailed] = useState(false)
   const [restart, setRestart] = useState<RestartState>('none')
   const [pendingProfileDelete, setPendingProfileDelete] = useState<string>()
+  const [wallpapers, setWallpapers] = useState<CharacterWallpaperCatalog>()
+  const [pendingWallpaperDelete, setPendingWallpaperDelete] = useState<string>()
+  const [wallpaperError, setWallpaperError] = useState<DesktopSettingsLocaleKey>()
 
   const load = useCallback(async () => {
     setBusy('load')
@@ -218,6 +225,11 @@ export function DesktopSettingsSection({
       setView(await api.read())
     } catch {
       setLoadFailed(true)
+    }
+    try {
+      setWallpapers(await api.listWallpapers())
+    } catch {
+      setWallpapers(undefined)
     } finally {
       setBusy(current => current === 'load' ? undefined : current)
     }
@@ -247,6 +259,8 @@ export function DesktopSettingsSection({
   const notificationsWritable = notifications.status === 'ready' && notifications.writable
   const mode = desktop.value?.mode ?? initialMode
   const characterTheme = desktop.value?.characterTheme ?? 'off'
+  const hutaoWallpaper = desktop.value?.hutaoWallpaper ?? 'default'
+  const furinaWallpaper = desktop.value?.furinaWallpaper ?? 'default'
   const notificationValue = notifications.value ?? {
     enabled: true,
     notifyOnTurnCompletion: true,
@@ -317,6 +331,54 @@ export function DesktopSettingsSection({
   const setCharacterTheme = (next: DesktopShellSettings['characterTheme']): void => {
     void run('character-theme', async () => {
       await desktopSettings.set('characterTheme', next)
+    })
+  }
+
+  const wallpaperTheme: CharacterWallpaperThemeId | undefined = characterTheme === 'off' ? undefined : characterTheme
+  const selectedWallpaperId = wallpaperTheme === 'hutao'
+    ? hutaoWallpaper
+    : wallpaperTheme === 'furina' ? furinaWallpaper : 'default'
+  const wallpaperItems = wallpaperTheme === undefined ? [] : wallpapers?.[wallpaperTheme] ?? []
+
+  const wallpaperFailure = (cause: unknown): DesktopSettingsLocaleKey => {
+    if (cause instanceof DesktopWallpaperApiError) {
+      if (cause.code === 'unsupported-image') return 'wallpaperUnsupported'
+      if (cause.code === 'too-large') return 'wallpaperTooLarge'
+      if (cause.code === 'limit-reached') return 'wallpaperLimit'
+    }
+    return 'operationFailed'
+  }
+
+  const wallpaperBusy = busy === 'wallpaper-select' || busy === 'wallpaper-import' || busy === 'wallpaper-delete'
+
+  const setWallpaper = (theme: CharacterWallpaperThemeId, id: string): void => {
+    void run('wallpaper-select', async () => {
+      setWallpaperError(undefined)
+      await desktopSettings.set(theme === 'hutao' ? 'hutaoWallpaper' : 'furinaWallpaper', id)
+    })
+  }
+
+  const importWallpaper = (theme: CharacterWallpaperThemeId): void => {
+    void run('wallpaper-import', async () => {
+      setWallpaperError(undefined)
+      try {
+        const result = await api.importWallpaper(theme)
+        setWallpapers(result.catalog)
+      } catch (cause) {
+        setWallpaperError(wallpaperFailure(cause))
+      }
+    })
+  }
+
+  const deleteWallpaper = (theme: CharacterWallpaperThemeId, id: string): void => {
+    void run('wallpaper-delete', async () => {
+      setWallpaperError(undefined)
+      try {
+        setWallpapers(await api.deleteWallpaper(theme, id))
+        setPendingWallpaperDelete(undefined)
+      } catch (cause) {
+        setWallpaperError(wallpaperFailure(cause))
+      }
     })
   }
 
@@ -549,6 +611,102 @@ export function DesktopSettingsSection({
             status={characterTheme === 'furina' ? t('selected') : undefined}
           />
         </div>
+        {wallpaperTheme !== undefined && (
+          <div className="dshDesktopWallpaper">
+            <h3 id="dsh-desktop-wallpaper-title">{t('wallpaperTitle')}</h3>
+            <p className="dshDesktopSettingsGroupIntro">{t('wallpaperIntro')}</p>
+            {wallpapers === undefined && busy !== 'load' && (
+              <p className="dshDesktopSettingsNotice">{t('wallpaperUnavailable')}</p>
+            )}
+            {wallpaperError !== undefined && (
+              <p className="dshDesktopSettingsError" role="alert">{t(wallpaperError)}</p>
+            )}
+            {wallpaperItems.length > 0 && (
+              <div className="dshDesktopWallpaperGrid" role="radiogroup" aria-labelledby="dsh-desktop-wallpaper-title">
+                {wallpaperItems.map((item) => {
+                  const selected = item.id === selectedWallpaperId
+                  const confirmDelete = pendingWallpaperDelete === item.id
+                  return (
+                    <div
+                      key={item.id}
+                      role="radio"
+                      className="dshDesktopWallpaperCard"
+                      data-selected={selected ? 'true' : undefined}
+                      data-actionable={!settingsWritable || wallpaperBusy ? undefined : 'true'}
+                      aria-checked={selected}
+                      aria-disabled={!settingsWritable || wallpaperBusy ? 'true' : undefined}
+                      tabIndex={!settingsWritable || wallpaperBusy ? -1 : 0}
+                      onClick={() => {
+                        if (!settingsWritable || wallpaperBusy || selected) return
+                        setWallpaper(wallpaperTheme, item.id)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+                        event.preventDefault()
+                        if (!settingsWritable || wallpaperBusy || selected) return
+                        setWallpaper(wallpaperTheme, item.id)
+                      }}
+                    >
+                      <span
+                        className="dshDesktopWallpaperPreview"
+                        style={{ backgroundImage: `url("${item.url}")` }}
+                        aria-hidden="true"
+                      />
+                      <span className="dshDesktopWallpaperMeta">
+                        <span className="dshDesktopWallpaperLabel">
+                          {item.deletable ? item.label : t('wallpaperDefault')}
+                        </span>
+                        {selected && <span className="dshDesktopSettingsBadge">{t('selected')}</span>}
+                      </span>
+                      {item.deletable && settingsWritable && (busy === undefined || busy === 'wallpaper-delete') && (
+                        <span className="dshDesktopWallpaperActions" onClick={event => { event.stopPropagation() }}>
+                          {confirmDelete ? (
+                            <span className="dshDesktopSettingsDeleteActions">
+                              <button
+                                type="button"
+                                className="dshDesktopSettingsButton dshDesktopSettingsButtonDanger"
+                                disabled={busy !== undefined}
+                                onClick={() => { deleteWallpaper(wallpaperTheme, item.id) }}
+                              >
+                                {busy === 'wallpaper-delete' && pendingWallpaperDelete === item.id
+                                  ? t('wallpaperDeleting')
+                                  : t('wallpaperConfirmDelete')}
+                              </button>
+                              <button
+                                type="button"
+                                className="dshDesktopSettingsButton dshDesktopSettingsButtonSecondary"
+                                disabled={busy !== undefined}
+                                onClick={() => { setPendingWallpaperDelete(undefined) }}
+                              >
+                                {t('wallpaperCancelDelete')}
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="dshDesktopSettingsButton dshDesktopSettingsButtonSecondary"
+                              onClick={() => { setPendingWallpaperDelete(item.id) }}
+                            >
+                              {t('wallpaperDelete')}
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <button
+              type="button"
+              className="dshDesktopSettingsButton"
+              disabled={!settingsWritable || busy !== undefined}
+              onClick={() => { importWallpaper(wallpaperTheme) }}
+            >
+              {busy === 'wallpaper-import' ? t('wallpaperImporting') : t('wallpaperImport')}
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-notifications-title">

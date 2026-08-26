@@ -118,6 +118,7 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   private readonly trayItems = new Map<symbol, DesktopTrayItem>()
   private terminalSpec: DesktopTerminalSpec | undefined
   private diagnosticExport: Promise<void> | undefined
+  private pickImageTask: Promise<string | null> | undefined
   private readonly workspaceAdmission: ElectronWorkspaceAdmission
   private updateCleanupTask: Promise<void> | undefined
   private rendererHealthGate: DesktopRendererHealthGate | undefined
@@ -272,8 +273,25 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
   }
 
   /** @inheritdoc */
+  get userDataDir(): string {
+    return app.getPath('userData')
+  }
+
+  /** @inheritdoc */
   async pickDirectory(): Promise<string | null> {
     return await this.workspaceAdmission.pickDirectory()
+  }
+
+  /** @inheritdoc */
+  async pickImageFile(): Promise<string | null> {
+    if (this.pickImageTask !== undefined) return await this.pickImageTask
+    const task = this.showImagePicker()
+    this.pickImageTask = task
+    try {
+      return await task
+    } finally {
+      if (this.pickImageTask === task) this.pickImageTask = undefined
+    }
   }
 
   /** @inheritdoc */
@@ -567,6 +585,19 @@ export class ElectronDesktopRuntime implements DesktopRuntime {
 
   private async showUpdateMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
     return await this.showDesktopMessageBox(options)
+  }
+
+  private async showImagePicker(): Promise<string | null> {
+    const zh = this.currentLocale === 'zh'
+    const options: Electron.OpenDialogOptions = {
+      title: zh ? '选择壁纸' : 'Choose Wallpaper',
+      properties: ['openFile', 'dontAddToRecent'],
+      filters: [{ name: zh ? '图片' : 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    }
+    const result = this.generation === undefined
+      ? await dialog.showOpenDialog(options)
+      : await this.generation.showOpenDialog(options)
+    return result.canceled ? null : result.filePaths[0] ?? null
   }
 
   private async showDesktopMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {

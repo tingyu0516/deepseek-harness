@@ -18,6 +18,7 @@ import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSett
 import {
   createDesktopSettingsApi,
   desktopSettingsPaths,
+  parseCharacterWallpaperCatalog,
   parseDesktopActionAcceptance,
   parseDesktopRestartAcceptance,
   parseDesktopSettingsView,
@@ -64,6 +65,59 @@ describe('Desktop settings API', () => {
     expect(parseDesktopActionAcceptance({ accepted: true })).toBeUndefined()
     expect(() => parseDesktopActionAcceptance({ accepted: true, detail: 'extra' }))
       .toThrow('invalid Desktop action response')
+  })
+
+  it('validates wallpaper catalogs and talks to the wallpaper routes', async () => {
+    const catalog = {
+      hutao: [{
+        id: 'default',
+        theme: 'hutao' as const,
+        url: '/themes/hutao.png',
+        label: 'default',
+        deletable: false,
+      }],
+      furina: [{
+        id: 'default',
+        theme: 'furina' as const,
+        url: '/themes/furina.png',
+        label: 'default',
+        deletable: false,
+      }, {
+        id: 'wp_0123456789abcdef',
+        theme: 'furina' as const,
+        url: '/themes/custom/furina/wp_0123456789abcdef',
+        label: 'stage.png',
+        deletable: true,
+      }],
+    }
+    expect(parseCharacterWallpaperCatalog(catalog)).toEqual(catalog)
+    expect(() => parseCharacterWallpaperCatalog({
+      ...catalog,
+      hutao: [{ ...catalog.hutao[0], deletable: true }],
+    })).toThrow('invalid wallpaper settings response')
+
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path === desktopSettingsPaths.wallpapers) return json(catalog)
+      if (path === desktopSettingsPaths.wallpaperImport) {
+        expect(init?.body).toBe(JSON.stringify({ theme: 'furina' }))
+        return json({ cancelled: false, catalog })
+      }
+      if (path === desktopSettingsPaths.wallpaperDelete) {
+        expect(init?.body).toBe(JSON.stringify({ theme: 'furina', id: 'wp_0123456789abcdef' }))
+        return json({
+          hutao: catalog.hutao,
+          furina: catalog.hutao.map(item => ({ ...item, theme: 'furina', url: '/themes/furina.png' })),
+        })
+      }
+      throw new Error(path)
+    })
+    const api = createDesktopSettingsApi(fetcher)
+    await expect(api.listWallpapers()).resolves.toEqual(catalog)
+    await expect(api.importWallpaper('furina')).resolves.toEqual({ cancelled: false, catalog })
+    await expect(api.deleteWallpaper('furina', 'wp_0123456789abcdef')).resolves.toMatchObject({
+      furina: [expect.objectContaining({ id: 'default', deletable: false })],
+    })
   })
 
   it('uses the strict same-origin routes and request bodies', async () => {
@@ -368,5 +422,12 @@ describe('Desktop settings Slot registration', () => {
     expect(source).toContain("set('characterTheme', next)")
     expect(source).toContain("setCharacterTheme('hutao')")
     expect(source).toContain("setCharacterTheme('furina')")
+    expect(zh.wallpaperTitle).toBe('壁纸')
+    expect(zh.wallpaperImport).toBe('导入壁纸')
+    expect(zh.wallpaperDelete).toBe('删除')
+    expect(en.wallpaperTitle).toBe('Wallpaper')
+    expect(source).toContain("set(theme === 'hutao' ? 'hutaoWallpaper' : 'furinaWallpaper', id)")
+    expect(source).toContain('importWallpaper')
+    expect(source).toContain('deleteWallpaper')
   })
 })

@@ -207,8 +207,14 @@ export interface DesktopRuntime {
   /** Export a diagnostics zip and reveal it in the system file manager. */
   exportDiagnostics(): Promise<void>
 
+  /** Absolute Electron userData directory used for Desktop-owned persistent files. */
+  readonly userDataDir: string
+
   /** Open the desktop operating system's native workspace-folder chooser. */
   pickDirectory(): Promise<string | null>
+
+  /** Open a native file chooser that accepts one local image for a character wallpaper. */
+  pickImageFile(): Promise<string | null>
 
   /** Open the isolated native Profile creator, focusing an existing instance. */
   openProfileCreateWindow(options: Omit<ProfileCreateWindowOptions, 'locale'>): void

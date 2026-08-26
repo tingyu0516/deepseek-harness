@@ -555,6 +555,28 @@ describe('Electron desktop runtime', () => {
     await release()
   })
 
+  it('opens a parented image chooser for character wallpapers on every platform', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    electron.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/hutao.png'] })
+    const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')
+    const runtime = new ElectronDesktopRuntime(async () => {})
+    const release = runtime.schedule(spec)
+    await runtime.mountScheduled()
+
+    expect(runtime.userDataDir).toBe('/tmp/dsh-desktop-user-data')
+    await expect(runtime.pickImageFile()).resolves.toBe('/tmp/hutao.png')
+    expect(electron.dialog.showOpenDialog).toHaveBeenCalledWith(
+      electron.browserWindows[0],
+      {
+        title: 'Choose Wallpaper',
+        properties: ['openFile', 'dontAddToRecent'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+      },
+    )
+
+    await release()
+  })
+
   it('blocks unsupported workspace volumes without returning a risky path', async () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const { ElectronDesktopRuntime } = await import('../src/electron-runtime.ts')

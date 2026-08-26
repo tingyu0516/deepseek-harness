@@ -299,6 +299,67 @@ const CSS = `
   padding-left: 14px;
   border-left: 2px solid var(--dsw-alias-border-l1);
 }
+.dshDesktopWallpaper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dshDesktopWallpaperGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+}
+.dshDesktopWallpaperCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: inherit;
+  cursor: default;
+  text-align: left;
+  font: inherit;
+}
+.dshDesktopWallpaperCard[data-actionable="true"] { cursor: pointer; }
+.dshDesktopWallpaperCard[data-actionable="true"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopWallpaperCard:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: 2px;
+}
+.dshDesktopWallpaperCard[data-selected="true"] {
+  border-color: var(--dsw-alias-brand-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-brand-primary);
+}
+.dshDesktopWallpaperPreview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 7px;
+  background-color: var(--dsw-alias-bg-layer-2);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+.dshDesktopWallpaperMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.dshDesktopWallpaperLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dshDesktopWallpaperActions { display: flex; justify-content: flex-end; }
 @media (max-width: 720px) {
   .dshDesktopSettingsChoice,
   .dshDesktopSettingsToggleRow { align-items: flex-start; }

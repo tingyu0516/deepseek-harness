@@ -1,5 +1,16 @@
 /** Same-origin browser client for launcher-owned Desktop settings operations. */
 
+import {
+  DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
+  DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+  DESKTOP_CHARACTER_WALLPAPERS_PATH,
+  isCustomCharacterWallpaperId,
+  type CharacterWallpaperCatalog,
+  type CharacterWallpaperImportResponse,
+  type CharacterWallpaperThemeId,
+  type CharacterWallpaperView,
+} from '../character-wallpaper-contract.ts'
+
 const SETTINGS_PATH = '/api/desktop/settings'
 const PROFILE_CREATE_PATH = '/api/desktop/profiles/create'
 const PROFILE_SELECT_PATH = '/api/desktop/profiles/select'
@@ -54,6 +65,9 @@ export interface DesktopSettingsApi {
   selectProfile(name: string): Promise<DesktopRestartAcceptance>
   deleteProfile(name: string): Promise<DesktopSettingsView>
   selectMarket(provider: DesktopMarketProvider): Promise<DesktopRestartAcceptance>
+  listWallpapers(): Promise<CharacterWallpaperCatalog>
+  importWallpaper(theme: CharacterWallpaperThemeId): Promise<CharacterWallpaperImportResponse>
+  deleteWallpaper(theme: CharacterWallpaperThemeId, id: string): Promise<CharacterWallpaperCatalog>
   openTerminal(): Promise<void>
   restart(): Promise<void>
   restartToRecovery(): Promise<void>
@@ -130,6 +144,69 @@ export function parseDesktopRestartAcceptance(value: unknown): DesktopRestartAcc
   return Object.freeze({ accepted: true, restartRequired: value.restartRequired })
 }
 
+function parseWallpaperView(value: unknown): CharacterWallpaperView {
+  if (!isObject(value)
+    || typeof value.id !== 'string'
+    || (value.theme !== 'hutao' && value.theme !== 'furina')
+    || typeof value.url !== 'string'
+    || typeof value.label !== 'string'
+    || typeof value.deletable !== 'boolean'
+    || value.label.length > 80
+    || !value.url.startsWith('/themes/')) {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  if (value.id !== 'default' && !isCustomCharacterWallpaperId(value.id)) {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  if (value.deletable !== (value.id !== 'default')) {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  return Object.freeze({
+    id: value.id,
+    theme: value.theme,
+    url: value.url,
+    label: value.label,
+    deletable: value.deletable,
+  })
+}
+
+function parseWallpaperLibrary(value: unknown, theme: CharacterWallpaperThemeId): readonly CharacterWallpaperView[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 32) {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  const items = value.map(parseWallpaperView)
+  if (items[0]?.id !== 'default' || items[0].theme !== theme || items[0].deletable) {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  if (new Set(items.map(item => item.id)).size !== items.length) {
+    throw new Error('dsh-plugin-desktop: duplicate wallpaper in settings response')
+  }
+  for (const item of items) {
+    if (item.theme !== theme) throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  }
+  return Object.freeze(items)
+}
+
+/** Validate the wallpaper catalog before it reaches React state. */
+export function parseCharacterWallpaperCatalog(value: unknown): CharacterWallpaperCatalog {
+  if (!isObject(value)) throw new Error('dsh-plugin-desktop: invalid wallpaper settings response')
+  return Object.freeze({
+    hutao: parseWallpaperLibrary(value.hutao, 'hutao'),
+    furina: parseWallpaperLibrary(value.furina, 'furina'),
+  })
+}
+
+/** Validate an import response, including a cancelled native picker. */
+export function parseCharacterWallpaperImportResponse(value: unknown): CharacterWallpaperImportResponse {
+  if (!isObject(value) || typeof value.cancelled !== 'boolean') {
+    throw new Error('dsh-plugin-desktop: invalid wallpaper import response')
+  }
+  return Object.freeze({
+    cancelled: value.cancelled,
+    catalog: parseCharacterWallpaperCatalog(value.catalog),
+  })
+}
+
 /** Validate the exact acknowledgement returned by a Desktop side effect. */
 export function parseDesktopActionAcceptance(value: unknown): void {
   if (!isObject(value)
@@ -148,6 +225,28 @@ async function readResponse(response: Response): Promise<unknown> {
   } catch {
     throw new Error('dsh-plugin-desktop: Desktop settings response was not JSON')
   }
+}
+
+/** Host wallpaper API failure with a stable, path-free error code. */
+export class DesktopWallpaperApiError extends Error {
+  constructor(readonly code: string) {
+    super(code)
+    this.name = 'DesktopWallpaperApiError'
+  }
+}
+
+async function readWallpaperResponse(response: Response): Promise<unknown> {
+  let value: unknown
+  try {
+    value = await response.json() as unknown
+  } catch {
+    throw new Error('dsh-plugin-desktop: Desktop settings response was not JSON')
+  }
+  if (!response.ok) {
+    const code = isObject(value) && typeof value.error === 'string' ? value.error : 'failed'
+    throw new DesktopWallpaperApiError(code)
+  }
+  return value
 }
 
 function post(fetcher: FetchLike, path: string, body: object): Promise<Response> {
@@ -188,6 +287,26 @@ export function createDesktopSettingsApi(fetcher: FetchLike = globalThis.fetch.b
     async selectMarket(provider: DesktopMarketProvider) {
       return parseDesktopRestartAcceptance(await readResponse(await post(fetcher, MARKET_SELECT_PATH, { provider })))
     },
+    async listWallpapers() {
+      const response = await fetcher(DESKTOP_CHARACTER_WALLPAPERS_PATH, {
+        method: 'GET',
+        credentials: 'same-origin',
+        redirect: 'error',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      })
+      return parseCharacterWallpaperCatalog(await readWallpaperResponse(response))
+    },
+    async importWallpaper(theme: CharacterWallpaperThemeId) {
+      return parseCharacterWallpaperImportResponse(
+        await readWallpaperResponse(await post(fetcher, DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH, { theme })),
+      )
+    },
+    async deleteWallpaper(theme: CharacterWallpaperThemeId, id: string) {
+      return parseCharacterWallpaperCatalog(
+        await readWallpaperResponse(await post(fetcher, DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH, { theme, id })),
+      )
+    },
     async openTerminal() {
       parseDesktopActionAcceptance(await readResponse(await post(fetcher, TERMINAL_OPEN_PATH, {})))
     },
@@ -218,6 +337,9 @@ export const desktopSettingsPaths = Object.freeze({
   profileSelect: PROFILE_SELECT_PATH,
   profileDelete: PROFILE_DELETE_PATH,
   marketSelect: MARKET_SELECT_PATH,
+  wallpapers: DESKTOP_CHARACTER_WALLPAPERS_PATH,
+  wallpaperImport: DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+  wallpaperDelete: DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
   terminalOpen: TERMINAL_OPEN_PATH,
   restart: RESTART_PATH,
   recoveryRestart: RECOVERY_RESTART_PATH,

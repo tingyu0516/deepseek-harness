@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
+import { characterWallpaperAssetUrl, type CharacterWallpaperThemeId } from '../character-wallpaper-contract.ts'
 
 /** Hu Tao · 往生堂 — deep plum, cinnabar red, gold, ghost cyan. */
 export const HUTAO_THEME: ThemeDefinition = {
@@ -167,3 +168,32 @@ export const CHARACTER_THEMES: readonly ThemeDefinition[] = Object.freeze([
   Object.freeze(HUTAO_THEME),
   Object.freeze(FURINA_THEME),
 ])
+
+/**
+ * Keep the theme gradient overlay and point the wallpaper layer at `wallpaperUrl`.
+ * @param theme - Hu Tao or Furina definition.
+ * @param wallpaperUrl - loopback URL produced by {@link characterWallpaperAssetUrl}.
+ */
+export function characterThemeTokensForWallpaper(
+  theme: ThemeDefinition,
+  wallpaperUrl: string,
+): ThemeDefinition['tokens'] {
+  const image = theme.tokens['--dsw-character-bg-image']
+  if (typeof image !== 'string') return theme.tokens
+  return {
+    ...theme.tokens,
+    '--dsw-character-bg-image': image.replace(/url\("[^"]+"\)/u, `url("${wallpaperUrl}")`),
+  }
+}
+
+/**
+ * @param themeId - Hu Tao or Furina.
+ * @param wallpaperId - `default` or an imported wallpaper id.
+ */
+export function characterThemeTokens(
+  themeId: CharacterWallpaperThemeId,
+  wallpaperId: string,
+): ThemeDefinition['tokens'] {
+  const theme = themeId === 'hutao' ? HUTAO_THEME : FURINA_THEME
+  return characterThemeTokensForWallpaper(theme, characterWallpaperAssetUrl(themeId, wallpaperId))
+}

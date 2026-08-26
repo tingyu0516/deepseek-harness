@@ -1,9 +1,20 @@
 import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
-import { FURINA_THEME, HUTAO_THEME } from './character-themes.ts'
+import {
+  DEFAULT_CHARACTER_WALLPAPER_ID,
+  isCustomCharacterWallpaperId,
+} from '../character-wallpaper-contract.ts'
+import { characterThemeTokens, FURINA_THEME, HUTAO_THEME } from './character-themes.ts'
 
 /** Desktop-owned character-theme preference stored in `dsh-desktop`. */
 export type DesktopCharacterThemePreference = 'off' | 'hutao' | 'furina'
+
+/** Browser view of the wallpaper ids stored next to the character-theme preference. */
+export interface DesktopCharacterWallpaperSettings {
+  readonly characterTheme?: unknown
+  readonly hutaoWallpaper?: unknown
+  readonly furinaWallpaper?: unknown
+}
 
 const CHARACTER_THEME_IDS = new Set<string>(['hutao', 'furina'])
 const OFFICIAL_THEME_PREFERENCES = new Set<string>(['light', 'dark', 'system'])
@@ -66,9 +77,18 @@ export function characterThemeDefinition(preference: DesktopCharacterThemePrefer
 export function snapshotWithCharacterTheme(
   snapshot: ThemeSnapshot,
   preference: DesktopCharacterThemePreference,
+  wallpaperId = DEFAULT_CHARACTER_WALLPAPER_ID,
 ): ThemeSnapshot {
+  if (preference === 'off') return snapshot
   const active = characterThemeDefinition(preference)
-  return active ? { ...snapshot, active } : snapshot
+  if (!active) return snapshot
+  return {
+    ...snapshot,
+    active: {
+      ...active,
+      tokens: characterThemeTokens(preference, wallpaperId),
+    },
+  }
 }
 
 /**
@@ -78,11 +98,30 @@ export function snapshotWithCharacterTheme(
 export function readDesktopCharacterThemePreference(
   snapshot: {
     readonly status: string
-    readonly value?: { readonly characterTheme?: unknown } | undefined
+    readonly value?: DesktopCharacterWallpaperSettings | undefined
   },
 ): DesktopCharacterThemePreference {
   if (snapshot.status !== 'ready') return 'off'
   return characterThemePreference(snapshot.value?.characterTheme)
+}
+
+/**
+ * @param snapshot - Desktop settings scope snapshot.
+ * @param preference - current character theme.
+ * @returns `default` or a validated imported wallpaper id.
+ */
+export function readDesktopCharacterWallpaperId(
+  snapshot: {
+    readonly status: string
+    readonly value?: DesktopCharacterWallpaperSettings | undefined
+  },
+  preference: DesktopCharacterThemePreference,
+): string {
+  if (preference === 'off') return DEFAULT_CHARACTER_WALLPAPER_ID
+  const raw = preference === 'hutao' ? snapshot.value?.hutaoWallpaper : snapshot.value?.furinaWallpaper
+  return typeof raw === 'string' && (raw === DEFAULT_CHARACTER_WALLPAPER_ID || isCustomCharacterWallpaperId(raw))
+    ? raw
+    : DEFAULT_CHARACTER_WALLPAPER_ID
 }
 
 /**
@@ -116,10 +155,13 @@ const DARK_ATTRIBUTE = 'data-ds-dark-theme'
  * cannot retract them, and mark the document for the wallpaper hook.
  * @param preference - Desktop-owned selection.
  */
-export function applyCharacterThemeToDocument(preference: DesktopCharacterThemePreference): void {
+export function applyCharacterThemeToDocument(
+  preference: DesktopCharacterThemePreference,
+  wallpaperId = DEFAULT_CHARACTER_WALLPAPER_ID,
+): void {
   const def = characterThemeDefinition(preference)
   const existing = document.getElementById(TOKEN_STYLE_ID)
-  if (!def) {
+  if (!def || preference === 'off') {
     existing?.remove()
     document.body.removeAttribute(CHARACTER_THEME_ATTR)
     return
@@ -129,7 +171,7 @@ export function applyCharacterThemeToDocument(preference: DesktopCharacterThemeP
     style.id = TOKEN_STYLE_ID
     document.head.appendChild(style)
   }
-  const declarations = Object.entries(def.tokens)
+  const declarations = Object.entries(characterThemeTokens(preference, wallpaperId))
     .map(([name, value]) => `${name}: ${value} !important;`)
     .join(' ')
   style.textContent = `body { ${declarations} }`
@@ -171,14 +213,18 @@ export function watchCharacterThemeDarkAttribute(
  */
 export function createCharacterThemeProjector(target: CharacterThemeStyleTarget = document.body) {
   let applied: string[] = []
-  const apply = (preference: DesktopCharacterThemePreference): void => {
+  const apply = (
+    preference: DesktopCharacterThemePreference,
+    wallpaperId = DEFAULT_CHARACTER_WALLPAPER_ID,
+  ): void => {
     const def = characterThemeDefinition(preference)
+    const tokens = def && preference !== 'off' ? characterThemeTokens(preference, wallpaperId) : undefined
     for (const name of applied) {
-      if (!def?.tokens[name]) target.style.removeProperty(name)
+      if (!tokens?.[name]) target.style.removeProperty(name)
     }
     applied = []
-    if (!def) return
-    for (const [name, value] of Object.entries(def.tokens)) {
+    if (!def || tokens === undefined) return
+    for (const [name, value] of Object.entries(tokens)) {
       target.style.setProperty(name, value)
       applied.push(name)
     }
@@ -202,7 +248,7 @@ export function createCharacterThemeProjector(target: CharacterThemeStyleTarget 
  */
 export function syncDesktopCharacterTheme(input: {
   theme: DesktopCharacterThemeRuntime
-  desktopSettings: SettingsScope<{ characterTheme?: DesktopCharacterThemePreference }>
+  desktopSettings: SettingsScope<DesktopCharacterWallpaperSettings>
   officialTheme?: OfficialThemePreferenceScope
   onThemeChange: (listener: (snapshot: {
     readonly preference?: string

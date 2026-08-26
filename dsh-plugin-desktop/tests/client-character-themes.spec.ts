@@ -181,6 +181,10 @@ describe('desktop character theme preference', () => {
     expect(overlaid.active.id).toBe('hutao')
     expect(overlaid.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.png")')
     expect(overlaid.active.tokens['--dsw-alias-bg-base']).toBe('rgba(23, 16, 20, 0.45)')
+    const custom = snapshotWithCharacterTheme(snapshot, 'hutao', 'wp_0123456789abcdef')
+    expect(custom.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/custom/hutao/wp_0123456789abcdef")')
+    expect(custom.active.tokens['--dsw-character-bg-image']).toContain('linear-gradient')
+    expect(custom.active.tokens['--dsw-character-bg-image']).not.toContain('url("/themes/hutao.png")')
   })
 
   it('projects character tokens onto the style target and clears them when off', () => {
@@ -201,6 +205,12 @@ describe('desktop character theme preference', () => {
       HUTAO_THEME.tokens['--dsw-character-bg-image'],
     )
     expect(target.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
+
+    projector.apply('hutao', 'wp_0123456789abcdef')
+    expect(style.setProperty).toHaveBeenCalledWith(
+      '--dsw-character-bg-image',
+      expect.stringContaining('url("/themes/custom/hutao/wp_0123456789abcdef")'),
+    )
 
     projector.apply('off')
     expect(style.removeProperty).toHaveBeenCalledWith('--dsw-character-bg-image')

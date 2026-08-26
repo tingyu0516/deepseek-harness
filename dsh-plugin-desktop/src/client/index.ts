@@ -14,6 +14,7 @@ import { startRendererBootReporter } from './boot-health.ts'
 import {
   applyCharacterThemeToDocument,
   readDesktopCharacterThemePreference,
+  readDesktopCharacterWallpaperId,
   syncDesktopCharacterTheme,
   watchCharacterThemeDarkAttribute,
 } from './character-theme-sync.ts'
@@ -31,6 +32,9 @@ export { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
 export {
   createDesktopSettingsApi,
   desktopSettingsPaths,
+  DesktopWallpaperApiError,
+  parseCharacterWallpaperCatalog,
+  parseCharacterWallpaperImportResponse,
   parseDesktopActionAcceptance,
   parseDesktopRestartAcceptance,
   parseDesktopSettingsView,
@@ -152,7 +156,10 @@ export function apply(ctx: ClientContext): void {
         desktopSettings: shellSettings,
         officialTheme,
         onThemeChange: listener => ctx.on('theme/change', listener),
-        project: preference => projector.apply(preference),
+        project: preference => projector.apply(
+          preference,
+          readDesktopCharacterWallpaperId(shellSettings.getSnapshot(), preference),
+        ),
       })
       return () => {
         stop()

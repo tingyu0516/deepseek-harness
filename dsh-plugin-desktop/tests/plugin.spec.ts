@@ -21,6 +21,12 @@ import {
   CHARACTER_THEME_ASSET_ROUTES,
 } from '../src/character-theme-assets.ts'
 import {
+  CHARACTER_WALLPAPER_ASSET_PREFIX,
+  DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
+  DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+  DESKTOP_CHARACTER_WALLPAPERS_PATH,
+} from '../src/character-wallpaper-contract.ts'
+import {
   DESKTOP_DIRECTORY_PICKER_PATH,
   DESKTOP_DIRECTORY_VALIDATOR_PATH,
 } from '../src/directory-picker-contract.ts'
@@ -38,6 +44,20 @@ const config: DesktopConfig = {
   minHeight: 640,
 }
 
+function desktopSettings(overrides: Partial<DesktopSettings> = {}): DesktopSettings {
+  return {
+    mode: 'compatibility',
+    macosMaterial: 'transparent',
+    windowsMaterial: 'acrylic',
+    port: 0,
+    logLevel: 'info',
+    characterTheme: 'off',
+    hutaoWallpaper: 'default',
+    furinaWallpaper: 'default',
+    ...overrides,
+  }
+}
+
 afterEach(() => { vi.useRealTimers() })
 
 interface PluginHarness {
@@ -50,6 +70,7 @@ interface PluginHarness {
   setThemeSource: ReturnType<typeof vi.fn<(source: ThemePreference) => void>>
   rendererBoot: ReturnType<typeof vi.fn<(report: RendererBootReport) => void>>
   pickDirectory: ReturnType<typeof vi.fn<() => Promise<string | null>>>
+  pickImageFile: ReturnType<typeof vi.fn<() => Promise<string | null>>>
   validateDirectory: ReturnType<typeof vi.fn<(path: string) => Promise<boolean>>>
   route(path: string): WebRoute | undefined
   notify(next: DesktopSettings, prev: DesktopSettings): Promise<void>
@@ -66,6 +87,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
   const setThemeSource = vi.fn<(source: ThemePreference) => void>()
   const rendererBoot = vi.fn<(report: RendererBootReport) => void>()
   const pickDirectory = vi.fn(async () => null)
+  const pickImageFile = vi.fn(async () => null)
   const validateDirectory = vi.fn(async () => true)
   const routes = new Map<string, WebRoute>()
   const settingsUpdated = new Set<(namespace: unknown, next: unknown) => void>()
@@ -98,7 +120,9 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     reloadRenderer: () => {},
     toggleDeveloperTools: () => {},
     exportDiagnostics: async () => {},
+    userDataDir: '/tmp/dsh-desktop-user-data',
     pickDirectory,
+    pickImageFile,
     validateDirectory,
     openProfileCreateWindow: () => {},
     reportRendererBoot: rendererBoot,
@@ -153,6 +177,7 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     setThemeSource,
     rendererBoot,
     pickDirectory,
+    pickImageFile,
     validateDirectory,
     route: path => routes.get(path),
     notify: async (next, prev) => { await watcher?.(next, prev) },
@@ -178,6 +203,8 @@ describe('desktop Host plugin', () => {
       port: 43_120,
       logLevel: 'info',
       characterTheme: 'off',
+      hutaoWallpaper: 'default',
+      furinaWallpaper: 'default',
     })
     expect(() => DesktopSettingsSchema({ port: -1 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 1.5 } as DesktopSettings)).toThrow()
@@ -310,6 +337,22 @@ describe('desktop Host plugin', () => {
         path: asset.path,
       }))
     }
+    expect(harness.route(DESKTOP_CHARACTER_WALLPAPERS_PATH)).toEqual(expect.objectContaining({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPERS_PATH,
+    }))
+    expect(harness.route(DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH)).toEqual(expect.objectContaining({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
+    }))
+    expect(harness.route(DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH)).toEqual(expect.objectContaining({
+      kind: 'exact',
+      path: DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
+    }))
+    expect(harness.route(CHARACTER_WALLPAPER_ASSET_PREFIX)).toEqual(expect.objectContaining({
+      kind: 'prefix',
+      path: CHARACTER_WALLPAPER_ASSET_PREFIX,
+    }))
   })
 
   it('serves the Windows native picker through a same-origin desktop route', async () => {
@@ -382,16 +425,13 @@ describe('desktop Host plugin', () => {
     const harness = createHarness()
     apply(harness.ctx, config)
 
-    await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
-    )
+    await harness.notify(desktopSettings(), desktopSettings())
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'advanced', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
+      desktopSettings({ mode: 'advanced' }),
+      desktopSettings(),
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).toHaveBeenCalledOnce()
@@ -402,16 +442,13 @@ describe('desktop Host plugin', () => {
     const harness = createHarness()
     apply(harness.ctx, config)
 
-    await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug', characterTheme: 'off' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
-    )
+    await harness.notify(desktopSettings({ logLevel: 'debug' }), desktopSettings())
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_189, logLevel: 'debug', characterTheme: 'off' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug', characterTheme: 'off' },
+      desktopSettings({ port: 43_189, logLevel: 'debug' }),
+      desktopSettings({ logLevel: 'debug' }),
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).toHaveBeenCalledOnce()
@@ -424,8 +461,8 @@ describe('desktop Host plugin', () => {
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'mica', port: 0, logLevel: 'info', characterTheme: 'off' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
+      desktopSettings({ windowsMaterial: 'mica' }),
+      desktopSettings(),
     )
     await vi.runAllTimersAsync()
 
@@ -438,8 +475,21 @@ describe('desktop Host plugin', () => {
     apply(harness.ctx, config)
 
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_120, logLevel: 'info', characterTheme: 'hutao' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_120, logLevel: 'info', characterTheme: 'off' },
+      desktopSettings({ port: 43_120, characterTheme: 'hutao' }),
+      desktopSettings({ port: 43_120 }),
+    )
+    await vi.runAllTimersAsync()
+    expect(harness.restart).not.toHaveBeenCalled()
+  })
+
+  it('does not restart when only a character wallpaper changes', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    apply(harness.ctx, config)
+
+    await harness.notify(
+      desktopSettings({ port: 43_120, characterTheme: 'hutao', hutaoWallpaper: 'wp_0123456789abcdef' }),
+      desktopSettings({ port: 43_120, characterTheme: 'hutao' }),
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).not.toHaveBeenCalled()
