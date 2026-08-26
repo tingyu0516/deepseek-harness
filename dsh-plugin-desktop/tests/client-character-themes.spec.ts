@@ -6,6 +6,7 @@ import {
   registerDesktopCharacterThemes,
 } from '../src/client/character-theme-registry.ts'
 import {
+  applyCharacterThemeToDocument,
   applyDesktopCharacterThemePreference,
   createCharacterThemeProjector,
   snapshotWithCharacterTheme,
@@ -68,6 +69,7 @@ describe('desktop character themes', () => {
 
     const dispose = installCharacterThemeBackgroundStyles()
     expect(style.dataset.pluginCss).toBe('dsh-plugin-desktop/character-theme-background')
+    expect(css).toContain('body[data-dsh-character-theme]')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
     expect(css).toContain('#root')
     expect(appendChild).toHaveBeenCalledWith(style)
@@ -200,6 +202,41 @@ describe('desktop character theme preference', () => {
     projector.apply('off')
     expect(style.removeProperty).toHaveBeenCalledWith('--dsw-character-bg-image')
     projector.dispose()
+  })
+
+  it('writes an !important token sheet and wallpaper marker onto the document', () => {
+    let css = ''
+    const remove = vi.fn()
+    let attached: { id: string; textContent: string; remove: ReturnType<typeof vi.fn> } | null = null
+    const style = {
+      id: '',
+      get textContent() { return css },
+      set textContent(value: string) { css = value },
+      remove,
+    }
+    const body = {
+      setAttribute: vi.fn(),
+      removeAttribute: vi.fn(),
+    }
+    const appendChild = vi.fn((node: typeof style) => { attached = node })
+    vi.stubGlobal('document', {
+      getElementById: (id: string) => id === 'dsh-desktop-character-theme-tokens' ? attached : null,
+      createElement: () => style,
+      head: { appendChild },
+      body,
+    })
+
+    applyCharacterThemeToDocument('hutao')
+    expect(style.id).toBe('dsh-desktop-character-theme-tokens')
+    expect(css).toContain('--dsw-character-bg-image:')
+    expect(css).toContain('!important')
+    expect(body.setAttribute).toHaveBeenCalledWith('data-dsh-character-theme', 'hutao')
+    expect(body.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
+    expect(appendChild).toHaveBeenCalledWith(style)
+
+    applyCharacterThemeToDocument('off')
+    expect(remove).toHaveBeenCalledOnce()
+    expect(body.removeAttribute).toHaveBeenCalledWith('data-dsh-character-theme')
   })
 
   it('waits until Desktop settings are ready before touching the theme', () => {

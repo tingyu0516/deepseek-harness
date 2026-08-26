@@ -107,6 +107,57 @@ export function applyDesktopCharacterThemePreference(
   }
 }
 
+const TOKEN_STYLE_ID = 'dsh-desktop-character-theme-tokens'
+const CHARACTER_THEME_ATTR = 'data-dsh-character-theme'
+const DARK_ATTRIBUTE = 'data-ds-dark-theme'
+
+/**
+ * Write character-theme tokens as a last-writer stylesheet so official presenters
+ * cannot retract them, and mark the document for the wallpaper hook.
+ * @param preference - Desktop-owned selection.
+ */
+export function applyCharacterThemeToDocument(preference: DesktopCharacterThemePreference): void {
+  const def = characterThemeDefinition(preference)
+  const existing = document.getElementById(TOKEN_STYLE_ID)
+  if (!def) {
+    existing?.remove()
+    document.body.removeAttribute(CHARACTER_THEME_ATTR)
+    return
+  }
+  const style = existing ?? document.createElement('style')
+  if (existing === null) {
+    style.id = TOKEN_STYLE_ID
+    document.head.appendChild(style)
+  }
+  const declarations = Object.entries(def.tokens)
+    .map(([name, value]) => `${name}: ${value} !important;`)
+    .join(' ')
+  style.textContent = `body { ${declarations} }`
+  document.body.setAttribute(CHARACTER_THEME_ATTR, def.id)
+  if (def.colorScheme === 'dark') document.body.setAttribute(DARK_ATTRIBUTE, '')
+}
+
+/**
+ * Keep the dark palette attribute while a character theme is selected.
+ * Official presenters may remove it when npm adopt() publishes light/system.
+ * @param readPreference - live Desktop character-theme selection.
+ */
+export function watchCharacterThemeDarkAttribute(
+  readPreference: () => DesktopCharacterThemePreference,
+): () => void {
+  const restore = (): void => {
+    const def = characterThemeDefinition(readPreference())
+    if (def?.colorScheme === 'dark') document.body.setAttribute(DARK_ATTRIBUTE, '')
+  }
+  const observer = new MutationObserver(restore)
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: [DARK_ATTRIBUTE, CHARACTER_THEME_ATTR],
+  })
+  restore()
+  return () => observer.disconnect()
+}
+
 /**
  * Write character-theme tokens onto a style target as a last-writer overlay.
  * @param target - usually `document.body`.
@@ -158,11 +209,15 @@ export function syncDesktopCharacterTheme(input: {
     const snapshot = input.desktopSettings.getSnapshot()
     if (snapshot.status !== 'ready') return
     const selected = characterThemePreference(snapshot.value?.characterTheme)
-    applyDesktopCharacterThemePreference(
-      input.theme,
-      selected,
-      officialPreference(input.officialTheme),
-    )
+    try {
+      applyDesktopCharacterThemePreference(
+        input.theme,
+        selected,
+        officialPreference(input.officialTheme),
+      )
+    } catch {
+      // Registry may not include the id yet. Token projection is still the visual source of truth.
+    }
     input.project?.(selected)
   }
   applyFromSettings()

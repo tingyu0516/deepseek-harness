@@ -62,6 +62,7 @@ import {
   CHARACTER_THEME_ASSET_ROUTES,
   characterThemeAssetFile,
   handleCharacterThemeAsset,
+  resolveCharacterThemeAssetsDir,
 } from './character-theme-assets.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
@@ -292,7 +293,9 @@ export function apply(ctx: Context, config: Config): void {
     }),
     'dsh-plugin-desktop: renderer boot report route',
   )
-  const characterThemeAssetsDir = fileURLToPath(new URL('../build/themes', import.meta.url))
+  const characterThemePackageRoot = fileURLToPath(new URL('..', import.meta.url))
+  const characterThemeAssetsDir = resolveCharacterThemeAssetsDir(characterThemePackageRoot)
+    ?? fileURLToPath(new URL('../build/themes', import.meta.url))
   for (const asset of CHARACTER_THEME_ASSET_ROUTES) {
     const filePath = characterThemeAssetFile(characterThemeAssetsDir, asset.file)
     ctx.effect(

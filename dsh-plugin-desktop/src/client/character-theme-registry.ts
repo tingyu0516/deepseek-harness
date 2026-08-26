@@ -2,12 +2,37 @@ import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { CHARACTER_THEMES } from './character-themes.ts'
 
 const CHARACTER_THEME_BACKGROUND_STYLES = `
-body,
-#root {
+body[data-dsh-character-theme] {
+  background-color: transparent !important;
+  background-image: var(--dsw-character-bg-image, none) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+body[data-dsh-character-theme]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background-image: var(--dsw-character-bg-image, none);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+body[data-dsh-character-theme] #root {
+  background-color: transparent !important;
+  background-image: none !important;
+  z-index: 1;
+}
+body[data-dsh-character-theme] #root > *,
+body[data-dsh-character-theme] .dshDesktopFrame,
+body[data-dsh-character-theme] .dshDesktopSidebarSurface {
+  background-color: transparent !important;
+}
+body[data-dsh-character-theme] .dshDesktopConversationSurface,
+body[data-dsh-character-theme] .dshDesktopDetailsSurface {
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, transparent) !important;
 }
 `
 

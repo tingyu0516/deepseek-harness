@@ -11,7 +11,12 @@ import {
   registerDesktopCharacterThemes,
 } from './character-theme-registry.ts'
 import { startRendererBootReporter } from './boot-health.ts'
-import { createCharacterThemeProjector, syncDesktopCharacterTheme } from './character-theme-sync.ts'
+import {
+  applyCharacterThemeToDocument,
+  readDesktopCharacterThemePreference,
+  syncDesktopCharacterTheme,
+  watchCharacterThemeDarkAttribute,
+} from './character-theme-sync.ts'
 import { applyDesktopSettings, DESKTOP_SHELL_SETTINGS_NAMESPACE } from './desktop-settings.ts'
 import type { DesktopShellSettings } from './DesktopSettingsSection.tsx'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
@@ -135,7 +140,13 @@ export function apply(ctx: ClientContext): void {
       const officialTheme = ctx.settingsScope.bind<{ preference: 'light' | 'dark' | 'system' }>({
         namespace: 'ui-theme',
       })
-      const projector = createCharacterThemeProjector()
+      const projector = {
+        apply: applyCharacterThemeToDocument,
+        dispose: () => applyCharacterThemeToDocument('off'),
+      }
+      const stopDark = watchCharacterThemeDarkAttribute(() =>
+        readDesktopCharacterThemePreference(shellSettings.getSnapshot()),
+      )
       const stop = syncDesktopCharacterTheme({
         theme: ctx.theme,
         desktopSettings: shellSettings,
@@ -145,6 +156,7 @@ export function apply(ctx: ClientContext): void {
       })
       return () => {
         stop()
+        stopDark()
         projector.dispose()
       }
     },

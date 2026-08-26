@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import {
   CHARACTER_THEME_ASSET_ROUTES,
   characterThemeAssetFile,
   handleCharacterThemeAsset,
+  resolveCharacterThemeAssetsDir,
 } from '../src/character-theme-assets.ts'
 
 const PNG = Buffer.from(
@@ -85,5 +86,34 @@ describe('character theme assets', () => {
     expect(post.status).toBe(405)
     expect(post.headers.get('allow')).toBe('GET, HEAD')
     expect(absent.status).toBe(404)
+  })
+
+  it('prefers packaged wallpapers over the upstream checkout', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'dsh-character-theme-ws-'))
+    temps.push(workspace)
+    const packageRoot = join(workspace, 'dsh-plugin-desktop')
+    const packaged = join(packageRoot, 'build', 'themes')
+    const upstream = join(workspace, 'deepseek-harness', 'themes', 'images')
+    mkdirSync(packaged, { recursive: true })
+    mkdirSync(upstream, { recursive: true })
+    writeFileSync(join(packaged, 'hutao.png'), PNG)
+    writeFileSync(join(packaged, 'furina.png'), PNG)
+    writeFileSync(join(upstream, 'hutao.png'), PNG)
+    writeFileSync(join(upstream, 'furina.png'), PNG)
+    expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(packaged)
+  })
+
+  it('falls back to upstream theme images when the package copy is missing', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'dsh-character-theme-fb-'))
+    temps.push(workspace)
+    const packageRoot = join(workspace, 'dsh-plugin-desktop')
+    mkdirSync(packageRoot, { recursive: true })
+    expect(resolveCharacterThemeAssetsDir(packageRoot)).toBeUndefined()
+
+    const upstream = join(workspace, 'deepseek-harness', 'themes', 'images')
+    mkdirSync(upstream, { recursive: true })
+    writeFileSync(join(upstream, 'hutao.png'), PNG)
+    writeFileSync(join(upstream, 'furina.png'), PNG)
+    expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(upstream)
   })
 })

@@ -14,6 +14,28 @@ export const CHARACTER_THEME_ASSET_ROUTES = [
 export type CharacterThemeId = (typeof CHARACTER_THEME_ASSET_ROUTES)[number]['id']
 
 /**
+ * Directories that may contain Hu Tao / Furina wallpapers during build or `yarn dev`.
+ * @param packageRoot - `dsh-plugin-desktop` package directory.
+ */
+export function characterThemeAssetDirectories(packageRoot: string): string[] {
+  return [
+    join(packageRoot, 'build', 'themes'),
+    join(packageRoot, '..', 'deepseek-harness', 'themes', 'images'),
+    join(packageRoot, '..', 'deepseek-harness', 'apps', 'web', 'public', 'themes'),
+  ]
+}
+
+/**
+ * Pick the first directory that currently has both packaged wallpapers.
+ * @param packageRoot - `dsh-plugin-desktop` package directory.
+ */
+export function resolveCharacterThemeAssetsDir(packageRoot: string): string | undefined {
+  return characterThemeAssetDirectories(packageRoot).find(dir =>
+    CHARACTER_THEME_ASSET_ROUTES.every(asset => existsSync(join(dir, asset.file))),
+  )
+}
+
+/**
  * Resolve one packaged wallpaper inside the Desktop theme asset directory.
  * @param assetsDir - directory containing the copied PNG files.
  * @param file - basename of one registered wallpaper.
