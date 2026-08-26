@@ -16,7 +16,7 @@ export interface DesktopCharacterThemeRuntime {
 
 /** Browser mirror of the official `ui-theme` preference section. */
 export interface OfficialThemePreferenceScope {
-  getSnapshot(): { readonly status: string; readonly value?: { readonly preference?: string } }
+  getSnapshot(): { readonly status: string; readonly value: { readonly preference?: string } | undefined }
 }
 
 /**

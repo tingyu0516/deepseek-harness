@@ -8,6 +8,7 @@ import {
 import {
   applyDesktopCharacterThemePreference,
   syncDesktopCharacterTheme,
+  type DesktopCharacterThemePreference,
 } from '../src/client/character-theme-sync.ts'
 
 describe('desktop character themes', () => {
@@ -93,7 +94,7 @@ describe('desktop character theme preference', () => {
     const listeners = new Set<() => void>()
     let snapshot = {
       status: 'ready' as const,
-      value: { characterTheme: 'furina' as const },
+      value: { characterTheme: 'furina' as DesktopCharacterThemePreference },
       base: undefined,
       user: undefined,
       revision: 1,
