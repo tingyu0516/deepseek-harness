@@ -72,6 +72,7 @@ try {
     environment: process.env,
   })
   releasePackageResolver = installProfilePackageResolver(prepared.bareModuleBaseUrl)
+  mkdirSync(join(home, 'user-data'))
   const runtime = {
     platform: 'win32',
     windowsBuild: 22_631,
@@ -112,6 +113,7 @@ try {
     setThemeSource(source) { nativeThemeSource = source },
     async requestRestart() {},
     prepareToQuit() {},
+    userDataDir: join(home, 'user-data'),
   }
   ctx = await boot(
     BIN_NAME,

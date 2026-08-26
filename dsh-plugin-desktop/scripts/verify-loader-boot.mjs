@@ -102,6 +102,8 @@ try {
     throw new Error('desktop package manifest did not resolve from the profile directory')
   }
 
+  const userDataDir = join(home, 'user-data')
+  mkdirSync(userDataDir)
   const runtime = {
     platform: 'darwin',
     updates: { currentVersion: PRODUCT_VERSION },
@@ -117,6 +119,7 @@ try {
     show() {},
     async requestRestart() {},
     prepareToQuit() {},
+    userDataDir,
   }
   ctx = await boot(
     BIN_NAME,
