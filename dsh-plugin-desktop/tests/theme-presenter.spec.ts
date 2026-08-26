@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { DesktopThemePresenter } from '../src/client/theme-presenter.ts'
+import { HUTAO_THEME } from '../src/client/character-themes.ts'
+import { DesktopThemePresenter, installDesktopThemePresenter } from '../src/client/theme-presenter.ts'
 
 type StyleStub = {
   readonly setProperty: ReturnType<typeof vi.fn>
@@ -121,5 +122,32 @@ describe('DesktopThemePresenter', () => {
     expect(body.removeAttribute).toHaveBeenCalledWith('data-ds-dark-theme')
     expect(bodyStyle.removeProperty).toHaveBeenCalledWith('--desktop-accent')
     expect(meta.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('overlays Hu Tao tokens when Desktop settings select the character theme', () => {
+    const dispose = installDesktopThemePresenter({
+      theme: {
+        getTheme: () => ({
+          preference: 'dark',
+          active: { id: 'dark', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#000' } },
+          themes: [],
+          revision: 1,
+        }),
+      },
+      on: () => () => {},
+      settingsScope: {
+        bind: () => ({
+          getSnapshot: () => ({ status: 'ready', value: { characterTheme: 'hutao' } }),
+          subscribe: () => () => {},
+        }),
+      },
+    } as never)
+
+    expect(bodyStyle.setProperty).toHaveBeenCalledWith(
+      '--dsw-character-bg-image',
+      HUTAO_THEME.tokens['--dsw-character-bg-image'],
+    )
+    expect(bodyStyle.setProperty).toHaveBeenCalledWith('--dsw-alias-bg-base', 'rgba(23, 16, 20, 0.45)')
+    dispose()
   })
 })

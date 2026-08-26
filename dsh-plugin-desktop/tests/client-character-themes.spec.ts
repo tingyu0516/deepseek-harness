@@ -7,6 +7,8 @@ import {
 } from '../src/client/character-theme-registry.ts'
 import {
   applyDesktopCharacterThemePreference,
+  createCharacterThemeProjector,
+  snapshotWithCharacterTheme,
   syncDesktopCharacterTheme,
   type DesktopCharacterThemePreference,
 } from '../src/client/character-theme-sync.ts'
@@ -67,6 +69,7 @@ describe('desktop character themes', () => {
     const dispose = installCharacterThemeBackgroundStyles()
     expect(style.dataset.pluginCss).toBe('dsh-plugin-desktop/character-theme-background')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
+    expect(css).toContain('#root')
     expect(appendChild).toHaveBeenCalledWith(style)
     dispose()
     expect(remove).toHaveBeenCalledOnce()
@@ -90,7 +93,7 @@ describe('desktop character theme preference', () => {
     expect(theme.setTheme).toHaveBeenLastCalledWith('light')
   })
 
-  it('re-applies the Desktop character theme when the official runtime adopts a builtin', () => {
+  it('re-projects character tokens when the official runtime adopts a builtin', () => {
     const listeners = new Set<() => void>()
     let snapshot = {
       status: 'ready' as const,
@@ -116,6 +119,8 @@ describe('desktop character theme preference', () => {
       setTheme: vi.fn((id: string) => { preference = id }),
     }
     const themeListeners = new Set<(next: { preference?: string; active: { id: string } }) => void>()
+    const project = vi.fn()
+    const scheduled: Array<() => void> = []
 
     const dispose = syncDesktopCharacterTheme({
       theme,
@@ -127,17 +132,74 @@ describe('desktop character theme preference', () => {
         themeListeners.add(listener)
         return () => { themeListeners.delete(listener) }
       },
+      project,
+      schedule: task => { scheduled.push(task) },
     })
 
+    expect(theme.setTheme).toHaveBeenCalledOnce()
     expect(theme.setTheme).toHaveBeenCalledWith('furina')
-    preference = 'dark'
-    for (const listener of themeListeners) listener({ preference: 'dark', active: { id: 'dark' } })
-    expect(theme.setTheme).toHaveBeenLastCalledWith('furina')
+    expect(project).toHaveBeenCalledWith('furina')
 
+    preference = 'dark'
+    project.mockClear()
+    for (const listener of themeListeners) listener({ preference: 'dark', active: { id: 'dark' } })
+    expect(theme.setTheme).toHaveBeenCalledOnce()
+    expect(project).not.toHaveBeenCalled()
+    for (const task of scheduled) task()
+    expect(project).toHaveBeenCalledWith('furina')
+    expect(theme.setTheme).toHaveBeenCalledOnce()
+
+    snapshot = { ...snapshot, value: { characterTheme: 'off' } }
+    for (const listener of listeners) listener()
+    expect(theme.setTheme).toHaveBeenCalledOnce()
+    expect(project).toHaveBeenLastCalledWith('off')
+
+    preference = 'furina'
+    snapshot = { ...snapshot, value: { characterTheme: 'hutao' } }
+    for (const listener of listeners) listener()
+    expect(theme.setTheme).toHaveBeenLastCalledWith('hutao')
     snapshot = { ...snapshot, value: { characterTheme: 'off' } }
     for (const listener of listeners) listener()
     expect(theme.setTheme).toHaveBeenLastCalledWith('dark')
     dispose()
+  })
+
+  it('overlays Hu Tao tokens onto a builtin snapshot', () => {
+    const snapshot = {
+      preference: 'dark' as const,
+      active: { id: 'dark', colorScheme: 'dark' as const, tokens: { '--dsw-alias-bg-base': '#000' } },
+      themes: [],
+      revision: 1,
+    }
+    expect(snapshotWithCharacterTheme(snapshot, 'off')).toBe(snapshot)
+    const overlaid = snapshotWithCharacterTheme(snapshot, 'hutao')
+    expect(overlaid.active.id).toBe('hutao')
+    expect(overlaid.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.png")')
+    expect(overlaid.active.tokens['--dsw-alias-bg-base']).toBe('rgba(23, 16, 20, 0.45)')
+  })
+
+  it('projects character tokens onto the style target and clears them when off', () => {
+    const style = {
+      setProperty: vi.fn(),
+      removeProperty: vi.fn(),
+    }
+    const target = {
+      style,
+      setAttribute: vi.fn(),
+      removeAttribute: vi.fn(),
+    }
+    const projector = createCharacterThemeProjector(target)
+
+    projector.apply('hutao')
+    expect(style.setProperty).toHaveBeenCalledWith(
+      '--dsw-character-bg-image',
+      HUTAO_THEME.tokens['--dsw-character-bg-image'],
+    )
+    expect(target.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
+
+    projector.apply('off')
+    expect(style.removeProperty).toHaveBeenCalledWith('--dsw-character-bg-image')
+    projector.dispose()
   })
 
   it('waits until Desktop settings are ready before touching the theme', () => {

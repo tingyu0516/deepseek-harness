@@ -2,12 +2,12 @@ import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { CHARACTER_THEMES } from './character-themes.ts'
 
 const CHARACTER_THEME_BACKGROUND_STYLES = `
-body {
+body,
+#root {
   background-image: var(--dsw-character-bg-image, none);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 `
 

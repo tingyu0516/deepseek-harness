@@ -99,6 +99,7 @@ describe('advanced desktop layout', () => {
     try {
       const dispose = installDesktopOwnedStyles()
       expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\) \{[^}]*background-color: transparent !important;[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
+      expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\) #root \{[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-dragging\] \{ transition: none; \}/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] \{[^}]*display: flex !important;[^}]*flex-direction: column;[^}]*max-height: min\(40vh, 240px\);[^}]*overflow-y: auto;/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] > \* \{[^}]*flex: none;[^}]*min-width: 0;/)
@@ -195,6 +196,12 @@ describe('advanced desktop layout', () => {
         getTheme: vi.fn(() => ({ active: { colorScheme: 'dark', tokens: {} } })),
       },
       on: vi.fn(() => () => {}),
+      settingsScope: {
+        bind: () => ({
+          getSnapshot: () => ({ status: 'ready', value: { characterTheme: 'off' } }),
+          subscribe: () => () => {},
+        }),
+      },
       slots: {
         register: vi.fn((options: Record<string, unknown>, occupant: unknown) => {
           registrations.push(options)
@@ -377,7 +384,10 @@ describe('independent Desktop frame', () => {
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] > \* \{[^}]*flex: none;[^}]*min-width: 0;/)
       expect(css).toMatch(/\[role="presentation"\]:has\(> \[aria-modal="true"\]\),[\s\S]*> \[aria-modal="true"\] \{[\s\S]*top: var\(--dsh-desktop-frame-height\) !important;/)
       expect(css).not.toContain('#root > :has(> [data-shell-overlay])')
-      expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopSidebarSurface \{[^}]*--dsw-specific-sidebar-fill: transparent;[^}]*border-right-color: transparent;[^}]*background: transparent !important;/)
+      expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopSidebarSurface \{[^}]*--dsw-specific-sidebar-fill: transparent;[^}]*border-right-color: transparent;[^}]*background-color: transparent !important;/)
+      expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="compatibility"\], \[data-dsh-desktop-mode="extended"\]\) \{[^}]*background-color: transparent !important;[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
+      expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="compatibility"\], \[data-dsh-desktop-mode="extended"\]\) #root \{[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
+      expect(css).not.toContain('background: transparent !important;')
       expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopFrame \{[^}]*background: var\(--dsh-desktop-frame-fill\);/)
       expect(css).toMatch(/body\[data-dsh-desktop-mode="extended"\] \.dshDesktopConversationSurface \{[^}]*border-top: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-left: 1px solid var\(--dsw-alias-border-l1\);[^}]*border-top-left-radius: 10px;/)
       expect(css).toContain('body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root')
@@ -442,6 +452,12 @@ describe('independent Desktop frame', () => {
         getTheme: vi.fn(() => ({ active: { colorScheme: 'dark', tokens: {} } })),
       },
       on: vi.fn(() => () => {}),
+      settingsScope: {
+        bind: () => ({
+          getSnapshot: () => ({ status: 'ready', value: { characterTheme: 'off' } }),
+          subscribe: () => () => {},
+        }),
+      },
       slots: {
         inject: vi.fn((_name: string, mount: () => unknown) => mount()),
         register: vi.fn((options: Record<string, unknown>, occupant: unknown) => {

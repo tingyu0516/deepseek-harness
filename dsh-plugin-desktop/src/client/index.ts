@@ -11,7 +11,7 @@ import {
   registerDesktopCharacterThemes,
 } from './character-theme-registry.ts'
 import { startRendererBootReporter } from './boot-health.ts'
-import { syncDesktopCharacterTheme } from './character-theme-sync.ts'
+import { createCharacterThemeProjector, syncDesktopCharacterTheme } from './character-theme-sync.ts'
 import { applyDesktopSettings, DESKTOP_SHELL_SETTINGS_NAMESPACE } from './desktop-settings.ts'
 import type { DesktopShellSettings } from './DesktopSettingsSection.tsx'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
@@ -102,23 +102,6 @@ export function apply(ctx: ClientContext): void {
   )
   const desktopSettings = applyDesktopSettings(ctx, environment)
   ctx.effect(
-    () => {
-      const shellSettings = ctx.settingsScope.bind<DesktopShellSettings>({
-        namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
-      })
-      const officialTheme = ctx.settingsScope.bind<{ preference: 'light' | 'dark' | 'system' }>({
-        namespace: 'ui-theme',
-      })
-      return syncDesktopCharacterTheme({
-        theme: ctx.theme,
-        desktopSettings: shellSettings,
-        officialTheme,
-        onThemeChange: listener => ctx.on('theme/change', listener),
-      })
-    },
-    'dsh-plugin-desktop: character theme preference',
-  )
-  ctx.effect(
     () => startRendererBootReporter(ctx.loader),
     'dsh-plugin-desktop: renderer boot health report',
   )
@@ -143,4 +126,28 @@ export function apply(ctx: ClientContext): void {
   if (environment.platform !== 'linux' && environment.mode === 'compatibility') {
     applyFramedShell(ctx, environment, desktopSettings)
   }
+  // Last writer: project character tokens after official and Desktop presenters.
+  ctx.effect(
+    () => {
+      const shellSettings = ctx.settingsScope.bind<DesktopShellSettings>({
+        namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
+      })
+      const officialTheme = ctx.settingsScope.bind<{ preference: 'light' | 'dark' | 'system' }>({
+        namespace: 'ui-theme',
+      })
+      const projector = createCharacterThemeProjector()
+      const stop = syncDesktopCharacterTheme({
+        theme: ctx.theme,
+        desktopSettings: shellSettings,
+        officialTheme,
+        onThemeChange: listener => ctx.on('theme/change', listener),
+        project: preference => projector.apply(preference),
+      })
+      return () => {
+        stop()
+        projector.dispose()
+      }
+    },
+    'dsh-plugin-desktop: character theme preference',
+  )
 }

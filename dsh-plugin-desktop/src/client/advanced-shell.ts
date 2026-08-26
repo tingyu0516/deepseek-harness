@@ -6,7 +6,7 @@ import { AdvancedFrame } from './AdvancedFrame.tsx'
 import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
-import { DesktopThemePresenter } from './theme-presenter.ts'
+import { installDesktopThemePresenter } from './theme-presenter.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -33,15 +33,10 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     }
   }, 'desktop: advanced shell styles')
 
-  ctx.effect(() => {
-    const presenter = new DesktopThemePresenter()
-    presenter.apply(ctx.theme.getTheme())
-    const off = ctx.on('theme/change', snapshot => { presenter.apply(snapshot) })
-    return () => {
-      off()
-      presenter.dispose()
-    }
-  }, 'desktop: theme presenter')
+  ctx.effect(
+    () => installDesktopThemePresenter(ctx),
+    'desktop: theme presenter',
+  )
 
   ctx.effect(() => ctx.slots.register({
     name: 'root',

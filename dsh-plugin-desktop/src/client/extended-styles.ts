@@ -19,7 +19,11 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   --dsh-desktop-frame-height: ${DESKTOP_FRAME_HEIGHT}px;
   margin: 0;
   overflow: hidden;
-  background: transparent !important;
+  background-color: transparent !important;
+  background-image: var(--dsw-character-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
   box-sizing: border-box;
@@ -33,6 +37,11 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   padding-top: 0;
   overflow: hidden;
   transform: translateZ(0);
+  background-color: transparent !important;
+  background-image: var(--dsw-character-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 /* The custom frame owns the top band. A shell overlay is the containing block
    for fixed plugin surfaces, so they cannot escape into Desktop chrome. */
@@ -70,7 +79,7 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
 body[data-dsh-desktop-mode="extended"] .dshDesktopSidebarSurface {
   --dsw-specific-sidebar-fill: transparent;
   border-right-color: transparent;
-  background: transparent !important;
+  background-color: transparent !important;
 }
 body[data-dsh-desktop-mode="extended"] .dshDesktopFrame {
   background: var(--dsh-desktop-frame-fill);

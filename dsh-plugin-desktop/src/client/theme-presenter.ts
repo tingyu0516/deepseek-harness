@@ -1,4 +1,11 @@
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
+import {
+  readDesktopCharacterThemePreference,
+  snapshotWithCharacterTheme,
+  type DesktopCharacterThemePreference,
+} from './character-theme-sync.ts'
+import { DESKTOP_SHELL_SETTINGS_NAMESPACE } from './desktop-settings.ts'
 
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
@@ -34,5 +41,31 @@ export class DesktopThemePresenter {
     for (const name of this.appliedTokens) document.body.style.removeProperty(name)
     this.appliedTokens = []
     this.themeColorMeta.remove()
+  }
+}
+
+/**
+ * Project the live theme snapshot, overlaying Hu Tao / Furina from Desktop
+ * settings so enhanced and extended shells do not depend on `setTheme`.
+ * @param ctx - browser Cordis context.
+ */
+export function installDesktopThemePresenter(ctx: ClientContext): () => void {
+  const presenter = new DesktopThemePresenter()
+  const desktopSettings = ctx.settingsScope.bind<{ characterTheme?: DesktopCharacterThemePreference }>({
+    namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
+  })
+  const applySnapshot = (snapshot: ThemeSnapshot): void => {
+    presenter.apply(snapshotWithCharacterTheme(
+      snapshot,
+      readDesktopCharacterThemePreference(desktopSettings.getSnapshot()),
+    ))
+  }
+  applySnapshot(ctx.theme.getTheme())
+  const offTheme = ctx.on('theme/change', applySnapshot)
+  const offSettings = desktopSettings.subscribe(() => applySnapshot(ctx.theme.getTheme()))
+  return () => {
+    offTheme()
+    offSettings()
+    presenter.dispose()
   }
 }

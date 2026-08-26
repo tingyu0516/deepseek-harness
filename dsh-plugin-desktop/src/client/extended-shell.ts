@@ -17,7 +17,7 @@ import { installExtendedStyles } from './extended-styles.ts'
 import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
-import { DesktopThemePresenter } from './theme-presenter.ts'
+import { installDesktopThemePresenter } from './theme-presenter.ts'
 
 /** Own the extended root/sidebar surface without reusing enhanced-mode chrome. */
 function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -32,15 +32,10 @@ function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientE
     'desktop: extended owned layout styles',
   )
 
-  ctx.effect(() => {
-    const presenter = new DesktopThemePresenter()
-    presenter.apply(ctx.theme.getTheme())
-    const off = ctx.on('theme/change', snapshot => { presenter.apply(snapshot) })
-    return () => {
-      off()
-      presenter.dispose()
-    }
-  }, 'desktop: extended theme presenter')
+  ctx.effect(
+    () => installDesktopThemePresenter(ctx),
+    'desktop: extended theme presenter',
+  )
 
   ctx.effect(() => ctx.slots.register({
     name: 'root',
