@@ -82,6 +82,14 @@ export function isCharacterWallpaperThemeId(value: unknown): value is CharacterW
 }
 
 /**
+ * Loopback URL for the packaged default wallpaper.
+ * @param theme - Hu Tao or Furina library.
+ */
+export function defaultCharacterWallpaperUrl(theme: CharacterWallpaperThemeId): string {
+  return `/themes/${theme}.png`
+}
+
+/**
  * Loopback URL for one wallpaper. Unknown custom ids fall back to the bundled PNG.
  * @param theme - Hu Tao or Furina library.
  * @param wallpaperId - `default` or an imported `wp_…` id.
@@ -91,7 +99,7 @@ export function characterWallpaperAssetUrl(
   wallpaperId: string,
 ): string {
   if (wallpaperId === DEFAULT_CHARACTER_WALLPAPER_ID || !isCustomCharacterWallpaperId(wallpaperId)) {
-    return `/themes/${theme}.png`
+    return defaultCharacterWallpaperUrl(theme)
   }
   return `${CHARACTER_WALLPAPER_ASSET_PREFIX}/${theme}/${wallpaperId}`
 }

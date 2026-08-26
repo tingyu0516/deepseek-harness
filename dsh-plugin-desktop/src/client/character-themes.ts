@@ -1,5 +1,9 @@
 import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
-import { characterWallpaperAssetUrl, type CharacterWallpaperThemeId } from '../character-wallpaper-contract.ts'
+import {
+  characterWallpaperAssetUrl,
+  defaultCharacterWallpaperUrl,
+  type CharacterWallpaperThemeId,
+} from '../character-wallpaper-contract.ts'
 
 /** Hu Tao · 往生堂 — deep plum, cinnabar red, gold, ghost cyan. */
 export const HUTAO_THEME: ThemeDefinition = {
@@ -8,7 +12,7 @@ export const HUTAO_THEME: ThemeDefinition = {
   tokens: {
     '--dsw-character-bg-image':
       'linear-gradient(180deg, rgba(23, 16, 20, 0.2), rgba(23, 16, 20, 0.55)),'
-      + 'url("/themes/hutao.png")',
+      + `url("${defaultCharacterWallpaperUrl('hutao')}")`,
     '--dsw-alias-bg-base': 'rgba(23, 16, 20, 0.45)',
     '--dsw-alias-bg-layer-1': 'rgba(30, 22, 27, 0.55)',
     '--dsw-alias-bg-layer-2': 'rgba(36, 26, 31, 0.65)',
@@ -89,7 +93,7 @@ export const FURINA_THEME: ThemeDefinition = {
   tokens: {
     '--dsw-character-bg-image':
       'linear-gradient(180deg, rgba(7, 16, 30, 0.2), rgba(7, 16, 30, 0.55)),'
-      + 'url("/themes/furina.png")',
+      + `url("${defaultCharacterWallpaperUrl('furina')}")`,
     '--dsw-alias-bg-base': 'rgba(7, 16, 30, 0.45)',
     '--dsw-alias-bg-layer-1': 'rgba(11, 23, 48, 0.55)',
     '--dsw-alias-bg-layer-2': 'rgba(15, 28, 48, 0.65)',

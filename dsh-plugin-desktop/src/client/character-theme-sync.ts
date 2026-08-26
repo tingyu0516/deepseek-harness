@@ -174,7 +174,15 @@ export function applyCharacterThemeToDocument(
   const declarations = Object.entries(characterThemeTokens(preference, wallpaperId))
     .map(([name, value]) => `${name}: ${value} !important;`)
     .join(' ')
-  style.textContent = `body { ${declarations} }`
+  const nextCss = `body { ${declarations} }`
+  const currentAttr = document.body.getAttribute(CHARACTER_THEME_ATTR)
+  if (style.textContent === nextCss && currentAttr === def.id) {
+    if (def.colorScheme === 'dark' && !document.body.hasAttribute(DARK_ATTRIBUTE)) {
+      document.body.setAttribute(DARK_ATTRIBUTE, '')
+    }
+    return
+  }
+  style.textContent = nextCss
   document.body.setAttribute(CHARACTER_THEME_ATTR, def.id)
   if (def.colorScheme === 'dark' && !document.body.hasAttribute(DARK_ATTRIBUTE)) {
     document.body.setAttribute(DARK_ATTRIBUTE, '')

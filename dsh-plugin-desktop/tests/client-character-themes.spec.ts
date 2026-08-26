@@ -70,8 +70,10 @@ describe('desktop character themes', () => {
 
     const dispose = installCharacterThemeBackgroundStyles()
     expect(style.dataset.pluginCss).toBe('dsh-plugin-desktop/character-theme-background')
-    expect(css).toContain('body[data-dsh-character-theme]')
+    expect(css).toContain('body[data-dsh-character-theme]::before')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
+    expect(css).toContain('contain: paint')
+    expect(css).not.toMatch(/body\[data-dsh-character-theme\] \{[^}]*background-image: var\(--dsw-character-bg-image/)
     expect(css).toContain('#root')
     expect(css).toMatch(/body\[data-dsh-character-theme\]:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\)\s+\.dshDesktopSidebarSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-layer-1\) 42%, var\(--dsw-alias-bg-layer-3\)\) !important;/)
     expect(css).not.toMatch(/body\[data-dsh-character-theme\] \.dshDesktopSidebarSurface \{[^}]*background-color: transparent !important;/)
@@ -219,18 +221,24 @@ describe('desktop character theme preference', () => {
 
   it('writes an !important token sheet and wallpaper marker onto the document', () => {
     let css = ''
+    let cssWrites = 0
     const remove = vi.fn()
     let attached: { id: string; textContent: string; remove: ReturnType<typeof vi.fn> } | null = null
     const style = {
       id: '',
       get textContent() { return css },
-      set textContent(value: string) { css = value },
+      set textContent(value: string) {
+        cssWrites += 1
+        css = value
+      },
       remove,
     }
+    const attributes = new Map<string, string>()
     const body = {
-      setAttribute: vi.fn(),
-      removeAttribute: vi.fn(),
-      hasAttribute: vi.fn(() => false),
+      setAttribute: vi.fn((name: string, value: string) => { attributes.set(name, value) }),
+      getAttribute: (name: string) => attributes.get(name) ?? null,
+      removeAttribute: vi.fn((name: string) => { attributes.delete(name) }),
+      hasAttribute: (name: string) => attributes.has(name),
     }
     const appendChild = vi.fn((node: typeof style) => { attached = node })
     vi.stubGlobal('document', {
@@ -247,6 +255,11 @@ describe('desktop character theme preference', () => {
     expect(body.setAttribute).toHaveBeenCalledWith('data-dsh-character-theme', 'hutao')
     expect(body.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
     expect(appendChild).toHaveBeenCalledWith(style)
+    expect(cssWrites).toBe(1)
+
+    applyCharacterThemeToDocument('hutao')
+    expect(cssWrites).toBe(1)
+    expect(body.setAttribute).toHaveBeenCalledTimes(2)
 
     applyCharacterThemeToDocument('off')
     expect(remove).toHaveBeenCalledOnce()
