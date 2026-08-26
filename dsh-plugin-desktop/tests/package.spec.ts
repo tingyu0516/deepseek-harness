@@ -645,6 +645,7 @@ describe('published package surface', () => {
     expect(manifest.files).toEqual(expect.arrayContaining([
       'build/app-icon.png',
       'build/app-icon-mac.png',
+      'build/themes/*.png',
       'build/tray-icon.svg',
       'build/tray-icon*.png',
       'docs/**',
@@ -652,6 +653,7 @@ describe('published package surface', () => {
     expect(manifest.build?.files).toEqual([
       'build/app-icon.png',
       'build/app-icon-mac.png',
+      'build/themes/*.png',
       'build/tray-icon.svg',
       'build/tray-icon*.png',
       'cordis.patch.yml',
@@ -689,6 +691,7 @@ describe('published package surface', () => {
     const packageDir = readFileSync(new URL('scripts/package-dir.mjs', packageRoot), 'utf8')
 
     expect(manifest.scripts?.build).toContain('node scripts/generate-mac-app-icon.mjs')
+    expect(manifest.scripts?.build).toContain('node scripts/copy-character-theme-assets.mjs')
     expect(manifest.scripts?.['package:dir']).toBe('yarn run build && node scripts/package-dir.mjs')
     expect(packageDir).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
     expect(manifest.scripts?.['dist:mac']).toBe('node scripts/release-mac.ts')

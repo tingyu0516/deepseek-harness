@@ -13,9 +13,13 @@ import {
   desktopRendererUrl,
   DesktopSettingsSchema,
   inject,
+  resolveDesktopNativeThemeSource,
   type Config as DesktopConfig,
   type DesktopSettings,
 } from '../src/index.ts'
+import {
+  CHARACTER_THEME_ASSET_ROUTES,
+} from '../src/character-theme-assets.ts'
 import {
   DESKTOP_DIRECTORY_PICKER_PATH,
   DESKTOP_DIRECTORY_VALIDATOR_PATH,
@@ -173,10 +177,12 @@ describe('desktop Host plugin', () => {
       windowsMaterial: 'acrylic',
       port: 43_120,
       logLevel: 'info',
+      characterTheme: 'off',
     })
     expect(() => DesktopSettingsSchema({ port: -1 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 1.5 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 65_536 } as DesktopSettings)).toThrow()
+    expect(() => DesktopSettingsSchema({ characterTheme: 'light' } as never)).toThrow()
     expect(() => Config({ mode: 'custom' } as never)).toThrow()
     expect(String(DESKTOP_SETTINGS_NAMESPACE)).toBe('dsh-desktop')
   })
@@ -295,6 +301,17 @@ describe('desktop Host plugin', () => {
     expect(res.statusCode).toBe(204)
   })
 
+  it('registers exact Hu Tao and Furina wallpaper routes', () => {
+    const harness = createHarness()
+    apply(harness.ctx, config)
+    for (const asset of CHARACTER_THEME_ASSET_ROUTES) {
+      expect(harness.route(asset.path)).toEqual(expect.objectContaining({
+        kind: 'exact',
+        path: asset.path,
+      }))
+    }
+  })
+
   it('serves the Windows native picker through a same-origin desktop route', async () => {
     const harness = createHarness('win32')
     harness.pickDirectory.mockResolvedValue('C:\\Work')
@@ -366,15 +383,15 @@ describe('desktop Host plugin', () => {
     apply(harness.ctx, config)
 
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
     )
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'advanced', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'advanced', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).toHaveBeenCalledOnce()
@@ -386,15 +403,15 @@ describe('desktop Host plugin', () => {
     apply(harness.ctx, config)
 
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug', characterTheme: 'off' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
     )
     expect(harness.restart).not.toHaveBeenCalled()
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_189, logLevel: 'debug' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 43_189, logLevel: 'debug', characterTheme: 'off' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'debug', characterTheme: 'off' },
     )
     await vi.runAllTimersAsync()
     expect(harness.restart).toHaveBeenCalledOnce()
@@ -407,12 +424,42 @@ describe('desktop Host plugin', () => {
 
     harness.restart.mockImplementation(() => new Promise<void>(() => {}))
     await harness.notify(
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'mica', port: 0, logLevel: 'info' },
-      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'mica', port: 0, logLevel: 'info', characterTheme: 'off' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
     )
     await vi.runAllTimersAsync()
 
     expect(harness.restart).toHaveBeenCalledOnce()
+  })
+
+  it('does not restart when only the character theme changes', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    apply(harness.ctx, config)
+
+    await harness.notify(
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'hutao' },
+      { mode: 'compatibility', macosMaterial: 'transparent', windowsMaterial: 'acrylic', port: 0, logLevel: 'info', characterTheme: 'off' },
+    )
+    await vi.runAllTimersAsync()
+    expect(harness.restart).not.toHaveBeenCalled()
+  })
+
+  it('maps Hu Tao and Furina onto the dark native appearance', () => {
+    expect(resolveDesktopNativeThemeSource('light', 'hutao')).toBe('dark')
+    expect(resolveDesktopNativeThemeSource('system', 'furina')).toBe('dark')
+    expect(resolveDesktopNativeThemeSource('light', 'off')).toBe('light')
+    expect(resolveDesktopNativeThemeSource('system', undefined)).toBe('system')
+    expect(() => resolveDesktopNativeThemeSource(undefined, 'off')).toThrow('ui-theme settings namespace')
+
+    const harness = createHarness()
+    vi.mocked(harness.ctx.settings.get).mockImplementation((namespace: unknown) => {
+      if (String(namespace) === 'ui-theme') return { preference: 'light' }
+      if (String(namespace) === 'dsh-desktop') return { characterTheme: 'hutao' }
+      return undefined
+    })
+    apply(harness.ctx, { ...config, mode: 'advanced' })
+    expect(harness.shell()?.readThemeSource()).toBe('dark')
   })
 
   it('projects live built-in theme changes into an advanced native material', () => {

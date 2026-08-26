@@ -18,6 +18,7 @@ export interface DesktopShellSettings {
   readonly windowsMaterial: 'off' | 'acrylic' | 'mica'
   readonly port: number
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'
+  readonly characterTheme: 'off' | 'hutao' | 'furina'
 }
 
 /** Browser view of the Host `dsh-desktop-notifications` settings namespace. */
@@ -46,7 +47,7 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'notification'
 type RestartState = 'none' | 'restarting' | 'required'
 
 function useScope<T>(scope: SettingsScope<T>) {
@@ -245,6 +246,7 @@ export function DesktopSettingsSection({
   const settingsWritable = desktop.status === 'ready' && desktop.writable
   const notificationsWritable = notifications.status === 'ready' && notifications.writable
   const mode = desktop.value?.mode ?? initialMode
+  const characterTheme = desktop.value?.characterTheme ?? 'off'
   const notificationValue = notifications.value ?? {
     enabled: true,
     notifyOnTurnCompletion: true,
@@ -309,6 +311,12 @@ export function DesktopSettingsSection({
         await desktopSettings.set('windowsMaterial', next)
       }
       requestRestart()
+    })
+  }
+
+  const setCharacterTheme = (next: DesktopShellSettings['characterTheme']): void => {
+    void run('character-theme', async () => {
+      await desktopSettings.set('characterTheme', next)
     })
   }
 
@@ -511,6 +519,36 @@ export function DesktopSettingsSection({
             </select>
           </label>
         )}
+        <div>
+          <h3 id="dsh-desktop-character-theme-title">{t('characterThemeTitle')}</h3>
+          <p className="dshDesktopSettingsGroupIntro">{t('characterThemeIntro')}</p>
+        </div>
+        <div className="dshDesktopSettingsList" role="radiogroup" aria-labelledby="dsh-desktop-character-theme-title">
+          <Choice
+            title={t('characterThemeOff')}
+            body={t('characterThemeOffBody')}
+            selected={characterTheme === 'off'}
+            disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+            action={() => { setCharacterTheme('off') }}
+            status={characterTheme === 'off' ? t('selected') : undefined}
+          />
+          <Choice
+            title={t('characterThemeHutao')}
+            body={t('characterThemeHutaoBody')}
+            selected={characterTheme === 'hutao'}
+            disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+            action={() => { setCharacterTheme('hutao') }}
+            status={characterTheme === 'hutao' ? t('selected') : undefined}
+          />
+          <Choice
+            title={t('characterThemeFurina')}
+            body={t('characterThemeFurinaBody')}
+            selected={characterTheme === 'furina'}
+            disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+            action={() => { setCharacterTheme('furina') }}
+            status={characterTheme === 'furina' ? t('selected') : undefined}
+          />
+        </div>
       </section>
 
       <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-notifications-title">

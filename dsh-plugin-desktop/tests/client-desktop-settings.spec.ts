@@ -12,7 +12,10 @@ import {
   DesktopVersionControl,
   selectDesktopFrameMode,
 } from '../src/client/ExtendedTitlebar.tsx'
-import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
+import {
+  DesktopSettingsSection,
+  type DesktopSettingsSectionProps,
+} from '../src/client/DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
   createDesktopSettingsApi,
@@ -355,5 +358,69 @@ describe('Desktop settings Slot registration', () => {
     expect(actionComponent).toBe(DesktopTerminalSettingsAction)
     await control.setMode('extended')
     expect(scope.set).toHaveBeenCalledWith('mode', 'extended')
+  })
+
+  it('offers Hu Tao and Furina in the Desktop appearance section', () => {
+    const set = vi.fn(async () => {})
+    const shell = {
+      mode: 'compatibility' as const,
+      macosMaterial: 'transparent' as const,
+      windowsMaterial: 'acrylic' as const,
+      port: 0,
+      logLevel: 'info' as const,
+      characterTheme: 'hutao' as const,
+    }
+    const notifications = {
+      enabled: true,
+      notifyOnTurnCompletion: true,
+      notifyOnTurnFailure: true,
+      notifyOnJobCompletion: true,
+      notifyOnJobFailure: true,
+    }
+    const markup = renderToStaticMarkup(createElement(DesktopSettingsSection, {
+      t: (key: DesktopSettingsLocaleKey) => en[key],
+      api: {
+        read: vi.fn(async () => VIEW),
+      },
+      platform: 'darwin',
+      initialMode: 'compatibility',
+      micaSupported: false,
+      desktopSettings: {
+        getSnapshot: () => ({
+          status: 'ready' as const,
+          value: shell,
+          base: shell,
+          user: shell,
+          revision: 1,
+          writable: true,
+          mode: 'host' as const,
+        }),
+        subscribe: () => () => {},
+        set,
+        unset: vi.fn(async () => {}),
+      },
+      notificationSettings: {
+        getSnapshot: () => ({
+          status: 'ready' as const,
+          value: notifications,
+          base: notifications,
+          user: notifications,
+          revision: 1,
+          writable: true,
+          mode: 'host' as const,
+        }),
+        subscribe: () => () => {},
+        set: vi.fn(async () => {}),
+        unset: vi.fn(async () => {}),
+      },
+    } as unknown as DesktopSettingsSectionProps))
+
+    expect(markup).toContain('Character theme')
+    expect(markup).toContain('Hu Tao')
+    expect(markup).toContain('Furina')
+    expect(markup).toContain('Wangsheng Funeral Parlor')
+    expect(markup.indexOf('aria-checked="true"')).toBeGreaterThan(-1)
+    expect(markup).toContain('Hu Tao')
+    expect(markup).toMatch(/Hu Tao[\s\S]*Selected/)
   })
 })

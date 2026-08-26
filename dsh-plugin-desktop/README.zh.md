@@ -83,7 +83,9 @@ desktop Client 会在所有呈现模式中提供不可变的 `desktopWindow` 原
 
 高级 theme presenter 会把当前上游 theme snapshot 投影到 document，包括 color scheme、解析后的 token 值、深色模式 marker 与 theme-color metadata。它订阅普通 theme 变化，generation dispose 时只移除由自身投影的状态。
 
-对于高级 generation，Electron adapter 还会在 Host boot 完成后读取已注册的 `ui-theme.preference`，并在创建窗口前把内置 `light`、`dark` 或 `system` 值同步到 Electron 原生外观。窗口存续期间提交的 preference 变化会更新原生材质，dispose 则恢复此前的 Electron 外观。仅存在于 Client 的第三方 theme id 不会改变该 Host preference。
+Desktop 通过官方 `theme.register()` 注册胡桃（`hutao`）和芙宁娜（`furina`），并提供 `/themes/` 壁纸。在「桌面版」设置的「桌面外观与行为」中选择；它们不会出现在官方「外观」行里，该行仍然只持久化 `light` / `dark` / `system`。选择角色主题后立即生效，会覆盖官方外观直到关闭，并把 Electron 原生外观映射为深色。这不会替换 `@deepseek-ai/dsh-client-ui-theme`。
+
+对于高级 generation，Electron adapter 还会在 Host boot 完成后读取已注册的 `ui-theme.preference`，并在创建窗口前把内置 `light`、`dark` 或 `system` 值同步到 Electron 原生外观。角色主题开启时，原生外观跟随深色，而不是已存储的内置偏好。窗口存续期间提交的 preference 变化会更新原生材质，dispose 则恢复此前的 Electron 外观。
 
 desktop sidebar surface 会把上游 sidebar-fill token 局部设为透明，因此官方 sidebar 与 session 列表渐隐可以透出原生材质，而无需改变其组件样式。
 

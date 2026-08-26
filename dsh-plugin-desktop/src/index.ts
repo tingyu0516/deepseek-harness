@@ -58,6 +58,11 @@ import type {} from './desktop-settings-controller.ts'
 import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
+import {
+  CHARACTER_THEME_ASSET_ROUTES,
+  characterThemeAssetFile,
+  handleCharacterThemeAsset,
+} from './character-theme-assets.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
@@ -83,6 +88,9 @@ export const DESKTOP_SETTINGS_NAMESPACE = settingsNamespace('dsh-desktop')
 const UI_THEME_SETTINGS_NAMESPACE = settingsNamespace(THEME_SETTINGS_NAMESPACE)
 const UI_LOCALE_SETTINGS_NAMESPACE = settingsNamespace(LOCALE_SETTINGS_NAMESPACE)
 
+/** Desktop-owned character theme overlay; `off` keeps the official Appearance row. */
+export type DesktopCharacterTheme = 'off' | 'hutao' | 'furina'
+
 /** Desktop settings presented by the standard settings service. */
 export interface DesktopSettings {
   /** Native presentation selected for the next application generation. */
@@ -95,6 +103,8 @@ export interface DesktopSettings {
   port: number
   /** Log verbosity threshold applied to the file logger. */
   logLevel: 'debug' | 'info' | 'warn' | 'error'
+  /** Client character theme; does not require a process restart. */
+  characterTheme: DesktopCharacterTheme
 }
 
 /** Schema registered with the standard settings service. */
@@ -104,7 +114,23 @@ export const DesktopSettingsSchema: z<DesktopSettings> = z.object({
   windowsMaterial: z.union(['off', 'acrylic', 'mica'] as const).default(DEFAULT_WINDOWS_WINDOW_MATERIAL),
   port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
   logLevel: z.union(['debug', 'info', 'warn', 'error'] as const).default('info'),
+  characterTheme: z.union(['off', 'hutao', 'furina'] as const).default('off'),
 })
+
+/**
+ * Map Desktop character themes onto Electron's built-in native appearance.
+ * Hu Tao and Furina are dark palettes; `off` mirrors the official Appearance row.
+ */
+export function resolveDesktopNativeThemeSource(
+  preference: ThemeSettings['preference'] | undefined,
+  characterTheme: DesktopCharacterTheme | undefined,
+): ThemeSettings['preference'] {
+  if (characterTheme === 'hutao' || characterTheme === 'furina') return 'dark'
+  if (preference === undefined) {
+    throw new Error('dsh-plugin-desktop: custom shell requires the ui-theme settings namespace')
+  }
+  return preference
+}
 
 /** Native window configuration. */
 export interface Config {
@@ -266,6 +292,18 @@ export function apply(ctx: Context, config: Config): void {
     }),
     'dsh-plugin-desktop: renderer boot report route',
   )
+  const characterThemeAssetsDir = fileURLToPath(new URL('../build/themes', import.meta.url))
+  for (const asset of CHARACTER_THEME_ASSET_ROUTES) {
+    const filePath = characterThemeAssetFile(characterThemeAssetsDir, asset.file)
+    ctx.effect(
+      () => ctx.webServer.register({
+        kind: 'exact',
+        path: asset.path,
+        handler: (req, res) => handleCharacterThemeAsset(req, res, filePath),
+      }),
+      `dsh-plugin-desktop: character theme asset ${asset.path}`,
+    )
+  }
   if (runtime.platform === 'win32') {
     ctx.effect(
       () => ctx.webServer.register({
@@ -326,8 +364,19 @@ export function apply(ctx: Context, config: Config): void {
   }, 'dsh-plugin-desktop: restart after startup setting change')
   if (runtime.platform !== 'linux') {
     ctx.on('settings/updated', (namespace, next) => {
-      if (namespace !== UI_THEME_SETTINGS_NAMESPACE) return
-      runtime.setThemeSource((next as ThemeSettings).preference)
+      if (namespace === UI_THEME_SETTINGS_NAMESPACE) {
+        runtime.setThemeSource(resolveDesktopNativeThemeSource(
+          (next as ThemeSettings).preference,
+          (ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined)?.characterTheme,
+        ))
+        return
+      }
+      if (namespace !== DESKTOP_SETTINGS_NAMESPACE) return
+      const theme = ctx.settings.get(UI_THEME_SETTINGS_NAMESPACE) as ThemeSettings | undefined
+      runtime.setThemeSource(resolveDesktopNativeThemeSource(
+        theme?.preference,
+        (next as DesktopSettings).characterTheme,
+      ))
     })
   }
   ctx.on('settings/updated', (namespace, next) => {
@@ -364,10 +413,8 @@ export function apply(ctx: Context, config: Config): void {
         },
         readThemeSource: () => {
           const theme = ctx.settings.get(UI_THEME_SETTINGS_NAMESPACE) as ThemeSettings | undefined
-          if (theme === undefined) {
-            throw new Error('dsh-plugin-desktop: custom shell requires the ui-theme settings namespace')
-          }
-          return theme.preference
+          const desktop = ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined
+          return resolveDesktopNativeThemeSource(theme?.preference, desktop?.characterTheme)
         },
         requestQuit: appExit,
         requestModeChange: async mode => settings.update({ mode }),

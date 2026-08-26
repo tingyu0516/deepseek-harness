@@ -98,7 +98,7 @@ describe('advanced desktop layout', () => {
 
     try {
       const dispose = installDesktopOwnedStyles()
-      expect(css).toMatch(/\.dshDesktopFrame \{[^}]*transition: grid-template-columns var\(--ds-transition-duration-slow\) var\(--ds-ease-in-out\);/)
+      expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\) \{[^}]*background-color: transparent !important;[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-dragging\] \{ transition: none; \}/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] \{[^}]*display: flex !important;[^}]*flex-direction: column;[^}]*max-height: min\(40vh, 240px\);[^}]*overflow-y: auto;/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] > \* \{[^}]*flex: none;[^}]*min-width: 0;/)

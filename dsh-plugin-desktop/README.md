@@ -83,7 +83,9 @@ The desktop Client provides the immutable `desktopWindow` native-geometry servic
 
 The enhanced theme presenter projects the active upstream theme snapshot onto the document, including color scheme, resolved token values, dark-mode marker, and theme-color metadata. It subscribes to ordinary theme changes and removes only its own projected state when the generation disposes.
 
-For an enhanced generation, the Electron adapter also reads the registered `ui-theme.preference` after Host boot and mirrors its built-in `light`, `dark`, or `system` value into Electron's native appearance before constructing the window. Committed preference changes update the native material while the window is active, and disposal restores the preceding Electron appearance. Client-only third-party theme ids do not change this Host preference.
+Desktop registers Hu Tao (`hutao`) and Furina (`furina`) through the official `theme.register()` API and serves their wallpapers from `/themes/`. Choose them in Desktop settings under Desktop appearance and behavior. They are not shown in the official Appearance row, which still only persists `light` / `dark` / `system`. Selecting a character theme applies immediately, overrides that Appearance choice until you turn it off, and maps Electron's native chrome to dark. It does not replace `@deepseek-ai/dsh-client-ui-theme`.
+
+For an enhanced generation, the Electron adapter also reads the registered `ui-theme.preference` after Host boot and mirrors its built-in `light`, `dark`, or `system` value into Electron's native appearance before constructing the window. While a character theme is selected, that native appearance follows dark instead of the stored built-in preference. Committed preference changes update the native material while the window is active, and disposal restores the preceding Electron appearance.
 
 The desktop sidebar surface scopes the upstream sidebar-fill token to transparent, so the official sidebar and session-list fade reveal the native material without changing their component styles.
 

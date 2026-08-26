@@ -6,8 +6,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { applyAdvancedShell } from './advanced-shell.ts'
+import {
+  installCharacterThemeBackgroundStyles,
+  registerDesktopCharacterThemes,
+} from './character-theme-registry.ts'
 import { startRendererBootReporter } from './boot-health.ts'
-import { applyDesktopSettings } from './desktop-settings.ts'
+import { syncDesktopCharacterTheme } from './character-theme-sync.ts'
+import { applyDesktopSettings, DESKTOP_SHELL_SETTINGS_NAMESPACE } from './desktop-settings.ts'
+import type { DesktopShellSettings } from './DesktopSettingsSection.tsx'
 import { installDesktopDirectoryPickerBridge, requestDesktopDirectoryValidation } from './directory-picker.ts'
 import { parseDesktopClientEnvironment } from './environment.ts'
 import { applyExtendedShell, applyFramedShell } from './extended-shell.ts'
@@ -83,10 +89,35 @@ export function apply(ctx: ClientContext): void {
   const environment = parseDesktopClientEnvironment(window.location.search)
   if (!environment) return
   ctx.effect(
+    () => installCharacterThemeBackgroundStyles(),
+    'dsh-plugin-desktop: character theme background',
+  )
+  ctx.effect(
+    () => registerDesktopCharacterThemes(ctx.theme),
+    'dsh-plugin-desktop: character theme registry',
+  )
+  ctx.effect(
     () => provideDesktopWindow(ctx, desktopWindowService(environment)),
     'dsh-plugin-desktop: native window geometry service',
   )
   const desktopSettings = applyDesktopSettings(ctx, environment)
+  ctx.effect(
+    () => {
+      const shellSettings = ctx.settingsScope.bind<DesktopShellSettings>({
+        namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE,
+      })
+      const officialTheme = ctx.settingsScope.bind<{ preference: 'light' | 'dark' | 'system' }>({
+        namespace: 'ui-theme',
+      })
+      return syncDesktopCharacterTheme({
+        theme: ctx.theme,
+        desktopSettings: shellSettings,
+        officialTheme,
+        onThemeChange: listener => ctx.on('theme/change', listener),
+      })
+    },
+    'dsh-plugin-desktop: character theme preference',
+  )
   ctx.effect(
     () => startRendererBootReporter(ctx.loader),
     'dsh-plugin-desktop: renderer boot health report',
