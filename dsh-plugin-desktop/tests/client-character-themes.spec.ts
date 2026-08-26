@@ -11,6 +11,7 @@ import {
   createCharacterThemeProjector,
   snapshotWithCharacterTheme,
   syncDesktopCharacterTheme,
+  watchCharacterThemeDarkAttribute,
   type DesktopCharacterThemePreference,
 } from '../src/client/character-theme-sync.ts'
 
@@ -217,6 +218,7 @@ describe('desktop character theme preference', () => {
     const body = {
       setAttribute: vi.fn(),
       removeAttribute: vi.fn(),
+      hasAttribute: vi.fn(() => false),
     }
     const appendChild = vi.fn((node: typeof style) => { attached = node })
     vi.stubGlobal('document', {
@@ -237,6 +239,34 @@ describe('desktop character theme preference', () => {
     applyCharacterThemeToDocument('off')
     expect(remove).toHaveBeenCalledOnce()
     expect(body.removeAttribute).toHaveBeenCalledWith('data-dsh-character-theme')
+  })
+
+  it('does not retrigger the dark-attribute observer after restoring it', () => {
+    let observerCallback: MutationCallback | undefined
+    let dark = false
+    const setAttribute = vi.fn((name: string) => {
+      if (name === 'data-ds-dark-theme') dark = true
+    })
+    vi.stubGlobal('MutationObserver', class {
+      constructor(callback: MutationCallback) { observerCallback = callback }
+      observe() {}
+      disconnect() {}
+    })
+    vi.stubGlobal('document', {
+      body: {
+        setAttribute,
+        hasAttribute: (name: string) => name === 'data-ds-dark-theme' && dark,
+        removeAttribute: vi.fn(),
+      },
+    })
+
+    const dispose = watchCharacterThemeDarkAttribute(() => 'hutao')
+    expect(setAttribute).toHaveBeenCalledOnce()
+    expect(setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
+    observerCallback?.([], {} as MutationObserver)
+    observerCallback?.([], {} as MutationObserver)
+    expect(setAttribute).toHaveBeenCalledOnce()
+    dispose()
   })
 
   it('waits until Desktop settings are ready before touching the theme', () => {

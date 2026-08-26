@@ -134,7 +134,9 @@ export function applyCharacterThemeToDocument(preference: DesktopCharacterThemeP
     .join(' ')
   style.textContent = `body { ${declarations} }`
   document.body.setAttribute(CHARACTER_THEME_ATTR, def.id)
-  if (def.colorScheme === 'dark') document.body.setAttribute(DARK_ATTRIBUTE, '')
+  if (def.colorScheme === 'dark' && !document.body.hasAttribute(DARK_ATTRIBUTE)) {
+    document.body.setAttribute(DARK_ATTRIBUTE, '')
+  }
 }
 
 /**
@@ -145,14 +147,19 @@ export function applyCharacterThemeToDocument(preference: DesktopCharacterThemeP
 export function watchCharacterThemeDarkAttribute(
   readPreference: () => DesktopCharacterThemePreference,
 ): () => void {
+  let restoring = false
   const restore = (): void => {
+    if (restoring) return
     const def = characterThemeDefinition(readPreference())
-    if (def?.colorScheme === 'dark') document.body.setAttribute(DARK_ATTRIBUTE, '')
+    if (def?.colorScheme !== 'dark' || document.body.hasAttribute(DARK_ATTRIBUTE)) return
+    restoring = true
+    document.body.setAttribute(DARK_ATTRIBUTE, '')
+    restoring = false
   }
   const observer = new MutationObserver(restore)
   observer.observe(document.body, {
     attributes: true,
-    attributeFilter: [DARK_ATTRIBUTE, CHARACTER_THEME_ATTR],
+    attributeFilter: [DARK_ATTRIBUTE],
   })
   restore()
   return () => observer.disconnect()
