@@ -5,6 +5,7 @@ on:
     branches: [master]
   push:
     branches: [master]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -120,6 +121,15 @@ jobs:
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace dsh-plugin-desktop dist:win-portable
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: windows-packages
+          path: |
+            dsh-plugin-desktop/dist/DSH-Desktop-*-x64-Setup.exe
+            dsh-plugin-desktop/dist/DSH-Desktop-*-x64-Portable.zip
+          if-no-files-found: error
+          retention-days: 1
 
   # macOS-only universal packaging smoke on a real macOS runner: the signed
   # release is built manually on a credentialed machine, so an unsigned DMG
@@ -152,6 +162,13 @@ jobs:
         env:
           DSH_PACKAGE_CHECK_ALREADY_RAN: '1'
         run: yarn workspace dsh-plugin-desktop dist:mac-smoke
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: macos-package
+          path: dsh-plugin-desktop/dist/mac-smoke/*.dmg
+          if-no-files-found: error
+          retention-days: 1
 
   # Upstream toolchain smoke: the portable-shell scripts must resolve the
   # pinned submodule's own Yarn/pnpm release on Windows.
@@ -170,3 +187,64 @@ jobs:
       - run: corepack enable
       - run: yarn check:layout
       - run: yarn upstream:version
+
+  # Publish unsigned installers from a trusted master/tag push. Pull requests
+  # still package as a smoke only; they must not write GitHub Releases.
+  github-release:
+    needs: [changes, desktop-windows, desktop-macos]
+    if: >
+      needs.changes.outputs.product == 'true'
+      && github.event_name != 'pull_request'
+      && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-packages
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-package
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(python3 -c "import json; print(json.load(open('dsh-plugin-desktop/package.json'))['version'])")"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            tag="v${version}"
+          fi
+          mapfile -t setup < <(find dist -type f -name 'DSH-Desktop-*-x64-Setup.exe' | sort)
+          mapfile -t portable < <(find dist -type f -name 'DSH-Desktop-*-x64-Portable.zip' | sort)
+          mapfile -t dmgs < <(find dist -type f -name '*.dmg' | sort)
+          if [[ ${#setup[@]} -ne 1 || ${#portable[@]} -ne 1 || ${#dmgs[@]} -ne 1 ]]; then
+            echo "expected one Windows installer, one portable zip, and one macOS DMG" >&2
+            find dist -type f -print >&2
+            exit 1
+          fi
+          mac="dist/DSH-Desktop-${version}-mac-universal.dmg"
+          mv "${dmgs[0]}" "$mac"
+          notes="$(mktemp)"
+          {
+            echo "Unsigned CI packages for DSH Desktop ${version} (${GITHUB_SHA})."
+            echo
+            echo "- Windows installer: \`$(basename "${setup[0]}")\`"
+            echo "- Windows portable zip: \`$(basename "${portable[0]}")\`"
+            echo "- macOS universal DMG: \`$(basename "$mac")\`"
+            echo
+            echo "These builds are not signed. Windows may show SmartScreen; macOS Gatekeeper will block the DMG until it is opened from System Settings or a signed release is used."
+          } > "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${setup[0]}" "${portable[0]}" "$mac" --clobber
+            gh release edit "$tag" --prerelease --target "$GITHUB_SHA" --notes-file "$notes" --title "DSH Desktop ${version}"
+          else
+            gh release create "$tag" "${setup[0]}" "${portable[0]}" "$mac" --prerelease --target "$GITHUB_SHA" --notes-file "$notes" --title "DSH Desktop ${version}"
+          fi
