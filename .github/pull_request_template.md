@@ -1,13 +1,41 @@
-<!-- 写 Fixes #NN 表示解决并自动关闭；写 Related to #NN 仅关联。 -->
-<!-- 进入评审的非 Draft 人类 PR 至少引用一个同仓库 Issue。 -->
-<!-- 解决型 PR 与 Issue 同步 Priority；解决多个 Issue 时取最高值。 -->
+## Summary / 摘要
 
-关联 Issue：
+<!-- What changed and why? / 说明改了什么，以及为什么改。 -->
 
-<details>
-<summary>变更与验证</summary>
+## Related Issues / 关联 Issue
 
-- 变更：
-- 验证：
+<!-- Example: Fixes #123, Closes #456, or N/A / 例如：Fixes #123、Closes #456，或 N/A。 -->
 
-</details>
+## Type / 类型
+
+- [ ] Bug fix / 问题修复
+- [ ] Feature / 新功能
+- [ ] Documentation / 文档
+- [ ] Release or packaging / 发布或打包
+- [ ] Tests only / 仅测试
+- [ ] Other / 其他
+
+## Platforms / 影响平台
+
+- [ ] Windows installer / Windows 安装包
+- [ ] Windows portable ZIP / Windows 便携版 ZIP
+- [ ] macOS Apple Silicon
+- [ ] macOS Intel
+- [ ] macOS Universal package / macOS 通用安装包
+- [ ] Linux
+- [ ] Not platform-specific / 与平台无关
+
+## Verification / 验证
+
+<!-- List commands actually run and any manual checks. Do not claim unrun checks passed. / 列出实际运行过的命令和人工验证。不要声称未运行的检查已经通过。 -->
+
+- [ ] `corepack yarn check:layout`
+- [ ] `corepack yarn typecheck`
+- [ ] `corepack yarn test`
+- [ ] `corepack yarn check`
+- [ ] Platform package smoke / 平台打包或启动冒烟
+- [ ] Manual test / 人工测试
+
+## Release Notes / 发布说明
+
+<!-- User-visible changes, migration notes, new release assets, or N/A. / 用户可见变化、迁移说明、新增发布资产，或 N/A。 -->
