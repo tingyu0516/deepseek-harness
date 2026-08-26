@@ -692,6 +692,8 @@ describe('published package surface', () => {
 
     expect(manifest.scripts?.build).toContain('node scripts/generate-mac-app-icon.mjs')
     expect(manifest.scripts?.build).toContain('node scripts/copy-character-theme-assets.mjs')
+    expect(readFileSync(new URL('scripts/copy-character-theme-assets.mjs', packageRoot), 'utf8'))
+      .toContain("join(packageRoot, 'assets', 'themes')")
     expect(manifest.scripts?.['package:dir']).toBe('yarn run build && node scripts/package-dir.mjs')
     expect(packageDir).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
     expect(manifest.scripts?.['dist:mac']).toBe('node scripts/release-mac.ts')

@@ -20,6 +20,7 @@ export type CharacterThemeId = (typeof CHARACTER_THEME_ASSET_ROUTES)[number]['id
 export function characterThemeAssetDirectories(packageRoot: string): string[] {
   return [
     join(packageRoot, 'build', 'themes'),
+    join(packageRoot, 'assets', 'themes'),
     join(packageRoot, '..', 'deepseek-harness', 'themes', 'images'),
     join(packageRoot, '..', 'deepseek-harness', 'apps', 'web', 'public', 'themes'),
   ]

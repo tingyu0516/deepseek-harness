@@ -6,6 +6,7 @@ const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const destDir = join(packageRoot, 'build', 'themes')
 const files = ['hutao.png', 'furina.png']
 const sources = [
+  join(packageRoot, 'assets', 'themes'),
   join(packageRoot, '..', 'deepseek-harness', 'themes', 'images'),
   join(packageRoot, '..', 'deepseek-harness', 'apps', 'web', 'public', 'themes'),
 ]

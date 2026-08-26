@@ -103,6 +103,17 @@ describe('character theme assets', () => {
     expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(packaged)
   })
 
+  it('uses package-owned theme assets when the build copy is missing', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'dsh-character-theme-owned-'))
+    temps.push(workspace)
+    const packageRoot = join(workspace, 'dsh-plugin-desktop')
+    const owned = join(packageRoot, 'assets', 'themes')
+    mkdirSync(owned, { recursive: true })
+    writeFileSync(join(owned, 'hutao.png'), PNG)
+    writeFileSync(join(owned, 'furina.png'), PNG)
+    expect(resolveCharacterThemeAssetsDir(packageRoot)).toBe(owned)
+  })
+
   it('falls back to upstream theme images when the package copy is missing', () => {
     const workspace = mkdtempSync(join(tmpdir(), 'dsh-character-theme-fb-'))
     temps.push(workspace)
