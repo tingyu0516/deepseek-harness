@@ -248,4 +248,3 @@ jobs:
           else
             gh release create "$tag" "${setup[0]}" "${portable[0]}" "$mac" --prerelease --target "$GITHUB_SHA" --notes-file "$notes" --title "DSH Desktop ${version}"
           fi
-
