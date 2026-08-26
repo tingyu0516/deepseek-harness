@@ -14,7 +14,7 @@ function mockSystemDark(matches: boolean): void {
 function executeBootstrap(preference?: ThemePreference): void {
   const row = bootThemeInjection(preference)
   if (row.kind !== 'script') throw new Error('theme bootstrap row is not a script')
-  runInNewContext(row.text, { document, matchMedia: globalThis.matchMedia })
+  runInNewContext(row.text, { document, matchMedia: globalThis.matchMedia, localStorage })
 }
 
 afterEach(() => {
@@ -22,6 +22,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   document.documentElement.style.removeProperty('color-scheme')
   document.body.removeAttribute(DARK_ATTRIBUTE)
+  localStorage.clear()
 })
 
 describe('theme bootstrap row', () => {
@@ -50,6 +51,14 @@ describe('theme bootstrap row', () => {
     executeBootstrap('system')
     expect(document.documentElement.style.colorScheme).toBe(colorScheme)
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(dark)
+  })
+
+  it.each(['hutao', 'furina'] as const)('boots %s as a dark character theme from LocalStorage', (preference) => {
+    localStorage.setItem('dsh-ui-theme.custom-preference', preference)
+    mockSystemDark(false)
+    executeBootstrap('system')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(true)
   })
 
   it('defaults to system and falls back to light when matchMedia is unavailable', () => {

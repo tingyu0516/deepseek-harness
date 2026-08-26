@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>主题预览 · 胡桃 & 芙宁娜</title>
+  <link rel="stylesheet" href="./hutao.css" />
+  <link rel="stylesheet" href="./furina.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #0b0b0f;
+      color: #e8e8f0;
+      padding: 40px 24px;
+    }
+    h1 { text-align: center; margin: 0 0 8px; font-size: 28px; }
+    .subtitle { text-align: center; color: #9a9ab0; margin-bottom: 40px; }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .theme-card {
+      border-radius: var(--radius);
+      position: relative;
+        overflow: hidden;
+        background:
+          var(--bg-overlay),
+          var(--bg-image) center / cover no-repeat,
+          var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      font-family: var(--font-display), system-ui, sans-serif;
+      transition: transform 0.2s ease;
+    }
+    .theme-card:hover { transform: translateY(-4px); }
+
+      .theme-card::before {
+        content: var(--motif);
+        position: absolute;
+        top: -20px;
+        right: -10px;
+        font-size: 140px;
+        line-height: 1;
+        opacity: 0.14;
+        text-shadow: 0 0 40px var(--motif-shadow);
+        pointer-events: none;
+        transform: rotate(8deg);
+      }
+      .theme-card > * {
+        position: relative;
+        z-index: 1;
+      }
+
+    .theme-card h2 {
+      margin: 0 0 4px;
+      font-size: 22px;
+    }
+    .theme-card .tagline {
+      margin: 0 0 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .swatch-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .swatch {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: none;
+      background: var(--primary);
+      color: var(--text-inverse);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--primary-hover); }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 13px;
+      margin-right: 6px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) - 4px);
+      padding: 14px;
+      margin-top: 16px;
+    }
+    .panel p { margin: 4px 0; color: var(--text-muted); font-size: 14px; }
+    .panel strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <h1>✨ 主题预览</h1>
+  <p class="subtitle">胡桃 · 往生堂 &nbsp;/&nbsp; 芙宁娜 · 水镜歌剧院</p>
+
+  <div class="demo-grid">
+    <!-- 胡桃主题 -->
+    <section class="theme-card theme-hutao">
+      <h2>🌸 胡桃</h2>
+      <p class="tagline">往生堂 · 梅香 · 幽魂</p>
+
+      <div class="swatch-row">
+        <div class="swatch" style="background: var(--bg)"></div>
+        <div class="swatch" style="background: var(--surface)"></div>
+        <div class="swatch" style="background: var(--primary)"></div>
+        <div class="swatch" style="background: var(--accent)"></div>
+        <div class="swatch" style="background: var(--ghost)"></div>
+      </div>
+
+      <span class="badge">梅红</span>
+      <span class="badge">鎏金</span>
+      <span class="badge">幽魂青</span>
+
+      <div style="margin-top: 16px">
+        <button class="btn">往生堂业务办理</button>
+      </div>
+
+      <div class="panel">
+        <p><strong>背景</strong>：深檀木色，温暖又神秘</p>
+        <p><strong>主色</strong>：胡桃梅红，热情俏皮</p>
+        <p><strong>点缀</strong>：鎏金与幽灵蓝</p>
+      </div>
+    </section>
+
+    <!-- 芙宁娜主题 -->
+    <section class="theme-card theme-furina">
+      <h2>💧 芙宁娜</h2>
+      <p class="tagline">水镜 · 歌剧院 · 珍珠</p>
+
+      <div class="swatch-row">
+        <div class="swatch" style="background: var(--bg)"></div>
+        <div class="swatch" style="background: var(--surface)"></div>
+        <div class="swatch" style="background: var(--primary)"></div>
+        <div class="swatch" style="background: var(--accent)"></div>
+        <div class="swatch" style="background: var(--aqua)"></div>
+      </div>
+
+      <span class="badge">水光青</span>
+      <span class="badge">歌剧金</span>
+      <span class="badge">珍珠白</span>
+
+      <div style="margin-top: 16px">
+        <button class="btn">进入歌剧院</button>
+      </div>
+
+      <div class="panel">
+        <p><strong>背景</strong>：深海夜蓝，沉静优雅</p>
+        <p><strong>主色</strong>：水光青，清澈明亮</p>
+        <p><strong>点缀</strong>：鎏金与淡紫</p>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

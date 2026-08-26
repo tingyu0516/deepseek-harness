@@ -1,0 +1,210 @@
+/**
+ * Character themes: Hu Tao (往生堂) and Furina (水镜歌剧院).
+ * Both are dark-scheme alias-token overrides on top of the built-in dark
+ * palette.
+ */
+import type { ThemeDefinition } from './index.ts'
+
+/** Hu Tao · 往生堂 — deep plum, cinnabar red, gold, ghost cyan. */
+export const HUTAO_THEME: ThemeDefinition = {
+  id: 'hutao',
+  colorScheme: 'dark',
+  tokens: {
+    // Character background: dark overlay + classic Hu Tao image from the web public dir.
+    '--dsw-character-bg-image':
+        'linear-gradient(180deg, rgba(23, 16, 20, 0.2), rgba(23, 16, 20, 0.55)),'
+        + 'url("/themes/hutao.png")',
+    // Backgrounds
+    '--dsw-alias-bg-base': 'rgba(23, 16, 20, 0.45)',
+    '--dsw-alias-bg-layer-1': 'rgba(30, 22, 27, 0.55)',
+    '--dsw-alias-bg-layer-2': 'rgba(36, 26, 31, 0.65)',
+    '--dsw-alias-bg-layer-3': '#2e2027',
+    '--dsw-alias-bg-overlay': '#2e2027',
+    '--dsw-alias-bg-module-platform': '#241a1f',
+    '--dsw-alias-bg-multi-select': '#241a1f',
+    '--dsw-alias-bg-skeleton': 'rgba(255, 255, 255, 0.06)',
+
+    // Borders
+    '--dsw-alias-border-l1': 'rgba(255, 255, 255, 0.06)',
+    '--dsw-alias-border-l2': 'rgba(224, 82, 82, 0.22)',
+    '--dsw-alias-border-l3': 'rgba(224, 82, 82, 0.3)',
+    '--dsw-alias-border-l4': 'rgba(224, 82, 82, 0.38)',
+
+    // Brand / buttons
+    '--dsw-alias-brand-primary': '#e05252',
+    '--dsw-alias-brand-text': '#f2e6d8',
+    '--dsw-alias-brand-primary-new-colorprimary-new-color': '#e05252',
+    '--dsw-alias-button-primary-fill': '#e05252',
+    '--dsw-alias-button-primary-hover': '#f06a5e',
+    '--dsw-alias-button-primary-dimmed': '#3a2830',
+    '--dsw-alias-button-info-fill': '#c7423f',
+    '--dsw-alias-button-info-hover': '#e05252',
+    '--dsw-alias-button-contrast-fill': '#f2e6d8',
+    '--dsw-alias-button-elevated-fill': '#241a1f',
+    '--dsw-alias-button-floating-fill': '#241a1f',
+    '--dsw-alias-button-floating-hover': '#2e2027',
+    '--dsw-alias-button-ghost-active-fill': '#2e2027',
+    '--dsw-alias-button-ghost-active-hover': '#3a2830',
+    '--dsw-alias-button-ghost-active-border': '#5a3a42',
+
+    // Text
+    '--dsw-alias-label-primary': '#f2e6d8',
+    '--dsw-alias-label-primary-bluish': '#f2e6d8',
+    '--dsw-alias-label-primary-foreground': '#171014',
+    '--dsw-alias-label-primary-inverted': '#171014',
+    '--dsw-alias-label-secondary': '#b89b93',
+    '--dsw-alias-label-tertiary': '#9a7a72',
+    '--dsw-alias-label-caption': '#8a6a62',
+    '--dsw-alias-label-dimmed': '#6e5350',
+
+    // Interactive
+    '--dsw-alias-interactive-bg-hover': 'rgba(224, 82, 82, 0.1)',
+    '--dsw-alias-interactive-bg-hover-accent': 'rgba(224, 82, 82, 0.18)',
+    '--dsw-alias-interactive-bg-active': 'rgba(224, 82, 82, 0.16)',
+    '--dsw-alias-interactive-bg-hover-danger': 'rgba(199, 66, 63, 0.15)',
+
+    // States
+    '--dsw-alias-state-business-primary': '#e05252',
+    '--dsw-alias-state-error-primary': '#e05252',
+    '--dsw-alias-state-error-secondary': '#f06a5e',
+    '--dsw-alias-state-success-primary': '#7bae7f',
+    '--dsw-alias-state-success-secondary': '#8fbf93',
+    '--dsw-alias-state-warn-primary': '#d4a24e',
+    '--dsw-alias-state-warn-secondary': '#e0b566',
+    '--dsw-alias-state-warn-label': '#d4a24e',
+
+    // Markdown / code
+    '--dsw-alias-markdown-code-block': 'rgba(30, 22, 27, 0.35)',
+    '--dsw-alias-markdown-code-block-banner': 'rgba(36, 26, 31, 0.4)',
+    '--dsw-alias-markdown-inline-code': 'rgba(46, 32, 39, 0.3)',
+    '--dsw-alias-markdown-citation': 'rgba(46, 32, 39, 0.3)',
+    '--dsw-alias-markdown-placeholder': 'rgba(46, 32, 39, 0.3)',
+    '--dsw-alias-markdown-tag': 'rgba(46, 32, 39, 0.3)',
+
+    // Scrollbar
+    '--dsw-alias-scrollbar-bg-l1': '#3a2830',
+    '--dsw-alias-scrollbar-bg-l2': '#3a2830',
+    '--dsw-alias-scrollbar-hover-l1': '#5a3a42',
+    '--dsw-alias-scrollbar-hover-l2': '#5a3a42',
+
+    // Specific surfaces
+    '--dsw-specific-sidebar-fill': 'rgba(26, 17, 21, 0.35)',
+    '--dsw-specific-sidebar-nav-item-active': 'rgba(46, 32, 39, 0.3)',
+    '--dsw-specific-sidebar-nav-item-hover': 'rgba(36, 26, 31, 0.3)',
+    '--dsw-specific-sidebar-nav-item-active-accent': '#e05252',
+    '--dsw-specific-bubble': 'rgba(36, 26, 31, 0.35)',
+    '--dsw-specific-bubble-highlight': 'rgba(46, 32, 39, 0.35)',
+    '--dsw-specific-input-major': 'rgba(30, 22, 27, 0.3)',
+    '--dsw-specific-login-input': 'rgba(23, 16, 20, 0.3)',
+    '--dsw-specific-menu': 'rgba(36, 26, 31, 0.4)',
+    '--dsw-specific-selector': 'rgba(36, 26, 31, 0.4)',
+    '--dsw-specific-tip': 'rgba(46, 32, 39, 0.3)',
+    '--dsw-alias-tooltip-bg': '#2e2027',
+    '--dsw-alias-toast-bg': '#2e2027',
+  },
+}
+
+/** Furina · 水镜歌剧院 — deep sea blue, aqua, pearl white, opera gold. */
+export const FURINA_THEME: ThemeDefinition = {
+  id: 'furina',
+  colorScheme: 'dark',
+  tokens: {
+    // Character background: dark overlay + classic Furina image from the web public dir.
+    '--dsw-character-bg-image':
+        'linear-gradient(180deg, rgba(7, 16, 30, 0.2), rgba(7, 16, 30, 0.55)),'
+        + 'url("/themes/furina.png")',
+    // Backgrounds
+    '--dsw-alias-bg-base': 'rgba(7, 16, 30, 0.45)',
+    '--dsw-alias-bg-layer-1': 'rgba(11, 23, 48, 0.55)',
+    '--dsw-alias-bg-layer-2': 'rgba(15, 28, 48, 0.65)',
+    '--dsw-alias-bg-layer-3': '#16263f',
+    '--dsw-alias-bg-overlay': '#16263f',
+    '--dsw-alias-bg-module-platform': '#0f1c30',
+    '--dsw-alias-bg-multi-select': '#0f1c30',
+    '--dsw-alias-bg-skeleton': 'rgba(255, 255, 255, 0.06)',
+
+    // Borders
+    '--dsw-alias-border-l1': 'rgba(255, 255, 255, 0.06)',
+    '--dsw-alias-border-l2': 'rgba(76, 201, 240, 0.22)',
+    '--dsw-alias-border-l3': 'rgba(76, 201, 240, 0.3)',
+    '--dsw-alias-border-l4': 'rgba(76, 201, 240, 0.38)',
+
+    // Brand / buttons
+    '--dsw-alias-brand-primary': '#4cc9f0',
+    '--dsw-alias-brand-text': '#eaf6ff',
+    '--dsw-alias-brand-primary-new-colorprimary-new-color': '#4cc9f0',
+    '--dsw-alias-button-primary-fill': '#4cc9f0',
+    '--dsw-alias-button-primary-hover': '#6fd9f7',
+    '--dsw-alias-button-primary-dimmed': '#1f3552',
+    '--dsw-alias-button-info-fill': '#4cc9f0',
+    '--dsw-alias-button-info-hover': '#6fd9f7',
+    '--dsw-alias-button-contrast-fill': '#eaf6ff',
+    '--dsw-alias-button-elevated-fill': '#0f1c30',
+    '--dsw-alias-button-floating-fill': '#0f1c30',
+    '--dsw-alias-button-floating-hover': '#16263f',
+    '--dsw-alias-button-ghost-active-fill': '#16263f',
+    '--dsw-alias-button-ghost-active-hover': '#1f3552',
+    '--dsw-alias-button-ghost-active-border': '#2a4a6e',
+
+    // Text
+    '--dsw-alias-label-primary': '#eaf6ff',
+    '--dsw-alias-label-primary-bluish': '#eaf6ff',
+    '--dsw-alias-label-primary-foreground': '#07101e',
+    '--dsw-alias-label-primary-inverted': '#07101e',
+    '--dsw-alias-label-secondary': '#8fa9c4',
+    '--dsw-alias-label-tertiary': '#6d89a8',
+    '--dsw-alias-label-caption': '#5d7a99',
+    '--dsw-alias-label-dimmed': '#4a6480',
+
+    // Interactive
+    '--dsw-alias-interactive-bg-hover': 'rgba(76, 201, 240, 0.1)',
+    '--dsw-alias-interactive-bg-hover-accent': 'rgba(76, 201, 240, 0.18)',
+    '--dsw-alias-interactive-bg-active': 'rgba(76, 201, 240, 0.16)',
+    '--dsw-alias-interactive-bg-hover-danger': 'rgba(224, 91, 109, 0.15)',
+
+    // States
+    '--dsw-alias-state-business-primary': '#4cc9f0',
+    '--dsw-alias-state-error-primary': '#e05b6d',
+    '--dsw-alias-state-error-secondary': '#f07a8a',
+    '--dsw-alias-state-success-primary': '#6fcf97',
+    '--dsw-alias-state-success-secondary': '#8fe3b0',
+    '--dsw-alias-state-warn-primary': '#d9b45b',
+    '--dsw-alias-state-warn-secondary': '#e6c678',
+    '--dsw-alias-state-warn-label': '#d9b45b',
+
+    // Markdown / code
+    '--dsw-alias-markdown-code-block': 'rgba(11, 23, 48, 0.35)',
+    '--dsw-alias-markdown-code-block-banner': 'rgba(15, 28, 48, 0.4)',
+    '--dsw-alias-markdown-inline-code': 'rgba(22, 38, 63, 0.3)',
+    '--dsw-alias-markdown-citation': 'rgba(22, 38, 63, 0.3)',
+    '--dsw-alias-markdown-placeholder': 'rgba(22, 38, 63, 0.3)',
+    '--dsw-alias-markdown-tag': 'rgba(22, 38, 63, 0.3)',
+
+    // Scrollbar
+    '--dsw-alias-scrollbar-bg-l1': '#1f3552',
+    '--dsw-alias-scrollbar-bg-l2': '#1f3552',
+    '--dsw-alias-scrollbar-hover-l1': '#2a4a6e',
+    '--dsw-alias-scrollbar-hover-l2': '#2a4a6e',
+
+    // Specific surfaces
+    '--dsw-specific-sidebar-fill': 'rgba(5, 12, 24, 0.35)',
+    '--dsw-specific-sidebar-nav-item-active': 'rgba(22, 38, 63, 0.3)',
+    '--dsw-specific-sidebar-nav-item-hover': 'rgba(15, 28, 48, 0.3)',
+    '--dsw-specific-sidebar-nav-item-active-accent': '#4cc9f0',
+    '--dsw-specific-bubble': 'rgba(15, 28, 48, 0.35)',
+    '--dsw-specific-bubble-highlight': 'rgba(22, 38, 63, 0.35)',
+    '--dsw-specific-input-major': 'rgba(11, 23, 48, 0.3)',
+    '--dsw-specific-login-input': 'rgba(7, 16, 30, 0.3)',
+    '--dsw-specific-menu': 'rgba(15, 28, 48, 0.4)',
+    '--dsw-specific-selector': 'rgba(15, 28, 48, 0.4)',
+    '--dsw-specific-tip': 'rgba(22, 38, 63, 0.3)',
+    '--dsw-alias-tooltip-bg': '#16263f',
+    '--dsw-alias-toast-bg': '#16263f',
+  },
+}
+
+/** All character themes in registration order. */
+export const CHARACTER_THEMES: readonly ThemeDefinition[] = Object.freeze([
+  Object.freeze(HUTAO_THEME),
+  Object.freeze(FURINA_THEME),
+])

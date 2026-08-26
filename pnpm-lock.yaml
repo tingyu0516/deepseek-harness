@@ -4,13 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@deepseek-ai/cosmokit': link:vendor/cosmokit
-  '@deepseek-ai/schemastery': link:vendor/schemastery
-
-patchedDependencies:
-  node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
-
 importers:
 
   .:
@@ -411,7 +404,7 @@ importers:
         version: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
       vitest:
         specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
 
   examples:
     dependencies:
@@ -783,7 +776,7 @@ importers:
         specifier: 0.25.1
         version: 0.25.1(zod@4.4.3)
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -918,7 +911,7 @@ importers:
   packages/attachment/attachment-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       sharp:
         specifier: ^0.35.3
@@ -1245,7 +1238,7 @@ importers:
         specifier: workspace:^
         version: link:../../code-runtime/code-runtime-worker-thread
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       commander:
         specifier: ^15.0.0
@@ -1474,7 +1467,7 @@ importers:
         specifier: workspace:^
         version: link:../../workspace/workspace
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       commander:
         specifier: ^15.0.0
@@ -1502,7 +1495,7 @@ importers:
   packages/client/connection:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       ws:
         specifier: ^8.21.0
@@ -1542,7 +1535,7 @@ importers:
   packages/client/hmr:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -1564,7 +1557,7 @@ importers:
   packages/client/locale:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -1856,7 +1849,7 @@ importers:
   packages/client/ui-conversation:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       clsx:
         specifier: ^2.0.0
@@ -2546,7 +2539,7 @@ importers:
   packages/client/ui-settings:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -2583,7 +2576,7 @@ importers:
   packages/client/ui-settings-general:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       clsx:
         specifier: ^2.0.0
@@ -2904,7 +2897,7 @@ importers:
   packages/client/ui-theme:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       clsx:
         specifier: ^2.0.0
@@ -3254,7 +3247,7 @@ importers:
   packages/code-runtime/code-runtime-worker-thread:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3327,7 +3320,7 @@ importers:
   packages/compaction/compaction-basic:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3379,7 +3372,7 @@ importers:
   packages/compaction/compaction-tool-result-pruner:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3410,7 +3403,7 @@ importers:
   packages/context/agent-instructions:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3478,7 +3471,7 @@ importers:
   packages/context/file-reference-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3503,7 +3496,7 @@ importers:
   packages/context/session-reference:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -3540,7 +3533,7 @@ importers:
   packages/context/time-context:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3577,7 +3570,7 @@ importers:
   packages/context/tmux-context:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3632,7 +3625,7 @@ importers:
   packages/core/agent-default-model:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3654,7 +3647,7 @@ importers:
   packages/core/agent-loop:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3694,7 +3687,7 @@ importers:
   packages/core/agent-tool-presentation:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3758,7 +3751,7 @@ importers:
   packages/core/system-prompt:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3777,7 +3770,7 @@ importers:
   packages/core/tools:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3838,7 +3831,7 @@ importers:
   packages/credentials/credentials-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       chokidar:
         specifier: ^4.0.3
@@ -3869,7 +3862,7 @@ importers:
   packages/e2b/e2b:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       e2b:
         specifier: 2.29.1
@@ -3906,7 +3899,7 @@ importers:
   packages/e2b/subprocess-e2b:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -3926,10 +3919,6 @@ importers:
         version: link:../../util/timeout
 
   packages/examples/acp-demo:
-    dependencies:
-      '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
-        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -3976,11 +3965,14 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../../core/tools
+      '@deepseek-ai/schemastery':
+        specifier: workspace:^
+        version: link:../../../vendor/schemastery
 
   packages/examples/agent-spine-demo:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4105,7 +4097,7 @@ importers:
   packages/experimental/agent-team:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -4157,7 +4149,7 @@ importers:
   packages/experimental/tool-agent-team:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4242,7 +4234,7 @@ importers:
   packages/extensions/cordis-host-runner:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -4393,7 +4385,7 @@ importers:
   packages/feedback/message-feedback:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -4460,7 +4452,7 @@ importers:
   packages/fs/fs-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       koffi:
         specifier: ^3.1.0
@@ -4518,7 +4510,7 @@ importers:
   packages/fs/tool-fs:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       diff:
         specifier: ^9.0.0
@@ -4579,7 +4571,7 @@ importers:
   packages/fs/tool-fs-search:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@vscode/ripgrep':
         specifier: ^1.18.0
@@ -4625,7 +4617,7 @@ importers:
   packages/fs/tool-str-replace-editor:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4698,7 +4690,7 @@ importers:
   packages/goal/goal:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -4771,7 +4763,7 @@ importers:
   packages/goal/tool-goal:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4805,7 +4797,7 @@ importers:
   packages/guard/repeat-tool-reminder:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4869,7 +4861,7 @@ importers:
   packages/hooks/hooks-claude-code:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -4921,7 +4913,7 @@ importers:
   packages/hooks/hooks-codex:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5045,7 +5037,7 @@ importers:
         specifier: workspace:^
         version: link:../../workspace/workspace
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       fflate:
         specifier: ^0.8.2
@@ -5127,7 +5119,7 @@ importers:
         specifier: workspace:^
         version: link:../directory-picker
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5162,7 +5154,7 @@ importers:
   packages/host/frontend-static:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5203,7 +5195,7 @@ importers:
   packages/host/webserver:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5265,7 +5257,7 @@ importers:
   packages/interaction/permission-presets:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -5329,7 +5321,7 @@ importers:
   packages/interaction/user-approval:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5393,7 +5385,7 @@ importers:
   packages/jobs/jobs-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5430,7 +5422,7 @@ importers:
   packages/jobs/tool-jobs:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5467,7 +5459,7 @@ importers:
   packages/llm/llm:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5489,7 +5481,7 @@ importers:
   packages/llm/llm-deepseek:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       eventsource-parser:
         specifier: ^3.1.0
@@ -5535,7 +5527,7 @@ importers:
   packages/llm/llm-pi-ai:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@earendil-works/pi-ai':
         specifier: ^0.82.1
@@ -5575,7 +5567,7 @@ importers:
   packages/llm/llm-retry:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5633,7 +5625,7 @@ importers:
   packages/llm/token-meter:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -5676,7 +5668,7 @@ importers:
   packages/lsp/lsp-stdio:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5719,7 +5711,7 @@ importers:
   packages/lsp/tool-lsp:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5765,7 +5757,7 @@ importers:
   packages/mcp/mcp-client:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.0
@@ -5851,7 +5843,7 @@ importers:
   packages/preset/agent-presets:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       js-yaml:
         specifier: ^4.1.0
@@ -5906,7 +5898,7 @@ importers:
   packages/preset/persona:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5925,7 +5917,7 @@ importers:
   packages/runtime-diagnostics/invariants:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5956,7 +5948,7 @@ importers:
         specifier: workspace:^
         version: link:../../../native/landlock-run/packages/entry
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -5978,7 +5970,7 @@ importers:
   packages/sandbox/sandbox-policy:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6100,7 +6092,7 @@ importers:
   packages/sdk/server:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6212,7 +6204,7 @@ importers:
   packages/session-query/session-query-sqlite:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6240,7 +6232,7 @@ importers:
   packages/session-query/tool-session-query:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6349,7 +6341,7 @@ importers:
   packages/session/session-persistence-jsonl:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       koffi:
         specifier: ^3.1.0
@@ -6371,7 +6363,7 @@ importers:
   packages/session/session-persistence-sqlite:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6418,7 +6410,7 @@ importers:
   packages/session/session-projection-cache:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -6492,7 +6484,7 @@ importers:
   packages/session/session-telemetry-otel:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@opentelemetry/api':
         specifier: ^1.9.1
@@ -6541,7 +6533,7 @@ importers:
   packages/session/session-title:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -6575,7 +6567,7 @@ importers:
   packages/session/session-title-all-prompts-llm:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6600,7 +6592,7 @@ importers:
   packages/session/session-title-first-prompt-llm:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6634,7 +6626,7 @@ importers:
   packages/session/session-title-llm:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6657,10 +6649,6 @@ importers:
         version: link:../../util/timeout
 
   packages/settings/settings:
-    dependencies:
-      '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
-        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -6671,11 +6659,14 @@ importers:
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/schemastery':
+        specifier: workspace:^
+        version: link:../../../vendor/schemastery
 
   packages/settings/settings-file:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       chokidar:
         specifier: ^4.0.3
@@ -6703,7 +6694,7 @@ importers:
   packages/shell/bash-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6761,7 +6752,7 @@ importers:
   packages/shell/pwsh-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6834,7 +6825,7 @@ importers:
   packages/shell/shell-env:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6865,7 +6856,7 @@ importers:
   packages/shell/tool-bash:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6932,7 +6923,7 @@ importers:
   packages/shell/tool-bash-persistent:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -6984,7 +6975,7 @@ importers:
   packages/shell/tool-pwsh:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7042,7 +7033,7 @@ importers:
   packages/shell/tool-pwsh-persistent:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7097,7 +7088,7 @@ importers:
   packages/skill/skill:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7128,7 +7119,7 @@ importers:
   packages/skill/skill-filesystem:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       chokidar:
         specifier: ^5.0.0
@@ -7156,7 +7147,7 @@ importers:
   packages/skill/tool-skill:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7208,7 +7199,7 @@ importers:
   packages/spill/spill-local:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7233,7 +7224,7 @@ importers:
   packages/spill/spill-policy:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7276,7 +7267,7 @@ importers:
   packages/storage/storage-domain:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -7295,7 +7286,7 @@ importers:
   packages/storage/storage-json:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7311,7 +7302,7 @@ importers:
   packages/storage/storage-sqlite:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7391,7 +7382,7 @@ importers:
         specifier: 0.25.1
         version: 0.25.1(zod@4.4.3)
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7437,7 +7428,7 @@ importers:
         specifier: 0.93.0
         version: 0.93.0(zod@4.4.3)
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
@@ -7483,7 +7474,7 @@ importers:
         specifier: workspace:^
         version: link:../../sdk/protocol
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@openai/codex':
         specifier: 0.147.0
@@ -7526,7 +7517,7 @@ importers:
   packages/subagent/subagent-dsh-sdk:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7566,7 +7557,7 @@ importers:
   packages/subagent/subagent-fork-in-process:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7660,7 +7651,7 @@ importers:
   packages/subagent/subagent-spawn-in-process:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7712,7 +7703,7 @@ importers:
   packages/subagent/tool-subagent:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7806,7 +7797,7 @@ importers:
   packages/subagent/tool-subagent-report:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7868,7 +7859,7 @@ importers:
         version: 3.1.1
       node-pty:
         specifier: 1.2.0-beta.15
-        version: 1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0)
+        version: 1.2.0-beta.15
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -7910,7 +7901,7 @@ importers:
         specifier: workspace:^
         version: link:../../shell/pwsh-local
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -7944,7 +7935,7 @@ importers:
   packages/terminal/tool-terminal:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8012,7 +8003,7 @@ importers:
         version: link:../loader-smoke
       vitest:
         specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -8061,7 +8052,7 @@ importers:
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       vitest:
         specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -8149,7 +8140,7 @@ importers:
   packages/todo/tool-todo:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       zod:
         specifier: ^4.4.3
@@ -8226,7 +8217,7 @@ importers:
   packages/typert/loader:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8336,7 +8327,7 @@ importers:
   packages/web/tool-web:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
       '@joplin/turndown-plugin-gfm':
         specifier: ^1.0.67
@@ -8391,7 +8382,7 @@ importers:
   packages/web/web:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8407,7 +8398,7 @@ importers:
   packages/web/web-fetch-http:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8426,7 +8417,7 @@ importers:
   packages/web/web-search-deepseek:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8460,7 +8451,7 @@ importers:
   packages/web/web-search-exa:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8479,7 +8470,7 @@ importers:
   packages/web/web-search-perplexity:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8498,7 +8489,7 @@ importers:
   packages/workflow/tool-ralph:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8550,7 +8541,7 @@ importers:
   packages/workflow/tool-workflow:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8608,7 +8599,7 @@ importers:
   packages/workflow/workflow-worker-thread:
     dependencies:
       '@deepseek-ai/schemastery':
-        specifier: link:../../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
@@ -8700,7 +8691,7 @@ importers:
         specifier: workspace:^
         version: link:../../vendor/timer
       '@deepseek-ai/cosmokit':
-        specifier: link:../../vendor/cosmokit
+        specifier: workspace:^
         version: link:../../vendor/cosmokit
       '@deepseek-ai/dsh-acp':
         specifier: workspace:^
@@ -9036,7 +9027,7 @@ importers:
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
       '@deepseek-ai/schemastery':
-        specifier: link:../../vendor/schemastery
+        specifier: workspace:^
         version: link:../../vendor/schemastery
 
   vendor/cordis:
@@ -9048,7 +9039,7 @@ importers:
         specifier: workspace:^
         version: link:../loader
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -9077,10 +9068,10 @@ importers:
         specifier: workspace:^
         version: link:../timer
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       '@deepseek-ai/schemastery':
-        specifier: link:../schemastery
+        specifier: workspace:^
         version: link:../schemastery
       chokidar:
         specifier: ^4.0.3
@@ -9108,7 +9099,7 @@ importers:
         specifier: workspace:^
         version: link:../loader
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       js-yaml:
         specifier: ^4.1.0
@@ -9120,7 +9111,7 @@ importers:
         specifier: workspace:^
         version: link:../cordis
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       node-addon-require-builtin:
         specifier: ^0.1.4
@@ -9132,10 +9123,10 @@ importers:
         specifier: workspace:^
         version: link:../cordis
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       '@deepseek-ai/schemastery':
-        specifier: link:../schemastery
+        specifier: workspace:^
         version: link:../schemastery
       supports-color:
         specifier: ^9.4.0
@@ -9144,7 +9135,7 @@ importers:
   vendor/schemastery:
     dependencies:
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -9156,7 +9147,7 @@ importers:
         specifier: workspace:^
         version: link:../cordis
       '@deepseek-ai/cosmokit':
-        specifier: link:../cosmokit
+        specifier: workspace:^
         version: link:../cosmokit
 
   website:
@@ -9181,13 +9172,13 @@ importers:
         version: 11.16.0
       vite:
         specifier: ^5.4.14
-        version: 5.4.21(@types/node@25.9.3)(lightningcss@1.32.0)
+        version: 5.4.21(@types/node@26.1.2)(lightningcss@1.32.0)
       vitepress:
         specifier: ^1.6.4
-        version: 1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)
+        version: 1.6.4(@algolia/client-search@5.55.2)(@types/node@26.1.2)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)
       vitepress-plugin-mermaid:
         specifier: ^2.0.17
-        version: 2.0.17(mermaid@11.16.0)(vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3))
+        version: 2.0.17(mermaid@11.16.0)(vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@26.1.2)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3))
 
 packages:
 
@@ -16933,9 +16924,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0))(vue@3.5.39(typescript@6.0.3))':
+  '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@26.1.2)(lightningcss@1.32.0))(vue@3.5.39(typescript@6.0.3))':
     dependencies:
-      vite: 5.4.21(@types/node@25.9.3)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.1.2)(lightningcss@1.32.0)
       vue: 3.5.39(typescript@6.0.3)
 
   '@vitest/coverage-v8@4.1.8(vitest@4.1.8)':
@@ -19070,7 +19061,7 @@ snapshots:
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
 
-  node-pty@1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0):
+  node-pty@1.2.0-beta.15:
     dependencies:
       node-addon-api: 7.1.1
 
@@ -19965,13 +19956,13 @@ snapshots:
       - supports-color
       - typescript
 
-  vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0):
+  vite@5.4.21(@types/node@26.1.2)(lightningcss@1.32.0):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.15
       rollup: 4.62.2
     optionalDependencies:
-      '@types/node': 25.9.3
+      '@types/node': 26.1.2
       fsevents: 2.3.3
       lightningcss: 1.32.0
 
@@ -20021,14 +20012,14 @@ snapshots:
       tsx: 4.22.4
       yaml: 2.9.0
 
-  vitepress-plugin-mermaid@2.0.17(mermaid@11.16.0)(vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)):
+  vitepress-plugin-mermaid@2.0.17(mermaid@11.16.0)(vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@26.1.2)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)):
     dependencies:
       mermaid: 11.16.0
-      vitepress: 1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)
+      vitepress: 1.6.4(@algolia/client-search@5.55.2)(@types/node@26.1.2)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3)
     optionalDependencies:
       '@mermaid-js/mermaid-mindmap': 9.3.0
 
-  vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@25.9.3)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3):
+  vitepress@1.6.4(@algolia/client-search@5.55.2)(@types/node@26.1.2)(@types/react@18.3.31)(lightningcss@1.32.0)(postcss@8.5.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)(typescript@6.0.3):
     dependencies:
       '@docsearch/css': 3.8.2
       '@docsearch/js': 3.8.2(@algolia/client-search@5.55.2)(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)
@@ -20037,7 +20028,7 @@ snapshots:
       '@shikijs/transformers': 2.5.0
       '@shikijs/types': 2.5.0
       '@types/markdown-it': 14.1.2
-      '@vitejs/plugin-vue': 5.2.4(vite@5.4.21(@types/node@25.9.3)(lightningcss@1.32.0))(vue@3.5.39(typescript@6.0.3))
+      '@vitejs/plugin-vue': 5.2.4(vite@5.4.21(@types/node@26.1.2)(lightningcss@1.32.0))(vue@3.5.39(typescript@6.0.3))
       '@vue/devtools-api': 7.7.10
       '@vue/shared': 3.5.39
       '@vueuse/core': 12.8.2(typescript@6.0.3)
@@ -20046,7 +20037,7 @@ snapshots:
       mark.js: 8.11.1
       minisearch: 7.2.0
       shiki: 2.5.0
-      vite: 5.4.21(@types/node@25.9.3)(lightningcss@1.32.0)
+      vite: 5.4.21(@types/node@26.1.2)(lightningcss@1.32.0)
       vue: 3.5.39(typescript@6.0.3)
     optionalDependencies:
       postcss: 8.5.15
@@ -20078,7 +20069,7 @@ snapshots:
       - typescript
       - universal-cookie
 
-  vitest@4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.8
       '@vitest/mocker': 4.1.8(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -20101,38 +20092,8 @@ snapshots:
       vite: 6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/api': 1.9.1
       '@types/node': 22.20.0
-      '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
-      jsdom: 29.1.1
-    transitivePeerDependencies:
-      - msw
-
-  vitest@4.1.8(@opentelemetry/api@1.9.0)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
-    dependencies:
-      '@vitest/expect': 4.1.8
-      '@vitest/mocker': 4.1.8(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
-      '@vitest/pretty-format': 4.1.8
-      '@vitest/runner': 4.1.8
-      '@vitest/snapshot': 4.1.8
-      '@vitest/spy': 4.1.8
-      '@vitest/utils': 4.1.8
-      es-module-lexer: 2.1.0
-      expect-type: 1.3.0
-      magic-string: 0.30.21
-      obug: 2.1.3
-      pathe: 2.0.3
-      picomatch: 4.0.4
-      std-env: 4.1.0
-      tinybench: 2.9.0
-      tinyexec: 1.2.4
-      tinyglobby: 0.2.17
-      tinyrainbow: 3.1.0
-      vite: 8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.0
-      '@types/node': 25.9.3
       '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
       jsdom: 29.1.1
     transitivePeerDependencies:
@@ -20168,7 +20129,7 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.8
       '@vitest/mocker': 4.1.8(vite@8.0.16(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -20192,7 +20153,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
-      '@types/node': 25.9.3
+      '@types/node': 26.1.2
       '@vitest/coverage-v8': 4.1.8(vitest@4.1.8)
       jsdom: 29.1.1
     transitivePeerDependencies:

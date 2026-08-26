@@ -14,6 +14,9 @@ export const THEME_PREFERENCE_FIELD = 'preference'
 /** Theme preference persisted by the product Appearance row. */
 export type ThemePreference = typeof THEME_PREFERENCES[number]
 
+/** Theme ids that use the dark base palette (including LocalStorage character themes). */
+export const DARK_THEME_PREFERENCES: readonly string[] = ['dark', 'hutao', 'furina']
+
 /** Default preference when the user-settings document has no override. */
 export const DEFAULT_PREFERENCE: ThemePreference = 'system'
 

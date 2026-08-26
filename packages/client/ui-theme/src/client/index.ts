@@ -17,12 +17,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { AppearanceRowInjected } from './AppearanceRow.tsx'
 import { AppearanceRow } from './AppearanceRow.tsx'
+import { CHARACTER_THEMES } from './character-themes.ts'
 import { createAppearanceRowStore } from './settings-store.ts'
 import { installThemeStyles } from './styles.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import {
   DEFAULT_PREFERENCE, isThemePreference, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE,
-  type ThemePreference, type ThemeSettings,
+  type ThemeSettings,
 } from '../theme-settings.ts'
 
 export type { AppearanceRowComponentProps, AppearanceRowInjected } from './AppearanceRow.tsx'
@@ -74,7 +75,7 @@ export interface ThemeDefinition {
 /** Immutable theme state published on every change. */
 export interface ThemeSnapshot {
   /** The persisted preference (may be `system`). */
-  preference: ThemePreference
+  preference: string
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with override layers folded into its tokens (seq order, later layers win
@@ -152,13 +153,15 @@ export class ThemeRuntime {
   private readonly ctx: Context
   private readonly host: SettingsScope<ThemeSettings>
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
-  private preference: ThemePreference
+  private preference: string
   private revision = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
   /** Override layers by source; seq (monotonic) is the stacking order. */
   private readonly overrides = new Map<string, { seq: number; tokens: ThemeTokenOverrides }>()
   private overrideSeq = 0
+  /** LocalStorage key for non-Host character theme persistence. */
+  private static readonly CUSTOM_PREFERENCE_KEY = 'dsh-ui-theme.custom-preference'
 
   /**
    * @param ctx - owning context (change events are emitted on it; the
@@ -225,13 +228,54 @@ export class ThemeRuntime {
       throw new Error(`theme "${id}" is not registered`)
     }
     if (this.preference === id) return
-    this.preference = id as ThemePreference
-    if (isThemePreference(id)) void this.host.set(THEME_PREFERENCE_FIELD, id)
+    this.preference = id
+    if (isThemePreference(id)) {
+      void this.host.set(THEME_PREFERENCE_FIELD, id)
+      this.clearLocalCustomPreference()
+    } else {
+      this.saveLocalCustomPreference(id)
+    }
     this.publish()
+  }
+
+  /** Restore a previously selected character theme from LocalStorage. */
+  restoreLocalCustom(): void {
+    const stored = this.readLocalCustomPreference()
+    if (stored === undefined || stored === this.preference) return
+    if (isThemePreference(stored)) return
+    if (!this.themes.some(theme => theme.id === stored)) return
+    this.preference = stored
+    this.publish()
+  }
+
+  private saveLocalCustomPreference(id: string): void {
+    try {
+      localStorage.setItem(ThemeRuntime.CUSTOM_PREFERENCE_KEY, id)
+    } catch {
+      // LocalStorage may be unavailable (SSR/tests); persistence is best-effort.
+    }
+  }
+
+  private clearLocalCustomPreference(): void {
+    try {
+      localStorage.removeItem(ThemeRuntime.CUSTOM_PREFERENCE_KEY)
+    } catch {
+      // Ignore unavailable storage.
+    }
+  }
+
+  private readLocalCustomPreference(): string | undefined {
+    try {
+      const value = localStorage.getItem(ThemeRuntime.CUSTOM_PREFERENCE_KEY)
+      return value ?? undefined
+    } catch {
+      return undefined
+    }
   }
 
   /** Adopt the scope's accepted durable preference without writing it back. */
   private adopt(): void {
+    if (this.preference !== 'system' && !isThemePreference(this.preference)) return
     const section = this.host.getSnapshot().value
     if (section === undefined || this.preference === section.preference) return
     this.preference = section.preference
@@ -387,13 +431,17 @@ export function apply(ctx: ClientContext): void {
   const host = ctx.settingsScope.bind<ThemeSettings>({ namespace: THEME_SETTINGS_NAMESPACE })
   const theme = new ThemeRuntime(ctx, host)
   ctx.provide('theme', theme)
+  for (const definition of CHARACTER_THEMES) {
+    theme.register(definition)
+  }
+  theme.restoreLocalCustom()
 
   ctx.effect(() => ctx.locale.register(SETTINGS_NS, { zh, en }), 'ui-theme: settings row dictionaries')
 
   const store = createAppearanceRowStore()
   let bound: BoundActions<typeof store> | undefined
   const sync = (snapshot: ThemeSnapshot): void => {
-    bound?.sync(snapshot.preference, snapshot.revision)
+    bound?.sync(snapshot.preference, snapshot.revision, snapshot.themes.map(theme => theme.id))
   }
   ctx.on('theme/change', sync)
   const injected = (actions: BoundActions<typeof store>): AppearanceRowInjected => {

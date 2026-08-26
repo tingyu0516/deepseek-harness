@@ -1,9 +1,9 @@
 /**
  * Appearance preference row registered into the General section item slot
- * (figma 501:30012 'Frame 2117131228'): title + three preference cubes.
+ * (figma 501:30012 'Frame 2117131228'): title + preference cubes.
  * Registered by this package — the theme feature owns its own settings
  * surface. Selection follows the persisted preference, never the resolved
- * active theme.
+ * active theme. Custom character themes are shown after the built-in cubes.
  */
 import clsx from 'clsx'
 import {
@@ -18,8 +18,8 @@ import css from './AppearanceRow.module.css'
 
 /** Injected business face: the preference write (t rides the standard locale seat). */
 export interface AppearanceRowInjected {
-  /** Switch the theme preference. */
-  setTheme: (id: ThemePreference) => void
+  /** Switch the theme preference or a registered custom theme. */
+  setTheme: (id: string) => void
 }
 
 /** Full component props: runtime share + store share + locale seat + injected face. */
@@ -34,6 +34,12 @@ const CUBES: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof Ic
   { id: 'system', labelKey: 'appearance.system', Icon: IconFollowsystemOutline16 },
 ]
 
+/** Locale keys for built-in character themes. */
+const THEME_LABEL_KEYS: Record<string, ThemeKey> = {
+  hutao: 'appearance.hutao',
+  furina: 'appearance.furina',
+}
+
 /**
  * Render the Appearance row.
  * @param props - composed slot props.
@@ -41,6 +47,8 @@ const CUBES: readonly { id: ThemePreference; labelKey: ThemeKey; Icon: typeof Ic
  */
 export function AppearanceRow({ t, setTheme, useStore }: AppearanceRowComponentProps) {
   const preference = useStore(s => s.preference)
+  const themes = useStore(s => s.themes)
+  const extraThemeIds = themes.filter(id => !CUBES.some(cube => cube.id === id))
   return (
     <div className={css.group}>
       <div className={css.title}>{t('appearance.title')}</div>
@@ -57,6 +65,20 @@ export function AppearanceRow({ t, setTheme, useStore }: AppearanceRowComponentP
             {t(labelKey)}
           </button>
         ))}
+        {extraThemeIds.map((id) => {
+          const labelKey = THEME_LABEL_KEYS[id]
+          return (
+            <button
+              key={id}
+              type="button"
+              className={clsx(css.themeCube, preference === id && css.selected)}
+              aria-pressed={preference === id}
+              onClick={() => { setTheme(id) }}
+            >
+              {labelKey ? t(labelKey) : id}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

@@ -90,6 +90,15 @@ describe('ThemeRuntime', () => {
     expect(events.length).toBe(3)
   })
 
+  it('persists character theme ids through LocalStorage without Host writes', () => {
+    const { theme, host } = make()
+    theme.register({ id: 'hutao', colorScheme: 'dark', tokens: {} })
+    theme.setTheme('hutao')
+    expect(theme.getTheme().preference).toBe('hutao')
+    expect(host.set).not.toHaveBeenCalled()
+    expect(localStorage.getItem('dsh-ui-theme.custom-preference')).toBe('hutao')
+  })
+
   it('disposing an inactive theme keeps the active preference', () => {
     const { theme } = make()
     const dispose = theme.register({ id: 'sepia', colorScheme: 'light', tokens: {} })

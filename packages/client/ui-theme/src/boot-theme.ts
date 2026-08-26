@@ -6,7 +6,7 @@
  */
 
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
-import { DEFAULT_PREFERENCE, type ThemePreference } from './theme-settings.ts'
+import { DARK_THEME_PREFERENCES, DEFAULT_PREFERENCE, type ThemePreference } from './theme-settings.ts'
 
 /** Build the inline script body for one schema-validated built-in preference. */
 function bootThemeScript(preference: ThemePreference): string {
@@ -15,7 +15,10 @@ function bootThemeScript(preference: ThemePreference): string {
   const systemDark = preference === 'system'
     && typeof matchMedia !== 'undefined'
     && matchMedia('(prefers-color-scheme: dark)').matches
-  const dark = preference === 'dark' || systemDark
+  const customPreference = (() => { try { return localStorage.getItem('dsh-ui-theme.custom-preference') } catch { return null } })()
+    const dark = ${JSON.stringify(DARK_THEME_PREFERENCES)}.includes(preference)
+      || ${JSON.stringify(DARK_THEME_PREFERENCES)}.includes(customPreference)
+      || systemDark
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
   document.body.toggleAttribute('data-ds-dark-theme', dark)
 })()`

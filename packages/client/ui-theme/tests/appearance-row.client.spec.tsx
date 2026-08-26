@@ -17,6 +17,8 @@ const COPY: Record<string, string> = {
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
   'appearance.system': 'System',
+  'appearance.hutao': 'Hu Tao',
+  'appearance.furina': 'Furina',
 }
 
 /** Empty global standard-kit hooks (the row reads neither). */
@@ -33,10 +35,10 @@ function emptyWorkspaces() {
   return bindSnapshotSelector(store)
 }
 
-function mount(preference: ThemePreference = 'system') {
+function mount(preference: ThemePreference = 'system', themes: string[] = []) {
   // Real store instance — the sanctioned zero-machinery path for tests.
   const store = createAppearanceRowStore().create()
-  store.actions.sync(preference, 0)
+  store.actions.sync(preference, 0, themes)
   const setTheme = vi.fn()
   const props: AppearanceRowComponentProps = {
     useSessions: emptySessions(),
@@ -71,5 +73,17 @@ describe('AppearanceRow', () => {
     act(() => { b.store.actions.sync('light', 1) })
     expect(pressed(/Light/)).toBe('true')
     expect(pressed(/Dark/)).toBe('false')
+  })
+
+  it('renders registered character themes after the built-in cubes', () => {
+    mount('system', ['light', 'dark', 'system', 'hutao', 'furina'])
+    expect(screen.getByRole('button', { name: 'Hu Tao' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Furina' })).toBeDefined()
+  })
+
+  it('selects a character theme through setTheme', () => {
+    const b = mount('system', ['light', 'dark', 'system', 'hutao', 'furina'])
+    fireEvent.click(screen.getByRole('button', { name: 'Furina' }))
+    expect(b.setTheme).toHaveBeenCalledWith('furina')
   })
 })
