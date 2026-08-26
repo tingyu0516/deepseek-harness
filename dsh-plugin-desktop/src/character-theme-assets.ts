@@ -6,8 +6,8 @@ import { basename, extname, join } from 'node:path'
 
 /** Exact loopback paths served for Hu Tao and Furina wallpapers. */
 export const CHARACTER_THEME_ASSET_ROUTES = [
-  { id: 'hutao', path: '/themes/hutao.jpg', file: 'hutao.jpg' },
-  { id: 'furina', path: '/themes/furina.jpg', file: 'furina.jpg' },
+  { id: 'hutao', path: '/themes/hutao.png', file: 'hutao.png' },
+  { id: 'furina', path: '/themes/furina.png', file: 'furina.png' },
 ] as const
 
 const ASSET_CONTENT_TYPES: Record<string, string> = {

@@ -49,7 +49,7 @@ describe('character wallpaper contract', () => {
     })
     expect(parseCharacterWallpaperAssetPath('/themes/custom/hutao/../wp_0123456789abcdef')).toBeUndefined()
     expect(parseCharacterWallpaperAssetPath('/themes/custom/hutao/default')).toBeUndefined()
-    expect(parseCharacterWallpaperAssetPath('/themes/hutao.jpg')).toBeUndefined()
+    expect(parseCharacterWallpaperAssetPath('/themes/hutao.png')).toBeUndefined()
   })
 })
 
@@ -61,7 +61,7 @@ describe('character wallpaper store', () => {
       {
         id: DEFAULT_CHARACTER_WALLPAPER_ID,
         theme: 'hutao',
-        url: '/themes/hutao.jpg',
+        url: '/themes/hutao.png',
         label: 'default',
         deletable: false,
       },

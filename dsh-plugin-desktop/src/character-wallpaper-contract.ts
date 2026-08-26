@@ -12,7 +12,7 @@ export const DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH = '/api/desktop/character-w
 /** Prefix served for imported wallpapers stored in Electron userData. */
 export const CHARACTER_WALLPAPER_ASSET_PREFIX = '/themes/custom'
 
-/** Built-in wallpaper id that maps onto the packaged Hu Tao / Furina JPEG. */
+/** Built-in wallpaper id that maps onto the packaged Hu Tao / Furina PNG. */
 export const DEFAULT_CHARACTER_WALLPAPER_ID = 'default'
 
 /** Imported wallpaper ids written by Desktop (`wp_` plus 16 lowercase hex chars). */
@@ -86,11 +86,11 @@ export function isCharacterWallpaperThemeId(value: unknown): value is CharacterW
  * @param theme - Hu Tao or Furina library.
  */
 export function defaultCharacterWallpaperUrl(theme: CharacterWallpaperThemeId): string {
-  return `/themes/${theme}.jpg`
+  return `/themes/${theme}.png`
 }
 
 /**
- * Loopback URL for one wallpaper. Unknown custom ids fall back to the bundled JPEG.
+ * Loopback URL for one wallpaper. Unknown custom ids fall back to the bundled PNG.
  * @param theme - Hu Tao or Furina library.
  * @param wallpaperId - `default` or an imported `wp_…` id.
  */
