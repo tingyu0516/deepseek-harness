@@ -73,6 +73,8 @@ describe('desktop character themes', () => {
     expect(css).toContain('body[data-dsh-character-theme]')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
     expect(css).toContain('#root')
+    expect(css).toMatch(/body\[data-dsh-character-theme\]:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\)\s+\.dshDesktopSidebarSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-layer-1\) 42%, var\(--dsw-alias-bg-layer-3\)\) !important;/)
+    expect(css).not.toMatch(/body\[data-dsh-character-theme\] \.dshDesktopSidebarSurface \{[^}]*background-color: transparent !important;/)
     expect(appendChild).toHaveBeenCalledWith(style)
     dispose()
     expect(remove).toHaveBeenCalledOnce()

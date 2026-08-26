@@ -26,9 +26,14 @@ body[data-dsh-character-theme] #root {
   z-index: 1;
 }
 body[data-dsh-character-theme] #root > *,
-body[data-dsh-character-theme] .dshDesktopFrame,
-body[data-dsh-character-theme] .dshDesktopSidebarSurface {
+body[data-dsh-character-theme] .dshDesktopFrame {
   background-color: transparent !important;
+}
+body[data-dsh-character-theme]:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])
+  .dshDesktopSidebarSurface {
+  --dsw-specific-sidebar-fill: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-3));
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-3)) !important;
+  border-right-color: var(--dsw-alias-border-l1);
 }
 body[data-dsh-character-theme] .dshDesktopConversationSurface,
 body[data-dsh-character-theme] .dshDesktopDetailsSurface {
