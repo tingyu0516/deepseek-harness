@@ -1,0 +1,27 @@
+# dsh-plugin-pet-hutao
+
+DSH Desktop 的胡桃主题桌宠插件——角色本体是社区获取的 Live2D 模型（由仓库
+所有者放置在本机 `assets/live2d/`，来源与许可见 `assets/live2d/LICENSE-MODEL.md`
+及核心包的 [LIVE2D.md](../dsh-plugin-pet-core/LIVE2D.md)）；对话气泡沿用内置
+胡桃角色主题的往生堂色调。
+
+## 功能
+
+- 新增一个透明、始终置顶的伙伴窗口，可拖到任意位置，重启后停留在上次
+  的位置。Live2D 资产就位时才会开窗；缺失时保持不出现，并在日志里说明
+  缺什么。
+- 与你的工作联动：用户回合进行时进入「工作中」，完成时欢呼，失败时垂头
+  （后台任务同样生效）。
+- 使用角色专属的中英双语台词；闲聊台词与事件反应可独立开关。
+- 注册托盘菜单（`桌宠 · 胡桃`），提供「显示桌宠」勾选项、招呼与反应开关；
+  单击角色可以摸摸头，双击触发特别演出。
+
+## 安装
+
+将 `dsh-plugin-pet-hutao` 加入当前桌面 profile 的 `dsh.profile.bundles`
+列表并重启 DSH Desktop。之后可随时在 Desktop 的插件管理中停用或移除。
+
+## 许可证
+
+MIT © Anywhere Labs。随包使用的 Live2D 模型与 Cubism Core 版权归各自权利人：
+仅限本地非商业使用，禁止再分发——细节见 `assets/live2d/LICENSE-MODEL.md`。

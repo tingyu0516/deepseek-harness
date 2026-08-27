@@ -111,12 +111,17 @@ export interface DesktopSignalSource {
 export interface DesktopQuitSource {
   /** Register the native quit guard. */
   on(event: 'before-quit', listener: (event: DesktopQuitEvent) => void): unknown
+  /** Keep the process alive when the last BrowserWindow closes. */
+  on(event: 'window-all-closed', listener: () => void): unknown
   /** Remove the native quit guard. */
   off(event: 'before-quit', listener: (event: DesktopQuitEvent) => void): unknown
+  /** Remove the last-window listener. */
+  off(event: 'window-all-closed', listener: () => void): unknown
 }
 
 /**
  * Route every application-level quit source through Cordis teardown.
+ * Desktop is a tray application: closing the last window must not quit.
  * @param signals - process signal owner.
  * @param nativeApp - Electron application event owner.
  * @param requestQuit - idempotent launcher shutdown request.
@@ -133,12 +138,17 @@ export function installShutdownRequests(
     event.preventDefault()
     requestQuit(0)
   }
+  const windowAllClosed = (): void => {
+    // Presence of this listener suppresses Electron's default quit.
+  }
   signals.on('SIGINT', interrupt)
   signals.on('SIGTERM', terminate)
   nativeApp.on('before-quit', beforeQuit)
+  nativeApp.on('window-all-closed', windowAllClosed)
   return () => {
     signals.off('SIGINT', interrupt)
     signals.off('SIGTERM', terminate)
     nativeApp.off('before-quit', beforeQuit)
+    nativeApp.off('window-all-closed', windowAllClosed)
   }
 }

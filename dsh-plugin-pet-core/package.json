@@ -1,0 +1,63 @@
+{
+  "name": "dsh-plugin-pet-core",
+  "version": "0.1.0-dev.0",
+  "private": true,
+  "description": "Shared desktop-pet engine for DSH Desktop character pet plugins: window lifecycle, event reactions, and the pet renderer page",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anywhere-labs/deepseek-harness-desktop.git",
+    "directory": "dsh-plugin-pet-core"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./pet.html": "./pet.html",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "lib/**/*.map",
+    "lib/**/*.d.ts",
+    "pet.html",
+    "LICENSE",
+    "README.md",
+    "README.zh.md"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsdown && tsc -p tsconfig.json --emitDeclarationOnly",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tests.json --noEmit",
+    "test": "vitest run",
+    "check": "yarn run build && yarn run typecheck && yarn run test",
+    "prepack": "yarn run check"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-settings": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-brand": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^22.20.0",
+    "tsdown": "0.22.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.8"
+  },
+  "keywords": [
+    "deepseek",
+    "dsh",
+    "plugin",
+    "desktop-pet"
+  ]
+}

@@ -8343,6 +8343,9 @@ __metadata:
     class-variance-authority: "npm:^0.7.1"
     clsx: "npm:^2.1.1"
     dsh-community-market: "npm:0.1.0-dev.0"
+    dsh-plugin-pet-core: "npm:0.1.0-dev.0"
+    dsh-plugin-pet-furina: "npm:0.1.0-dev.0"
+    dsh-plugin-pet-hutao: "npm:0.1.0-dev.0"
     dshmarket: "npm:1.17.1"
     electron: "npm:43.4.0"
     electron-builder: "npm:26.15.7"
@@ -8369,6 +8372,59 @@ __metadata:
   bin:
     dsh-desktop: lib/bin.js
     dsh-plugin-desktop: lib/bin.js
+  languageName: unknown
+  linkType: soft
+
+"dsh-plugin-pet-core@npm:0.1.0-dev.0, dsh-plugin-pet-core@workspace:dsh-plugin-pet-core":
+  version: 0.0.0-use.local
+  resolution: "dsh-plugin-pet-core@workspace:dsh-plugin-pet-core"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.1"
+    "@deepseek-ai/dsh-brand": "npm:0.1.1-rc.2"
+    "@deepseek-ai/dsh-settings": "npm:0.1.1-rc.2"
+    "@deepseek-ai/schemastery": "npm:^3.18.1"
+    "@types/node": "npm:^22.20.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  peerDependencies:
+    "@deepseek-ai/cordis": 4.0.1
+    "@deepseek-ai/dsh-settings": 0.1.1-rc.2
+    "@deepseek-ai/schemastery": ^3.18.1
+  languageName: unknown
+  linkType: soft
+
+"dsh-plugin-pet-furina@npm:0.1.0-dev.0, dsh-plugin-pet-furina@workspace:dsh-plugin-pet-furina":
+  version: 0.0.0-use.local
+  resolution: "dsh-plugin-pet-furina@workspace:dsh-plugin-pet-furina"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.1"
+    "@deepseek-ai/dsh-brand": "npm:0.1.1-rc.2"
+    "@deepseek-ai/dsh-settings": "npm:0.1.1-rc.2"
+    "@types/node": "npm:^22.20.0"
+    dsh-plugin-pet-core: "npm:0.1.0-dev.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  peerDependencies:
+    "@deepseek-ai/cordis": 4.0.1
+  languageName: unknown
+  linkType: soft
+
+"dsh-plugin-pet-hutao@npm:0.1.0-dev.0, dsh-plugin-pet-hutao@workspace:dsh-plugin-pet-hutao":
+  version: 0.0.0-use.local
+  resolution: "dsh-plugin-pet-hutao@workspace:dsh-plugin-pet-hutao"
+  dependencies:
+    "@deepseek-ai/cordis": "npm:4.0.1"
+    "@deepseek-ai/dsh-brand": "npm:0.1.1-rc.2"
+    "@deepseek-ai/dsh-settings": "npm:0.1.1-rc.2"
+    "@types/node": "npm:^22.20.0"
+    dsh-plugin-pet-core: "npm:0.1.0-dev.0"
+    tsdown: "npm:0.22.2"
+    typescript: "npm:6.0.3"
+    vitest: "npm:4.1.8"
+  peerDependencies:
+    "@deepseek-ai/cordis": 4.0.1
   languageName: unknown
   linkType: soft
 

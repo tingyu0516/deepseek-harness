@@ -78,12 +78,13 @@ flowchart LR
 5. 最终释放会等待进行中的 Host disposal；如果该 disposal 失败，最终释放会通过同一个 Cordis interface 对仍绑定的 Host 重试一次。
 6. 随后最终释放按注册逆序调用每个受管资源回调，即使其他回调失败也继续执行。
 7. 并发和重复的最终释放请求共享同一个结果。
+8. 最终释放开始后，`isReleased` 为 true。Host `boot()` 仍可能返回，因为 Cordis 可能在启动尚未结束时就释放 Loader。composition root 不得再 `bindHost` 或打开启动恢复窗口；它应等待进行中的释放。
 
-现有 shutdown deadline 仍是外层进程级保证。generation module 不会强制原生退出，也不会削弱“恢复修改必须先成功静默 Host”的规则。
+现有 shutdown deadline 仍是外层进程级保证。generation module 不会强制原生退出，也不会削弱“恢复修改必须先成功静默 Host”的规则。关闭最后一个 `BrowserWindow` 不会退出 Desktop；`installShutdownRequests` 持有 `window-all-closed` 监听器，避免主窗口尚未存在时辅助窗口关闭就释放 generation。
 
 ## 验证
 
-聚焦测试覆盖唯一 Host ownership、并发最终释放、共享 Host-effect 回调、并发恢复静默化、超时行为、失败 disposal 重试、资源逆序释放和失败保留。包结构测试验证 `main.ts` 把 pnpm 与 DSH runtime ownership、shutdown、fail-loud 清理和恢复静默化委托给 generation module。
+聚焦测试覆盖唯一 Host ownership、并发最终释放、共享 Host-effect 回调、并发恢复静默化、超时行为、失败 disposal 重试、资源逆序释放、失败保留，以及最终释放后的 `isReleased`。包结构测试验证 `main.ts` 把 pnpm 与 DSH runtime ownership、shutdown、fail-loud 清理和恢复静默化委托给 generation module，并在 generation 已释放时跳过 `bindHost` 和恢复窗口。
 
 Desktop 类型检查通过。完整测试完成 626 项，另有 11 项平台跳过。根仓库 `corepack yarn check` 通过，包括 Market 255/255、Desktop 构建和测试、runtime closure、CLI、Loader 与 profile smoke，以及许可证验证。更早一次根检查在未修改的 Market HTTP 测试里随机分配到 Fetch 禁止端口；该测试和完整根 gate 重跑均通过。
 

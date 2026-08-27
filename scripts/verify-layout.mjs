@@ -14,6 +14,9 @@ const fail = message => { throw new Error(`verify-layout: ${message}`) }
 const workspace = readJson('package.json')
 const upstream = readJson('upstream.json')
 const plugin = readJson('dsh-plugin-desktop/package.json')
+const petCore = readJson('dsh-plugin-pet-core/package.json')
+const petHutao = readJson('dsh-plugin-pet-hutao/package.json')
+const petFurina = readJson('dsh-plugin-pet-furina/package.json')
 const fabric = readJson('dsh-community-fabric/package.json')
 const market = readJson('dsh-community-market/package.json')
 const upstreamPackage = readJson('deepseek-harness/package.json')
@@ -23,18 +26,28 @@ if (workspace.packageManager !== 'yarn@4.18.0') {
 }
 if (JSON.stringify(workspace.workspaces) !== JSON.stringify([
   'dsh-plugin-desktop',
+  'dsh-plugin-pet-core',
+  'dsh-plugin-pet-hutao',
+  'dsh-plugin-pet-furina',
   'dsh-community-fabric',
   'dsh-community-market',
 ])) {
-  fail('the root Yarn workspace must contain the desktop, community-fabric, and community-market packages')
+  fail('the root Yarn workspace must contain the desktop, pet, community-fabric, and community-market packages')
 }
 for (const [name, manifest] of [
   ['dsh-plugin-desktop', plugin],
+  ['dsh-plugin-pet-core', petCore],
+  ['dsh-plugin-pet-hutao', petHutao],
+  ['dsh-plugin-pet-furina', petFurina],
   ['dsh-community-fabric', fabric],
   ['dsh-community-market', market],
 ]) {
   if (manifest.packageManager !== undefined) fail(`${name} must inherit the root Yarn release`)
 }
+if (petCore.name !== 'dsh-plugin-pet-core') fail('the pet engine workspace must own dsh-plugin-pet-core')
+if (petHutao.name !== 'dsh-plugin-pet-hutao') fail('the pet workspace must own dsh-plugin-pet-hutao')
+if (petFurina.name !== 'dsh-plugin-pet-furina') fail('the pet workspace must own dsh-plugin-pet-furina')
+if (petCore.dsh?.bundle !== undefined) fail('dsh-plugin-pet-core is a library and must not declare a loadable bundle')
 if (fabric.name !== 'dsh-community-fabric') fail('the Fabric workspace must own dsh-community-fabric')
 if (market.name !== 'dsh-community-market') fail('the market workspace must own dsh-community-market')
 const claudePath = resolve(root, 'CLAUDE.md')
@@ -52,6 +65,12 @@ for (const legacyFile of [
   'pnpm-workspace.yaml',
   'dsh-plugin-desktop/pnpm-lock.yaml',
   'dsh-plugin-desktop/pnpm-workspace.yaml',
+  'dsh-plugin-pet-core/pnpm-lock.yaml',
+  'dsh-plugin-pet-core/pnpm-workspace.yaml',
+  'dsh-plugin-pet-hutao/pnpm-lock.yaml',
+  'dsh-plugin-pet-hutao/pnpm-workspace.yaml',
+  'dsh-plugin-pet-furina/pnpm-lock.yaml',
+  'dsh-plugin-pet-furina/pnpm-workspace.yaml',
   'dsh-community-fabric/pnpm-lock.yaml',
   'dsh-community-fabric/pnpm-workspace.yaml',
   'dsh-community-market/pnpm-lock.yaml',
@@ -72,6 +91,9 @@ if (typeof upstreamPackage.packageManager !== 'string' || !upstreamPackage.packa
 for (const [owner, manifest] of [
   ['root', workspace],
   ['desktop', plugin],
+  ['pet-core', petCore],
+  ['pet-hutao', petHutao],
+  ['pet-furina', petFurina],
   ['fabric', fabric],
   ['market', market],
 ]) {

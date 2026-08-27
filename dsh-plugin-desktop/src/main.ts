@@ -749,6 +749,12 @@ async function start(): Promise<void> {
       releasePackageResolver()
       throw cause
     })
+    if (generation.isReleased) {
+      electronLogger.error(`${BIN_NAME}: Host boot returned after the startup generation was released`)
+      startupRecoveryController?.dispose()
+      await generation.release()
+      return
+    }
     generation.bindHost(ctx)
     fileExporter?.setThreshold((ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined)?.logLevel ?? 'info')
     ctx.on('settings/updated', (namespace, next) => {
@@ -791,6 +797,11 @@ async function start(): Promise<void> {
     lifecycleRecorder.failRendererBootIfPending(lifecycleRendererFailureReason(runtime.rendererBootFailureReason))
     lifecycleRecorder.failStartup(startupStage, lifecycleStartupFailureReason(cause, runtime))
     electronLogger.errorCause(cause)
+    if (generation.isReleased) {
+      startupRecoveryController?.dispose()
+      await generation.release()
+      return
+    }
     let exitCode = 1
     const failureRoute = routeDesktopStartupFailure({
       appReady: app.isReady(),

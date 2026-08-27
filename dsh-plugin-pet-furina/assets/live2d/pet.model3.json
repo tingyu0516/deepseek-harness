@@ -1,0 +1,59 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "芙宁娜.moc3",
+    "Textures": [
+      "芙宁娜.8192/texture_00.png"
+    ],
+    "Physics": "芙宁娜.physics3.json",
+    "DisplayInfo": "芙宁娜.cdi3.json",
+    "Expressions": [
+      { "Name": "ahogeFan", "File": "expressions/呆毛电风扇.exp3.json" },
+      { "Name": "cry", "File": "expressions/哭.exp3.json" },
+      { "Name": "drink", "File": "expressions/喝饮料.exp3.json" },
+      { "Name": "genius", "File": "expressions/大聪明.exp3.json" },
+      { "Name": "blush", "File": "expressions/小脸红.exp3.json" },
+      { "Name": "hat", "File": "expressions/帽子.exp3.json" },
+      { "Name": "chinRest", "File": "expressions/托脸.exp3.json" },
+      { "Name": "spoon", "File": "expressions/拿勺子.exp3.json" },
+      { "Name": "cake", "File": "expressions/拿蛋糕.exp3.json" },
+      { "Name": "coverMouth", "File": "expressions/捂嘴.exp3.json" },
+      { "Name": "star", "File": "expressions/星星.exp3.json" },
+      { "Name": "sweat", "File": "expressions/汗.exp3.json" },
+      { "Name": "signBoard", "File": "expressions/牌子.exp3.json" },
+      { "Name": "catMouth", "File": "expressions/猫猫嘴.exp3.json" },
+      { "Name": "angry", "File": "expressions/生气.exp3.json" },
+      { "Name": "walkSwitch", "File": "expressions/走路切换.exp3.json" },
+      { "Name": "fish", "File": "expressions/鱼鱼.exp3.json" }
+    ],
+    "Motions": {
+      "Idle": [
+        { "File": "motions/待机动画.motion3.json", "FadeInTime": 0.5, "FadeOutTime": 0.5 }
+      ],
+      "Sad": [
+        { "File": "motions/变荒.motion3.json", "FadeInTime": 0.3, "FadeOutTime": 0.8 }
+      ],
+      "Special": [
+        { "File": "motions/变芒.motion3.json", "FadeInTime": 0.3, "FadeOutTime": 0.8 }
+      ],
+      "Pat": [
+        { "File": "motions/摊手动画.motion3.json", "FadeInTime": 0.3, "FadeOutTime": 0.5 }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": [
+        "ParamMouthForm",
+        "ParamMouthOpenY"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": []
+    }
+  ]
+}
