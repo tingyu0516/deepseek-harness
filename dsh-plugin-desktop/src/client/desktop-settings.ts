@@ -2,14 +2,14 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { DesktopSettingsSection, type DesktopNotificationSettings, type DesktopShellSettings } from './DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from './DesktopTerminalSettingsAction.tsx'
 import { createDesktopSettingsApi } from './desktop-settings-api.ts'
 import { en, zh, type DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import { installDesktopSettingsStyles } from './desktop-settings-styles.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
-import { DesktopSessionTerminalAction } from './DesktopSessionTerminalAction.tsx'
+import { openDesktopTerminalDrawer } from './TerminalDrawer.tsx'
 
 /** Locale namespace owned by the Desktop settings page. */
 export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
@@ -73,13 +73,8 @@ export function applyDesktopSettings(
     id: 'open-desktop-terminal',
     order: 1,
     locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
-    inject: () => ({ api }),
+    inject: () => ({ api, onOpenTerminal: openDesktopTerminalDrawer }),
   }, DesktopTerminalSettingsAction))
-  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
-    name: 'conversation.session.header.actions',
-    id: 'desktop-session-terminal',
-    order: 100,
-  }, DesktopSessionTerminalAction))
 
   return Object.freeze({
     api,
