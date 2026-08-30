@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import type { PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './contracts.ts'
 import type { DesktopClientPlatform } from './environment.ts'
+import { useDesktopTerminalDrawerOpen } from './TerminalDrawer.tsx'
 import {
   collapsedSidebarWidth, computeDesktopColumns, DesktopLayoutState,
   SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
@@ -32,6 +33,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
   const subscribeLayout = useCallback((listener: () => void) => layout.subscribe(listener), [layout])
   const readLayout = useCallback(() => layout.getSnapshot(), [layout])
   const panels = useSyncExternalStore(subscribeLayout, readLayout)
+  const terminalOpen = useDesktopTerminalDrawerOpen()
   const frameRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
   const detailsSession = useSessions((state) => {
@@ -71,8 +73,10 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
 
   const collapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
   const sidebarPreference = collapsed ? 0 : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
+  const terminalInset = terminalOpen ? Math.min(640, viewport * 0.92) : 0
+  const layoutViewport = Math.max(320, viewport - terminalInset)
   const columns = computeDesktopColumns(
-    viewport,
+    layoutViewport,
     sidebarPreference,
     detailsSession === undefined ? 0 : panels.details,
     collapsedSidebarWidth(mode, platform),
@@ -138,7 +142,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       {columns.details > 0 && (
         <ResizeHandle
           side="details"
-          left={viewport - columns.details}
+          left={layoutViewport - columns.details}
           onStart={onDetailsStart}
           onDrag={onDetailsDrag}
           onEnd={onDragEnd}
