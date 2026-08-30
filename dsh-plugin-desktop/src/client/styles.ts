@@ -39,6 +39,12 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopFrame[data-dragging] { transition: none; }
 .dshDesktopOverlay { position: absolute; z-index: 1000; inset: 0; pointer-events: none; }
 .dshDesktopOverlay > * { pointer-events: auto; }
+.dshDesktopTerminalDrawer { position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: min(640px, 92vw); min-width: 280px; background: var(--dsw-alias-bg-layer-1); border-left: 1px solid var(--dsw-alias-border-l1); box-shadow: -12px 0 28px rgb(0 0 0 / 18%); -webkit-app-region: no-drag; }
+.dshDesktopTerminalDrawerHeader { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopTerminalDrawerHeader button { width: 28px; height: 28px; border: 0; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
+.dshDesktopTerminalDrawerViewport { flex: 1; min-height: 0; padding: 10px; overflow: hidden; background: #111; }
+.dshDesktopTerminalDrawerViewport .xterm { height: 100%; }
+.dshDesktopTerminalDrawerError { flex: none; padding: 8px 12px; color: var(--dsw-alias-danger, #d14343); font-size: 12px; }
 .dshDesktopResizeHandle { position: absolute; z-index: 50; top: 0; bottom: 0; width: 8px; margin-left: -4px; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
 .dshDesktopFrame[data-dragging] .dshDesktopResizeHandle { transition: none; }
 .dshDesktopNoDrag, button, input, textarea, select, label, summary, a, [contenteditable="true"], [role="button"], [role="checkbox"], [role="dialog"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"] { -webkit-app-region: no-drag !important; }

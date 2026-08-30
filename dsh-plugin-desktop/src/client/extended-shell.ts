@@ -18,6 +18,7 @@ import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
+import { DesktopTerminalDrawer, openDesktopTerminalDrawer } from './TerminalDrawer.tsx'
 
 /** Own the extended root/sidebar surface without reusing enhanced-mode chrome. */
 function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -86,10 +87,16 @@ export function applyFramedShell(
 
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
+    id: 'desktop-terminal-drawer',
+    order: 10,
+  }, DesktopTerminalDrawer))
+
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
     id: 'desktop-frame-titlebar',
     order: -1000,
     locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
-    inject: () => ({ api, environment, setMode }),
+    inject: () => ({ api, environment, setMode, onOpenTerminal: openDesktopTerminalDrawer }),
   }, DesktopFrameTitlebar))
 }
 
