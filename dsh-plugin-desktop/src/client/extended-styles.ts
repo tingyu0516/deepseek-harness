@@ -25,12 +25,9 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   background-position: center;
   background-repeat: no-repeat;
 }
-body[data-dsh-desktop-mode="compatibility"][data-dsh-terminal-open] #root {
-  padding-right: min(640px, 92vw);
-}
-body[data-dsh-desktop-mode="compatibility"] #root {
-  transition: padding-right var(--ds-transition-duration-slow) var(--ds-ease-in-out);
-}
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
+  box-sizing: border-box;
+  position: fixed;
   top: ${DESKTOP_FRAME_HEIGHT}px;
   right: 0;
   bottom: 0;
