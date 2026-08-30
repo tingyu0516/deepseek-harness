@@ -37,6 +37,13 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     name: 'shell.overlay',
     id: 'desktop-terminal-drawer',
     order: 10,
+    inject: () => ({
+      getCwd: () => {
+        const state = ctx.sessions.list.getSnapshot()
+        const current = state.current === undefined ? undefined : state.byId[state.current]
+        return current?.cwd
+      },
+    }),
   }, DesktopTerminalDrawer))
 
   ctx.effect(() => ctx.slots.register({
