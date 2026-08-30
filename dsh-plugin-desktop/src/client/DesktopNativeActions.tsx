@@ -13,8 +13,6 @@ export interface DesktopNativeActionsProps {
     & Partial<Pick<DesktopSettingsApi, 'exportDiagnostics'>>
   readonly t: (key: DesktopSettingsLocaleKey) => string
   readonly placement: 'settings' | 'titlebar'
-  /** Optional embedded terminal action; native launch remains the fallback. */
-  readonly onOpenTerminal?: () => void
 }
 
 interface DesktopRestartMenuItemsProps {
@@ -66,7 +64,7 @@ export function DesktopDeveloperMenuItems({
   )
 }
 
-export function DesktopNativeActions({ api, t, placement, onOpenTerminal }: DesktopNativeActionsProps) {
+export function DesktopNativeActions({ api, t, placement }: DesktopNativeActionsProps) {
   const [exportingDiagnostics, setExportingDiagnostics] = useState(false)
   const [opening, setOpening] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -112,10 +110,8 @@ export function DesktopNativeActions({ api, t, placement, onOpenTerminal }: Desk
     if (busy) return
     setOpening(true)
     setFailed(undefined)
-    void Promise.resolve().then(() => {
-      if (onOpenTerminal === undefined) return api.openTerminal()
-      onOpenTerminal()
-    }).catch(() => { setFailed('terminal') })
+    void api.openTerminal()
+      .catch(() => { setFailed('terminal') })
       .finally(() => { setOpening(false) })
   }
 

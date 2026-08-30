@@ -9,7 +9,6 @@ import { createDesktopSettingsApi } from './desktop-settings-api.ts'
 import { en, zh, type DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import { installDesktopSettingsStyles } from './desktop-settings-styles.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
-import { openDesktopTerminalDrawer } from './TerminalDrawer.tsx'
 
 /** Locale namespace owned by the Desktop settings page. */
 export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
@@ -73,7 +72,7 @@ export function applyDesktopSettings(
     id: 'open-desktop-terminal',
     order: 1,
     locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
-    inject: () => ({ api, onOpenTerminal: openDesktopTerminalDrawer }),
+    inject: () => ({ api }),
   }, DesktopTerminalSettingsAction))
 
   return Object.freeze({

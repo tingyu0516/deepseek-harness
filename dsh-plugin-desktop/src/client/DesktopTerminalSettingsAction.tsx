@@ -10,7 +10,6 @@ export interface DesktopTerminalSettingsActionInjected {
     DesktopSettingsApi,
     'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools'
   >
-  readonly onOpenTerminal?: () => void
 }
 
 /** Renderer-composed terminal action props. */
@@ -20,11 +19,6 @@ export type DesktopTerminalSettingsActionProps =
   & InjectFace<DesktopTerminalSettingsActionInjected>
 
 /** Open DSH Terminal or restart without exposing launcher details to the renderer. */
-export function DesktopTerminalSettingsAction({ api, t, onOpenTerminal }: DesktopTerminalSettingsActionProps) {
-  return <DesktopNativeActions
-    api={api}
-    t={t}
-    placement="settings"
-    {...(onOpenTerminal === undefined ? {} : { onOpenTerminal })}
-  />
+export function DesktopTerminalSettingsAction({ api, t }: DesktopTerminalSettingsActionProps) {
+  return <DesktopNativeActions api={api} t={t} placement="settings" />
 }

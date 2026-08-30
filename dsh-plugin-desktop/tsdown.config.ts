@@ -1,56 +1,6 @@
-import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
-import { basename, dirname, isAbsolute, resolve as resolvePath } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { defineConfig } from 'tsdown'
 
 const PACKAGE_NAME = 'dsh-plugin-desktop'
-/** Virtual ids must not end in `.css`, or tsdown's css-guard rejects the build. */
-const CSS_VIRTUAL_PREFIX = '\0dsh-css:'
-const CSS_VIRTUAL_SUFFIX = '.mjs'
-
-function resolveStylesheet(source: string, importer: string | undefined): string | undefined {
-  if (source.startsWith('.') || isAbsolute(source)) {
-    if (importer === undefined) return undefined
-    return resolvePath(dirname(importer), source)
-  }
-  const require = createRequire(importer === undefined ? import.meta.url : pathToFileURL(importer).href)
-  return require.resolve(source)
-}
-
-function cssInlinePlugin() {
-  return {
-    name: 'dsh-css-global-inline',
-    resolveId: {
-      order: 'pre' as const,
-      handler(source: string, importer: string | undefined) {
-        if (!source.endsWith('.css')) return null
-        const file = resolveStylesheet(source, importer)
-        if (file === undefined) return null
-        return CSS_VIRTUAL_PREFIX + file + CSS_VIRTUAL_SUFFIX
-      },
-    },
-    async load(this: { addWatchFile(id: string): void }, id: string) {
-      if (!id.startsWith(CSS_VIRTUAL_PREFIX)) return null
-      const fileId = id.slice(CSS_VIRTUAL_PREFIX.length, -CSS_VIRTUAL_SUFFIX.length)
-      this.addWatchFile(fileId)
-      const css = await readFile(fileId, 'utf8')
-      const tagId = `${PACKAGE_NAME}/${basename(fileId)}`
-      return [
-        `const css = ${JSON.stringify(css)};`,
-        `const tagId = ${JSON.stringify(tagId)};`,
-        'if (typeof document !== \'undefined\' && document.querySelector(\'style[data-plugin-css=\' + JSON.stringify(tagId) + \']\') === null) {',
-        '  const tag = document.createElement(\'style\');',
-        `  tag.dataset.plugin = ${JSON.stringify(PACKAGE_NAME)};`,
-        '  tag.dataset.pluginCss = tagId;',
-        '  tag.textContent = css;',
-        '  document.head.appendChild(tag);',
-        '}',
-        'export {};',
-      ].join('\n')
-    },
-  }
-}
 
 export default defineConfig([
   {
@@ -133,7 +83,6 @@ export default defineConfig([
       '@deepseek-ai/dsh-client-ui-primitives',
     ],
     noExternal: (id: string) => id.startsWith('@deepseek-ai/') ? undefined : true,
-    plugins: [cssInlinePlugin()],
     outputOptions: {
       entryFileNames: 'client.js',
       banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PACKAGE_NAME)}, factory: (require) => {`,

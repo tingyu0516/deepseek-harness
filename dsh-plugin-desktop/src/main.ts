@@ -21,8 +21,6 @@ import {
   installDesktopPnpmRuntime,
 } from './desktop-runtime-environment.ts'
 import { desktopProductVersion, ElectronDesktopRuntime } from './electron-runtime.ts'
-import { DesktopTerminalChannel } from './desktop-terminal-channel.ts'
-import { desktopTerminalStateDirectory } from './desktop-terminal.ts'
 import {
   ElectronStderrLogger,
   installDesktopChildProcessLogging,
@@ -652,33 +650,6 @@ async function start(): Promise<void> {
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
         hostCtx.provide('desktopRuntime', runtime)
         hostCtx.provide('desktopPnpmBootstrap', desktopPnpmBootstrap)
-        if (process.platform === 'darwin' || process.platform === 'win32') {
-          const terminalChannel = new DesktopTerminalChannel({
-            terminal: {
-              platform: process.platform,
-              appExecutable: process.execPath,
-              dshBootstrapPath,
-              pnpmBinPath,
-              electronVersion,
-              profileName: activeProfileName,
-              productVersion: appVersion,
-              profileDir: prepared.profile.dir,
-              homeDir: prepared.homeDir,
-              stateDir: desktopTerminalStateDirectory(app.getPath('userData'), activeProfileName),
-              environment: process.env,
-            },
-            reportError: (operation, cause) => {
-              hostCtx.logger.error(
-                `${BIN_NAME}: failed to ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`,
-              )
-            },
-          })
-          hostCtx.provide('desktopTerminalChannel', terminalChannel)
-          hostCtx.effect(
-            () => () => terminalChannel.close(),
-            'dsh-plugin-desktop: terminal drawer channel',
-          )
-        }
         await hostCtx.plugin(DesktopActionsService, {
           openTerminal: () => { runtime.openTerminal() },
           requestRestart: () => runtime.requestRestart(),

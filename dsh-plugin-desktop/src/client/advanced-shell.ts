@@ -6,7 +6,7 @@ import { AdvancedFrame } from './AdvancedFrame.tsx'
 import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
-import { DesktopTerminalDrawer } from './TerminalDrawer.tsx'
+import { installDesktopThemePresenter } from './theme-presenter.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -33,11 +33,10 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     }
   }, 'desktop: advanced shell styles')
 
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'desktop-terminal-drawer',
-    order: 10,
-  }, DesktopTerminalDrawer))
+  ctx.effect(
+    () => installDesktopThemePresenter(ctx),
+    'desktop: theme presenter',
+  )
 
   ctx.effect(() => ctx.slots.register({
     name: 'root',
