@@ -89,6 +89,13 @@ export function applyFramedShell(
     name: 'shell.overlay',
     id: 'desktop-terminal-drawer',
     order: 10,
+    inject: () => ({
+      getCwd: () => {
+        const state = ctx.sessions.list.getSnapshot()
+        const current = state.current === undefined ? undefined : state.byId[state.current]
+        return current?.cwd
+      },
+    }),
   }, DesktopTerminalDrawer))
 
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({

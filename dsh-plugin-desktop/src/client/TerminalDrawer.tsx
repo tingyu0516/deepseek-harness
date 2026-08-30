@@ -15,6 +15,10 @@ export interface TerminalWebSocketConfig {
   readonly url: string | undefined
 }
 
+export interface DesktopTerminalDrawerProps {
+  readonly getCwd?: () => string | undefined
+}
+
 /** Client-side contract for the future Host terminal WebSocket adapter. */
 export function readTerminalWebSocketConfig(search: string): TerminalWebSocketConfig {
   const params = new URLSearchParams(search)
@@ -53,7 +57,7 @@ function subscribe(listener: Listener): () => void {
 function snapshot(): boolean { return open }
 
 /** Root overlay occupant. It owns xterm and the socket lifecycle. */
-export function DesktopTerminalDrawer() {
+export function DesktopTerminalDrawer({ getCwd }: DesktopTerminalDrawerProps) {
   const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
   const terminalRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<WebSocket | undefined>(undefined)
@@ -71,7 +75,7 @@ export function DesktopTerminalDrawer() {
     const socket = new WebSocket(url, DESKTOP_TERMINAL_CHANNEL_PROTOCOL)
     socketRef.current = socket
     socket.addEventListener('open', () => {
-      socket.send(JSON.stringify({ type: 'spawn', cols: 80, rows: 24 }))
+      socket.send(JSON.stringify({ type: 'spawn', cols: 80, rows: 24, cwd: getCwd?.() ?? null }))
       terminal.focus()
     })
     socket.addEventListener('message', event => {
