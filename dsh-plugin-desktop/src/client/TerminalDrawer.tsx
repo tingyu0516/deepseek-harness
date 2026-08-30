@@ -68,7 +68,13 @@ export function DesktopTerminalDrawer({ getCwd }: DesktopTerminalDrawerProps) {
   useEffect(() => {
     if (!isOpen || terminalRef.current === null) return
     setError(undefined)
-    const terminal = new Terminal({ convertEol: true, cursorBlink: true, fontSize: 13, scrollback: 2000 })
+    const terminal = new Terminal({
+      convertEol: true,
+      cursorBlink: true,
+      fontSize: 13,
+      scrollback: 2000,
+      theme: { background: 'rgba(0, 0, 0, 0)' },
+    })
     terminal.open(terminalRef.current)
     terminalInstanceRef.current = terminal
     const url = config.url ?? defaultTerminalWebSocketUrl()
