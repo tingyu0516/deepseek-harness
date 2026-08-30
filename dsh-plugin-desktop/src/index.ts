@@ -80,6 +80,11 @@ import {
 } from './character-wallpaper-route.ts'
 import { CharacterWallpaperStore } from './character-wallpaper-store.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
+import {
+  DESKTOP_WORKSPACE_FILE_PATH,
+  DESKTOP_WORKSPACE_TREE_PATH,
+  handleDesktopWorkspaceFileRequest,
+} from './workspace-file-route.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
@@ -326,6 +331,18 @@ export function apply(ctx: Context, config: Config): void {
     }),
     'dsh-plugin-desktop: renderer boot report route',
   )
+  const workspaceRegistry = ctx.get('workspaceRegistry') as { list(): readonly { readonly path: string }[] } | undefined
+  const workspaceRoots = (): readonly string[] => workspaceRegistry?.list().map(workspace => workspace.path) ?? []
+  for (const path of [DESKTOP_WORKSPACE_FILE_PATH, DESKTOP_WORKSPACE_TREE_PATH]) {
+    ctx.effect(
+      () => ctx.webServer.register({
+        kind: 'exact',
+        path,
+        handler: (req, res) => { void handleDesktopWorkspaceFileRequest(req, res, rendererOrigin, workspaceRoots) },
+      }),
+      `dsh-plugin-desktop: workspace route ${path}`,
+    )
+  }
   const characterThemePackageRoot = fileURLToPath(new URL('..', import.meta.url))
   const characterThemeAssetsDir = resolveCharacterThemeAssetsDir(characterThemePackageRoot)
     ?? fileURLToPath(new URL('../build/themes', import.meta.url))

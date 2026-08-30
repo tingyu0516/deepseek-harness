@@ -14,6 +14,7 @@ import {
   selectDesktopFrameMode,
 } from '../src/client/ExtendedTitlebar.tsx'
 import { DesktopSettingsSection } from '../src/client/DesktopSettingsSection.tsx'
+import { DesktopSessionTerminalAction } from '../src/client/DesktopSessionTerminalAction.tsx'
 import { DesktopTerminalSettingsAction } from '../src/client/DesktopTerminalSettingsAction.tsx'
 import {
   createDesktopSettingsApi,
@@ -364,6 +365,8 @@ describe('Desktop settings Slot registration', () => {
       },
       effect: vi.fn(),
       slots: { inject, register },
+      sessions: { list: { getSnapshot: () => ({ current: undefined, byId: {} }) } },
+      workspaces: { list: { getSnapshot: () => ({ recentWorkspaceId: undefined, items: [] }) } },
     } as unknown as ClientContext
 
     const control = applyDesktopSettings(ctx, {
@@ -378,6 +381,7 @@ describe('Desktop settings Slot registration', () => {
     expect(bind).toHaveBeenNthCalledWith(2, { namespace: DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE })
     expect(inject).toHaveBeenCalledWith('settings.section', expect.any(Function))
     expect(inject).toHaveBeenCalledWith('settings.action', expect.any(Function))
+    expect(inject).toHaveBeenCalledWith('sidebar.footer.action', expect.any(Function))
     const [options, component] = register.mock.calls[0] as unknown as [
       { id: string; order: number; locale: string; label: () => string; inject: () => Record<string, unknown> },
       unknown,
@@ -408,6 +412,18 @@ describe('Desktop settings Slot registration', () => {
     })
     expect(actionOptions.inject()).toHaveProperty('api')
     expect(actionComponent).toBe(DesktopTerminalSettingsAction)
+
+    const [footerOptions, footerComponent] = register.mock.calls[2] as unknown as [
+      { id: string; order: number; inject: () => Record<string, unknown> },
+      unknown,
+    ]
+    expect(footerOptions).toMatchObject({
+      name: 'sidebar.footer.action',
+      id: 'desktop-session-terminal',
+      order: 100,
+    })
+    expect(footerOptions.inject()).toHaveProperty('getCwd')
+    expect(footerComponent).toBe(DesktopSessionTerminalAction)
     await control.setMode('extended')
     expect(scope.set).toHaveBeenCalledWith('mode', 'extended')
   })

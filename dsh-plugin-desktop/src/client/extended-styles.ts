@@ -42,14 +42,12 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   background-position: center;
   background-repeat: no-repeat;
 }
-body[data-dsh-desktop-mode="compatibility"] #root {
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) #root {
   box-sizing: border-box;
+  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
-body[data-dsh-desktop-mode="compatibility"][data-dsh-terminal-open] #root {
-  padding-right: min(640px, 92vw);
-}
-body[data-dsh-desktop-mode="compatibility"] #root {
-  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out), padding-right var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])[data-dsh-terminal-open] #root {
+  width: calc(100% - min(640px, 92vw));
 }
 /* The custom frame owns the top band. A shell overlay is the containing block
    for fixed plugin surfaces, so they cannot escape into Desktop chrome. */

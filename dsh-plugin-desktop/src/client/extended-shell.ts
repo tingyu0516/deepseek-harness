@@ -18,7 +18,8 @@ import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
-import { DesktopTerminalDrawer } from './TerminalDrawer.tsx'
+import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
+import { resolveDesktopTerminalCwd } from './desktop-terminal-cwd.ts'
 
 /** Own the extended root/sidebar surface without reusing enhanced-mode chrome. */
 function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -85,18 +86,20 @@ export function applyFramedShell(
     }
   }, `desktop: independent ${environment.mode} frame styles`)
 
+  const cwd = (): string | undefined => resolveDesktopTerminalCwd(
+    ctx.sessions.list.getSnapshot(),
+    ctx.workspaces.list.getSnapshot(),
+  )
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'desktop-terminal-drawer',
     order: 10,
     inject: () => ({
-      getCwd: () => {
-        const state = ctx.sessions.list.getSnapshot()
-        const current = state.current === undefined ? undefined : state.byId[state.current]
-        if (current?.cwd !== undefined) return current.cwd
-        const workspaceState = ctx.workspaces.list.getSnapshot()
-        const recent = workspaceState.recentWorkspaceId
-        return recent === undefined ? undefined : workspaceState.items.find(item => item.workspaceId === recent)?.path
+      getCwd: cwd,
+      listDirectory: async (path?: string, signal?: AbortSignal) => {
+        const directory = path ?? cwd()
+        if (directory === undefined) throw new Error('No current workspace is selected')
+        return requestDesktopWorkspaceTree(directory, signal)
       },
     }),
   }, DesktopTerminalDrawer))

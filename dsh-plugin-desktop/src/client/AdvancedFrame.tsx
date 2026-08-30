@@ -52,7 +52,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
         if (width > 0) setViewport(width)
       })
     })
-    observer.observe(element)
+    observer.observe(element, { box: 'border-box' })
     return () => {
       observer.disconnect()
       if (raf !== null) cancelAnimationFrame(raf)
@@ -114,6 +114,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       data-desktop-platform={platform}
       data-sidebar-collapsed={collapsed || undefined}
       data-details-collapsed={columns.details === 0 || undefined}
+      data-terminal-open={terminalOpen || undefined}
       data-dragging={dragging || undefined}
       style={{ gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px` }}
     >

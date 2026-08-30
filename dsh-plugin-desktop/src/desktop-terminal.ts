@@ -28,6 +28,8 @@ const WINDOWS_SHIM_DIRECTORY = 'DSH_DESKTOP_SHIM_DIRECTORY'
 const WINDOWS_POWERSHELL_WELCOME = 'DSH_DESKTOP_POWERSHELL_WELCOME'
 const WINDOWS_CMD_WELCOME = 'DSH_DESKTOP_CMD_WELCOME'
 const WINDOWS_SHELL_EXECUTABLE = 'DSH_DESKTOP_SHELL_EXECUTABLE'
+/** Working directory for an embedded PTY; welcome scripts fall back to the profile directory. */
+export const DESKTOP_TERMINAL_WORKING_DIRECTORY = 'DSH_DESKTOP_WORKING_DIRECTORY'
 const WINDOWS_GENERATED_ENVIRONMENT_KEYS = new Set([
   DEFAULT_PROFILE,
   WINDOWS_APP_EXECUTABLE,
@@ -40,6 +42,7 @@ const WINDOWS_GENERATED_ENVIRONMENT_KEYS = new Set([
   WINDOWS_POWERSHELL_WELCOME,
   WINDOWS_CMD_WELCOME,
   WINDOWS_SHELL_EXECUTABLE,
+  DESKTOP_TERMINAL_WORKING_DIRECTORY,
 ])
 const STATE_DIRECTORY_MODE = 0o700
 const EXECUTABLE_FILE_MODE = 0o700
@@ -349,7 +352,11 @@ function macWelcome(
     `unset ${RUN_AS_NODE}`,
     `export ${DSH_HOME}=${quoteSh(options.homeDir)}`,
     `export PATH=${quoteSh(shimDir)}:"\${PATH:-}"`,
-    `cd ${quoteSh(options.profileDir)}`,
+    `if [ -n "\${${DESKTOP_TERMINAL_WORKING_DIRECTORY}:-}" ]; then`,
+    `  cd "\${${DESKTOP_TERMINAL_WORKING_DIRECTORY}}"`,
+    'else',
+    `  cd ${quoteSh(options.profileDir)}`,
+    'fi',
     "printf '\\033[2J\\033[3J\\033[H'",
     `printf '%s\\n' ${quoteSh(`DSH Desktop ${options.productVersion} terminal`)}`,
     `printf '%s\\n' ${quoteSh(`Profile: ${options.profileName}`)}`,
@@ -393,7 +400,11 @@ function windowsWelcome(): string {
     `$dshDesktopShimDir = $env:${WINDOWS_SHIM_DIRECTORY}`,
     `$dshDesktopPath = @($env:${PATH} -split ';' | Where-Object { -not [string]::Equals($_, $dshDesktopShimDir, [StringComparison]::OrdinalIgnoreCase) })`,
     `$env:${PATH} = (@($dshDesktopShimDir) + $dshDesktopPath) -join ';'`,
-    `Set-Location -LiteralPath $env:${WINDOWS_PROFILE_DIRECTORY}`,
+    `if ([string]::IsNullOrWhiteSpace($env:${DESKTOP_TERMINAL_WORKING_DIRECTORY})) {`,
+    `  Set-Location -LiteralPath $env:${WINDOWS_PROFILE_DIRECTORY}`,
+    '} else {',
+    `  Set-Location -LiteralPath $env:${DESKTOP_TERMINAL_WORKING_DIRECTORY}`,
+    '}',
     `Write-Host ("DSH Desktop {0} terminal" -f $env:${WINDOWS_PRODUCT_VERSION})`,
     `Write-Host ("Profile: {0}" -f $env:${DEFAULT_PROFILE})`,
     `Write-Host ("Profile directory: {0}" -f $env:${WINDOWS_PROFILE_DIRECTORY})`,
@@ -419,7 +430,11 @@ function windowsCmdWelcome(): string {
     '@echo off',
     'setlocal EnableDelayedExpansion',
     `set "${RUN_AS_NODE}="`,
-    `cd /d "!${WINDOWS_PROFILE_DIRECTORY}!"`,
+    `if defined ${DESKTOP_TERMINAL_WORKING_DIRECTORY} (`,
+    `  cd /d "!${DESKTOP_TERMINAL_WORKING_DIRECTORY}!"`,
+    ') else (',
+    `  cd /d "!${WINDOWS_PROFILE_DIRECTORY}!"`,
+    ')',
     `echo(DSH Desktop !${WINDOWS_PRODUCT_VERSION}! terminal`,
     `echo(Profile: !${DEFAULT_PROFILE}!`,
     `echo(Profile directory: !${WINDOWS_PROFILE_DIRECTORY}!`,
@@ -503,6 +518,7 @@ function terminalEnvironment(options: DesktopTerminalProfileOptions, files: Desk
     if (
       normalized === RUN_AS_NODE
       || normalized === DSH_HOME
+      || normalized === DESKTOP_TERMINAL_WORKING_DIRECTORY
     ) continue
     if (options.platform === 'win32' && WINDOWS_GENERATED_ENVIRONMENT_KEYS.has(normalized)) continue
     if (normalized === PATH) {

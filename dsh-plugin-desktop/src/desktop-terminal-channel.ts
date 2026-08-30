@@ -8,6 +8,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { spawn as spawnPty, type IPty, type IPtyForkOptions } from 'node-pty'
 import WebSocket, { WebSocketServer } from 'ws'
 import {
+  DESKTOP_TERMINAL_WORKING_DIRECTORY,
   prepareDesktopEmbeddedTerminal,
   type DesktopTerminalProfileOptions,
 } from './desktop-terminal.ts'
@@ -241,12 +242,13 @@ export class DesktopTerminalChannel {
     }
     try {
       const spec = prepareDesktopEmbeddedTerminal(this.terminal)
+      const workingDirectory = resolveTerminalCwd(cwd, spec.cwd)
       const pty = this.createPty(spec.command, spec.args, {
         name: 'xterm-256color',
         cols,
         rows,
-        cwd: resolveTerminalCwd(cwd, spec.cwd),
-        env: spec.env,
+        cwd: workingDirectory,
+        env: { ...spec.env, [DESKTOP_TERMINAL_WORKING_DIRECTORY]: workingDirectory },
       })
       this.pty = pty
       this.ptyData = pty.onData(data => { this.sendOutput(websocket, data) })

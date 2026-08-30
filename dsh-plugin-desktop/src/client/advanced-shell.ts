@@ -1,5 +1,6 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from './contracts.ts'
 import type { DesktopClientEnvironment } from './environment.ts'
 import type { DesktopShellSettings } from './DesktopSettingsSection.tsx'
@@ -11,19 +12,16 @@ import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installExtendedStyles } from './extended-styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
+import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
+import { resolveDesktopTerminalCwd } from './desktop-terminal-cwd.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
   if (environment.mode !== 'advanced') {
     throw new Error(`dsh-plugin-desktop: advanced shell received mode ${JSON.stringify(environment.mode)}`)
   }
-
   const desktopLayout = new DesktopLayoutState()
-  ctx.effect(
-    () => provideDesktopLayout(ctx, desktopLayout),
-    'desktop: layout service',
-  )
-
+  ctx.effect(() => provideDesktopLayout(ctx, desktopLayout), 'desktop: layout service')
   ctx.effect(() => {
     document.body.dataset.dshDesktopMode = 'advanced'
     document.body.dataset.dshDesktopPlatform = environment.platform
@@ -36,51 +34,38 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       delete document.body.dataset.dshDesktopMaterial
     }
   }, 'desktop: advanced shell styles')
-
-<<<<<<< HEAD
   ctx.effect(() => installExtendedStyles(), 'desktop: advanced titlebar styles')
-
+  ctx.effect(() => installDesktopThemePresenter(ctx), 'desktop: theme presenter')
   const api = createDesktopSettingsApi()
   const setMode = async (mode: DesktopShellSettings['mode']): Promise<void> => {
     const settings = ctx.settingsScope.bind<DesktopShellSettings>({ namespace: 'dsh-desktop' })
     await settings.set('mode', mode)
   }
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'desktop-advanced-titlebar',
-    order: -1000,
-    locale: 'desktop.settings',
-    inject: () => ({ api, environment, setMode }),
-  }, DesktopFrameTitlebar))
-
-  ctx.effect(
-    () => installDesktopThemePresenter(ctx),
-    'desktop: theme presenter',
+  const cwd = (): string | undefined => resolveDesktopTerminalCwd(
+    ctx.sessions.list.getSnapshot(),
+    ctx.workspaces.list.getSnapshot(),
   )
-=======
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'desktop-terminal-drawer',
-    order: 10,
+    name: 'shell.overlay', id: 'desktop-terminal-drawer', order: 10,
     inject: () => ({
-      getCwd: () => {
-        const state = ctx.sessions.list.getSnapshot()
-        const current = state.current === undefined ? undefined : state.byId[state.current]
-        if (current?.cwd !== undefined) return current.cwd
-        const workspaceState = ctx.workspaces.list.getSnapshot()
-        const recent = workspaceState.recentWorkspaceId
-        return recent === undefined ? undefined : workspaceState.items.find(item => item.workspaceId === recent)?.path
+      getCwd: cwd,
+      listDirectory: async (path?: string, signal?: AbortSignal) => {
+        const directory = path ?? cwd()
+        if (directory === undefined) throw new Error('No current workspace is selected')
+        return requestDesktopWorkspaceTree(directory, signal)
       },
     }),
   }, DesktopTerminalDrawer))
->>>>>>> parent of 6cbe4b3e86 (Revert "feat: add desktop terminal drawer")
-
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay', id: 'desktop-advanced-titlebar', order: -1000, locale: 'desktop.settings',
+    inject: () => ({ api, environment, setMode }),
+  }, DesktopFrameTitlebar))
   ctx.effect(() => ctx.slots.register({
     name: 'root',
     children: {
-      'sidebar': { kind: 'single', scope: 'root' },
-      'conversation': { kind: 'single', scope: 'session-maybe' },
-      'details': { kind: 'single', scope: 'session' },
+      sidebar: { kind: 'single', scope: 'root' },
+      conversation: { kind: 'single', scope: 'session-maybe' },
+      details: { kind: 'single', scope: 'session' },
       'shell.overlay': { kind: 'list', scope: 'root' },
     },
     inject: () => ({ layout: desktopLayout, platform: environment.platform }),

@@ -239,6 +239,23 @@ describe('desktop terminal WebSocket channel', () => {
     expect(target.pty.kill).not.toHaveBeenCalled()
   })
 
+  it('starts the PTY in a requested existing directory', () => {
+    const workspace = temporaryDirectory()
+    const target = createChannel()
+    const websocket = accept(target.channel)
+
+    websocket.message({ type: 'spawn', cols: 80, rows: 24, cwd: workspace })
+
+    expect(target.createPty).toHaveBeenCalledWith(
+      '/bin/sh',
+      [expect.stringMatching(/welcome\.command$/u)],
+      expect.objectContaining({
+        cwd: workspace,
+        env: expect.objectContaining({ DSH_DESKTOP_WORKING_DIRECTORY: workspace }),
+      }),
+    )
+  })
+
   it('closes the PTY from an exact close message and releases it on socket close', () => {
     const target = createChannel()
     const websocket = accept(target.channel)

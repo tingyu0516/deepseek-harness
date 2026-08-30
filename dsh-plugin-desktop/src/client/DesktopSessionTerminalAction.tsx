@@ -1,21 +1,16 @@
 import { SquareTerminal } from 'lucide-react'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { openDesktopTerminalDrawer } from './TerminalDrawer.tsx'
 
-/** Per-session action that opens the Desktop PTY in the current session cwd. */
-export type DesktopSessionTerminalActionProps = PropsRuntime<'conversation.session.header.actions'>
+/** cwd lookup injected by the Desktop shell or settings registration. */
+export interface DesktopSessionTerminalActionProps {
+  readonly getCwd?: () => string | undefined
+}
 
-export function DesktopSessionTerminalAction({ sessionId }: DesktopSessionTerminalActionProps) {
+export function DesktopSessionTerminalAction({ getCwd }: DesktopSessionTerminalActionProps) {
   return (
-    <button
-      type="button"
-      className="dshDesktopSessionTerminalButton"
-      aria-label="Open terminal for current session"
-      title="Open terminal for current session"
-      data-session-id={sessionId}
-      onClick={openDesktopTerminalDrawer}
-    >
+    <button type="button" className="dshDesktopSessionTerminalButton" aria-label="Open current terminal" title="Open current terminal" onClick={() => {
+      openDesktopTerminalDrawer(getCwd?.())
+    }}>
       <SquareTerminal aria-hidden="true" />
     </button>
   )

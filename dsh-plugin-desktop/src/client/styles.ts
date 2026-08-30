@@ -13,7 +13,7 @@ const DESKTOP_OWNED_STYLES = `
 html, body, #root { width: 100%; height: 100%; }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) { margin: 0; background-color: transparent !important; background-image: var(--dsw-character-bg-image, none); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed; }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) #root { background-color: transparent !important; background-image: var(--dsw-character-bg-image, none); background-size: cover; background-position: center; background-repeat: no-repeat; }
-.dshDesktopFrame { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background-color: transparent; transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out), grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out), padding-right var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
+.dshDesktopFrame { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background-color: transparent; transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out), grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
 .dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: transparent; position: relative; grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; background: transparent; border-right: 1px solid var(--dsw-alias-border-l1); }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])[data-dsh-desktop-material="off"] .dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1); background: var(--dsw-alias-bg-layer-1); }
 .dshDesktopUpstreamSidebar { box-sizing: border-box; width: 100%; height: 100%; }
@@ -37,22 +37,43 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopWindowsCaptionRow { position: relative; grid-column: 2 / -1; grid-row: 1; min-width: 0; background: var(--dsw-alias-bg-base); }
 .dshDesktopWindowsCaptionRow::before { content: ""; position: absolute; inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0; user-select: none; -webkit-app-region: drag; }
 .dshDesktopFrame[data-dragging] { transition: none; }
-.dshDesktopFrame[data-terminal-open] { padding-right: min(640px, 92vw); }
 .dshDesktopOverlay { position: absolute; z-index: 1000; inset: 0; pointer-events: none; }
+body[data-dsh-terminal-open] .dshDesktopFrame .dshDesktopOverlay { right: calc(-1 * min(640px, 92vw)); }
 .dshDesktopOverlay > * { pointer-events: auto; }
 .dshDesktopTerminalDrawer { position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: min(640px, 92vw); min-width: 280px; background: var(--dsw-alias-bg-layer-1); border-left: 1px solid var(--dsw-alias-border-l1); box-shadow: -12px 0 28px rgb(0 0 0 / 18%); -webkit-app-region: no-drag; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="win32"] .dshDesktopTerminalDrawer { top: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="darwin"] .dshDesktopTerminalDrawer { top: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px; }
 .dshDesktopTerminalDrawerHeader { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopTerminalDrawerTabs { display: flex; align-items: stretch; gap: 2px; min-width: 0; }
+.dshDesktopTerminalDrawerTabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
+.dshDesktopTerminalDrawerTabs [role="tab"].is-active { color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-label-primary); }
+.dshDesktopFileManager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 34%); flex: 1; min-height: 0; }
+.dshDesktopFileManagerContent { min-width: 0; min-height: 0; overflow: auto; border-right: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopFileManagerPath { padding: 10px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopFileManagerContent pre { margin: 0; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopFileManagerTree { min-width: 0; overflow: auto; padding: 8px; }
+.dshDesktopFileManagerTreeHeader { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px 8px; font-size: 12px; }
+.dshDesktopFileManagerTreeHeader strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopFileTreeNode { min-width: 0; }
+.dshDesktopFileTreeEntry { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding-top: 4px; padding-right: 6px; padding-bottom: 4px; border: 0; color: var(--dsw-alias-label-primary); background: transparent; text-align: left; cursor: pointer; }
+.dshDesktopFileTreeEntry:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopFileTreeEntry[data-hidden] { color: var(--dsw-alias-label-secondary); }
+.dshDesktopFileTreeEntry svg:first-child { flex: none; }
+.dshDesktopFileTreeEntry svg.is-expanded { transform: rotate(90deg); }
+.dshDesktopFileTreeEntry span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopFileTreeIndent { width: 14px; flex: none; }
+.dshDesktopFileTreeStatus { padding: 4px 6px; color: var(--dsw-alias-label-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.dshDesktopFileTreeStatus.is-error, .dshDesktopFileManagerError { color: var(--dsw-alias-danger, #d14343); }
+.dshDesktopFileManagerStatus { padding: 12px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
 .dshDesktopTerminalDrawerHeader button { width: 28px; height: 28px; border: 0; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
 .dshDesktopTerminalDrawerViewport { flex: 1; min-height: 0; padding: 10px; overflow: hidden; background: transparent; }
 .dshDesktopTerminalDrawerViewport .xterm { height: 100%; background: transparent; }
 .dshDesktopTerminalDrawerViewport .xterm .xterm-viewport { background: transparent; }
 .dshDesktopTerminalDrawerError { flex: none; padding: 8px 12px; color: var(--dsw-alias-danger, #d14343); font-size: 12px; }
-.dshDesktopSessionTerminalButton { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 4px; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
+.dshDesktopSessionTerminalButton { display: inline-flex; align-self: flex-end; align-items: center; justify-content: center; width: 28px; height: 28px; margin-top: 8px; padding: 0; border: 0; border-radius: 4px; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
 .dshDesktopSessionTerminalButton svg { width: 15px; height: 15px; }
 .dshDesktopSessionTerminalButton:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
-.dshDesktopResizeHandle { position: absolute; z-index: 50; top: 0; bottom: 0; width: 8px; margin-left: -4px; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
+.dshDesktopResizeHandle { position: absolute; z-index: 50; top: 0; bottom: 0; width: 8px; margin-left: -4px; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; }
 .dshDesktopFrame[data-dragging] .dshDesktopResizeHandle { transition: none; }
 .dshDesktopNoDrag, button, input, textarea, select, label, summary, a, [contenteditable="true"], [role="button"], [role="checkbox"], [role="dialog"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"] { -webkit-app-region: no-drag !important; }
 [role="dialog"], [aria-modal="true"] { -webkit-app-region: no-drag !important; }
