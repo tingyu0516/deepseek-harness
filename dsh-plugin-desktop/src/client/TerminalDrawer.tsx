@@ -56,6 +56,10 @@ function subscribe(listener: Listener): () => void {
 
 function snapshot(): boolean { return open }
 
+export function useDesktopTerminalDrawerOpen(): boolean {
+  return useSyncExternalStore(subscribe, snapshot, () => false)
+}
+
 /** Root overlay occupant. It owns xterm and the socket lifecycle. */
 export function DesktopTerminalDrawer({ getCwd }: DesktopTerminalDrawerProps) {
   const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
