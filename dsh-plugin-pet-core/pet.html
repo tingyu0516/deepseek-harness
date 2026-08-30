@@ -113,22 +113,6 @@
   }
   .stage:hover .hide, .hide:focus-visible { opacity: 1; }
   .hide:hover { background: rgba(20, 20, 24, 0.6); }
-  .tap-probe {
-    position: absolute;
-    left: 8px;
-    bottom: 6px;
-    z-index: 2;
-    padding: 2px 8px;
-    border-radius: 8px;
-    background: rgba(20, 20, 24, 0.55);
-    color: #fff;
-    font: 600 11px/18px "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-  }
-  .tap-probe.visible { opacity: 1; }
-
   @media (prefers-reduced-motion: reduce) {
     .bubble, .emote { transition: none !important; }
   }
@@ -141,7 +125,6 @@
     <span id="emote" class="emote" aria-hidden="true"></span>
   </div>
   <button id="hide" class="hide" type="button" title="✕" aria-label="hide">&#10005;</button>
-  <div id="tapProbe" class="tap-probe" aria-hidden="true"></div>
 </main>
 <script>
 (function () {
@@ -153,19 +136,6 @@
   var petWrap = document.getElementById('petWrap');
   var emote = document.getElementById('emote');
   var hideButton = document.getElementById('hide');
-  var tapProbe = document.getElementById('tapProbe');
-  var tapProbeTimer = 0;
-  /* The tap probe is diagnostics: it only renders with ?diag=1 in the URL. */
-  var TAP_DIAG = /[?&]diag=1/.test(location.search);
-  var TAP_LABELS = {
-    face: '脸', hat: '帽子', ahoge: '呆毛', leftHand: '左手', rightHand: '右手',
-    body: '身子/裙子', thigh: '大腿', calf: '小腿', foot: '脚', hair: '头发', none: '未点中'
-  };
-  var EXP_LABELS = {
-    cry: '哭', blush: '脸红', angry: '生气', sweat: '汗', coverMouth: '捂嘴', chinRest: '托脸',
-    catMouth: '猫嘴', hat: '帽子', ahogeFan: '风扇', cake: '蛋糕', spoon: '勺子', drink: '饮料',
-    fish: '鱼鱼', walkSwitch: '走路', star: '星星', genius: '聪明', pat: '摊手', off: '关'
-  };
   var character = null;
   var chatter = true;
   var state = 'boot';
@@ -231,30 +201,11 @@
     if (next === 'idle') scheduleChatter();
     else clearChatter();
   }
-  function showTapProbe(hit) {
-    if (!tapProbe || !TAP_DIAG) return;
-    var bits = (hit || 'none').split(':');
-    var id = bits[0] || 'none';
-    var exp = bits.length > 2 ? bits[1] : '';
-    var y = bits.length > 2 ? bits[2] : bits[1];
-    var extra = '';
-    if (exp) extra += ' ' + (EXP_LABELS[exp] || exp);
-    if (y) extra += ' y=' + y;
-    tapProbe.textContent = (TAP_LABELS[id] || id) + extra;
-    tapProbe.classList.add('visible');
-    if (tapProbeTimer) clearTimeout(tapProbeTimer);
-    tapProbeTimer = setTimeout(function () {
-      tapProbeTimer = 0;
-      tapProbe.classList.remove('visible');
-    }, 2200);
-  }
   function tapFace(clientX, clientY) {
     var rt = runtime();
-    var hit = '';
     if (rt && typeof rt.tap === 'function') {
-      try { hit = rt.tap(clientX, clientY) || ''; } catch (err) { /* model tap is best-effort */ }
+      try { rt.tap(clientX, clientY); } catch (err) { /* model tap is best-effort */ }
     }
-    showTapProbe(hit);
     clearChatter();
   }
   function applyLive2D(spec) {
