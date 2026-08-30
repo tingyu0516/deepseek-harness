@@ -113,6 +113,21 @@
   }
   .stage:hover .hide, .hide:focus-visible { opacity: 1; }
   .hide:hover { background: rgba(20, 20, 24, 0.6); }
+  .tap-probe {
+    position: absolute;
+    left: 8px;
+    bottom: 6px;
+    z-index: 2;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(20, 20, 24, 0.55);
+    color: #fff;
+    font: 600 11px/18px "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .tap-probe.visible { opacity: 1; }
 
   @media (prefers-reduced-motion: reduce) {
     .bubble, .emote { transition: none !important; }
@@ -126,6 +141,7 @@
     <span id="emote" class="emote" aria-hidden="true"></span>
   </div>
   <button id="hide" class="hide" type="button" title="✕" aria-label="hide">&#10005;</button>
+  <div id="tapProbe" class="tap-probe" aria-hidden="true"></div>
 </main>
 <script>
 (function () {
@@ -137,13 +153,25 @@
   var petWrap = document.getElementById('petWrap');
   var emote = document.getElementById('emote');
   var hideButton = document.getElementById('hide');
+  var tapProbe = document.getElementById('tapProbe');
+  var tapProbeTimer = 0;
+  /* The tap probe is diagnostics: it only renders with ?diag=1 in the URL. */
+  var TAP_DIAG = /[?&]diag=1/.test(location.search);
+  var TAP_LABELS = {
+    face: '脸', hat: '帽子', ahoge: '呆毛', leftHand: '左手', rightHand: '右手',
+    body: '身子/裙子', thigh: '大腿', calf: '小腿', foot: '脚', hair: '头发', none: '未点中'
+  };
+  var EXP_LABELS = {
+    cry: '哭', blush: '脸红', angry: '生气', sweat: '汗', coverMouth: '捂嘴', chinRest: '托脸',
+    catMouth: '猫嘴', hat: '帽子', ahogeFan: '风扇', cake: '蛋糕', spoon: '勺子', drink: '饮料',
+    fish: '鱼鱼', walkSwitch: '走路', star: '星星', genius: '聪明', pat: '摊手', off: '关'
+  };
   var character = null;
   var chatter = true;
   var state = 'boot';
   var stateTimer = 0;
   var bubbleTimer = 0;
   var chatterTimer = 0;
-  var SKIP_EXPRESSIONS = { signBoard: true, walkSwitch: true };
   var clickTimer = 0;
 
   function pick(category) {
@@ -186,70 +214,11 @@
     if (!rt || typeof rt[method] !== 'function') return undefined;
     try { return rt[method](arg); } catch (err) { return undefined; }
   }
-  function expressionPool() {
-    var names = callRuntime('expressionNames') || [];
-    var out = [];
-    for (var i = 0; i < names.length; i += 1) {
-      if (!SKIP_EXPRESSIONS[names[i]]) out.push(names[i]);
-    }
-    return out;
-  }
-  /* Click faces that ADD visible meshes. Hat / genius / catMouth hide dozens
-     of drawables on this moc (Param5 visOff=68) and read as "nothing happened".
-     Star/fish switches also unlock idle's already-running particle curves. */
-  var CLICK_EXPRESSIONS = [
-    'cake', 'drink', 'spoon', 'star', 'fish', 'coverMouth', 'chinRest',
-    'ahogeFan', 'cry', 'blush', 'sweat', 'angry'
-  ];
-  function pickExpression() {
-    var names = callRuntime('expressionNames') || [];
-    var prefer = [];
-    for (var i = 0; i < CLICK_EXPRESSIONS.length; i += 1) {
-      if (names.indexOf(CLICK_EXPRESSIONS[i]) >= 0) prefer.push(CLICK_EXPRESSIONS[i]);
-    }
-    var pool = prefer.length ? prefer : expressionPool();
-    if (!pool.length) return null;
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-  /* Default face per pet state; only names the model declares can play. An
-     explicit expressionName argument always wins. 'idle' clears (breathing). */
-  var STATE_EXPRESSIONS = {
-    greet: ['star', 'fish'],
-    work: ['star', 'cake'],
-    cheer: ['star', 'fish', 'ahogeFan'],
-    sad: ['cry', 'sweat'],
-    pat: ['chinRest', 'coverMouth', 'cake'],
-    special: ['star', 'fish', 'ahogeFan']
-  };
-  function defaultExpressionFor(next) {
-    var candidates = STATE_EXPRESSIONS[next];
-    if (!candidates || !candidates.length) return null;
-    var declared = callRuntime('expressionNames') || [];
-    var usable = [];
-    for (var i = 0; i < candidates.length; i += 1) {
-      if (declared.indexOf(candidates[i]) >= 0) usable.push(candidates[i]);
-    }
-    if (!usable.length) return null;
-    return usable[Math.floor(Math.random() * usable.length)];
-  }
-  function enter(next, line, ms, expressionName) {
-    var explicitFace = !!expressionName;
+  function enter(next, line, ms) {
     state = next;
     showEmote(next);
     if (line) say(line, ms || 5400);
-    if (!expressionName && next === 'walk') {
-      var names = callRuntime('expressionNames') || [];
-      if (names.indexOf('walkSwitch') >= 0) expressionName = 'walkSwitch';
-    }
-    if (!expressionName && next !== 'idle') expressionName = defaultExpressionFor(next);
-    if (expressionName) callRuntime('setExpression', expressionName);
-    else callRuntime('setExpression', null);
-    // Click faces must sit on Idle. Playing Pat at the same time is what
-    // read as "bubble but no expression". Host-driven states still animate.
-    var played = 0;
-    if (!(explicitFace && next !== 'walk')) {
-      played = callRuntime('setState', next);
-    }
+    var played = callRuntime('setState', next);
     clearStateTimer();
     var duration = ms !== undefined ? ms : STATE_MS[next] || 0;
     if (duration > 0 && typeof played === 'number' && played > duration) duration = played;
@@ -262,46 +231,31 @@
     if (next === 'idle') scheduleChatter();
     else clearChatter();
   }
-  function wrapToNdc(clientX, clientY) {
-    var canvas = petWrap.querySelector('canvas');
-    if (!canvas || typeof clientX !== 'number' || typeof clientY !== 'number') return null;
-    var box = canvas.getBoundingClientRect();
-    if (box.width < 2 || box.height < 2) return null;
-    var x = (clientX - box.left) / box.width;
-    var y = (clientY - box.top) / box.height;
-    if (x < 0 || x > 1 || y < 0 || y > 1) return null;
-    return { nx: x * 2 - 1, ny: (1 - y) * 2 - 1, u: x, v: y };
+  function showTapProbe(hit) {
+    if (!tapProbe || !TAP_DIAG) return;
+    var bits = (hit || 'none').split(':');
+    var id = bits[0] || 'none';
+    var exp = bits.length > 2 ? bits[1] : '';
+    var y = bits.length > 2 ? bits[2] : bits[1];
+    var extra = '';
+    if (exp) extra += ' ' + (EXP_LABELS[exp] || exp);
+    if (y) extra += ' y=' + y;
+    tapProbe.textContent = (TAP_LABELS[id] || id) + extra;
+    tapProbe.classList.add('visible');
+    if (tapProbeTimer) clearTimeout(tapProbeTimer);
+    tapProbeTimer = setTimeout(function () {
+      tapProbeTimer = 0;
+      tapProbe.classList.remove('visible');
+    }, 2200);
   }
   function tapFace(clientX, clientY) {
-    var ndc = wrapToNdc(clientX, clientY);
-    var live = window.__dshPetLive2DRuntime;
-    var group = '';
-    if (ndc && live && typeof live.hitTest === 'function') {
-      try { group = live.hitTest(ndc.nx, ndc.ny) || ''; } catch (err) { group = ''; }
+    var rt = runtime();
+    var hit = '';
+    if (rt && typeof rt.tap === 'function') {
+      try { hit = rt.tap(clientX, clientY) || ''; } catch (err) { /* model tap is best-effort */ }
     }
-    if (!group) group = 'body';
-    if (group !== 'body' && live && typeof live.playMotionGroup === 'function') {
-      state = 'pat';
-      showEmote('pat');
-      say(pick('pat'), 3600);
-      callRuntime('setExpression', null);
-      var played = 0;
-      try { played = live.playMotionGroup(group) || 0; } catch (err2) { played = 0; }
-      clearStateTimer();
-      var hold = Math.max(3200, played);
-      stateTimer = setTimeout(function () {
-        stateTimer = 0;
-        if (state === 'pat') enter('idle');
-      }, hold);
-      clearChatter();
-      return;
-    }
-    var exp = pickExpression();
-    if (exp) {
-      enter('pat', pick('pat'), 4200, exp);
-      return;
-    }
-    enter('pat', pick('pat'), 3200);
+    showTapProbe(hit);
+    clearChatter();
   }
   function applyLive2D(spec) {
     if (!spec || !spec.model) return Promise.resolve(false);
@@ -343,22 +297,17 @@
     });
   }
   function playSpecial() {
-    var played = callRuntime('toggleForm');
-    if (typeof played === 'number') {
-      state = 'special';
-      showEmote('special');
-      say(pick('special'), 3600);
-      callRuntime('setExpression', null);
-      clearStateTimer();
-      var hold = Math.max(1800, played);
-      stateTimer = setTimeout(function () {
-        stateTimer = 0;
-        if (state === 'special') enter('idle');
-      }, hold);
-      clearChatter();
-      return;
-    }
-    enter('special', pick('special'), 4200);
+    var played = callRuntime('playMotionGroup', 'Special');
+    state = 'special';
+    showEmote('special');
+    say(pick('special'), 3600);
+    clearStateTimer();
+    var hold = Math.max(1800, typeof played === 'number' ? played : 0);
+    stateTimer = setTimeout(function () {
+      stateTimer = 0;
+      if (state === 'special') enter('idle');
+    }, hold);
+    clearChatter();
   }
   hideButton.addEventListener('mouseup', function (e) {
     e.stopPropagation();
@@ -409,12 +358,8 @@
   document.addEventListener('mousemove', function (e) {
     if (!dragging && !armed) {
       var rt = window.__dshPetLive2DRuntime;
-      var uv = wrapToNdc(e.clientX, e.clientY);
       if (rt && typeof rt.setPointer === 'function') {
-        try {
-          if (uv) rt.setPointer(uv.u, uv.v);
-          else rt.setPointer();
-        } catch (err) { /* look-at is best-effort */ }
+        try { rt.setPointer(e.clientX, e.clientY); } catch (err) { /* look-at is best-effort */ }
       }
       return;
     }

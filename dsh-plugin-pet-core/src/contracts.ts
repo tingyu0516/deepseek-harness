@@ -57,6 +57,74 @@ export interface PetLive2DDocument {
    */
   readonly hideParameters?: readonly string[]
   /**
+   * Named expression overlays mapped to their Cubism parameter ids
+   * (`{ "blush": "Param7" }`). The renderer eases the bound parameter to 1
+   * while the expression is active and to 0 otherwise, so tapping a region
+   * can pin a face. Character data: ids are model-specific, so characters
+   * without this table never get any expression writes.
+   */
+  readonly expressionParameters?: Readonly<Record<string, string>>
+  /**
+   * Motion groups the renderer may pick at random when a tap lands on the
+   * model but outside every declared HitArea. Without this table only the
+   * declared HitAreas respond to taps.
+   */
+  readonly tapFallbackGroups?: readonly string[]
+  /**
+   * Hit-area names mapped to motion groups, overriding or supplementing the
+   * `Motion` bindings declared in the model's `HitAreas` (for entries the
+   * model author left unbound).
+   */
+  readonly hitAreaMotions?: Readonly<Record<string, string>>
+  /**
+   * Parameter ids written back to the declared value when an interaction
+   * motion finishes (`{ "Param83": 0 }` = fade the backlight fully off).
+   * Use this for params an interaction motion drives that neither the Idle
+   * motion nor physics reset afterwards — otherwise a motion interrupted
+   * mid-curve freezes them at a partial value.
+   */
+  readonly motionEndReset?: Readonly<Record<string, number>>
+  /**
+   * Parameters cycled continuously while a named expression is active
+   * (`{ "ahogeFan": { "param": "Param128", "from": 0, "to": 30,
+   * "period": 1 } }` sweeps the fan rotation once per second). An authored
+   * expression may turn a prop on but rely on the app to animate it; the
+   * curve is a sawtooth from `from` to `to` over `period` seconds.
+   */
+  readonly expressionCycles?: Readonly<
+    Record<string, {
+      readonly param: string
+      readonly from: number
+      readonly to: number
+      readonly period: number
+    }>
+  >
+  /**
+   * Vertical look origin as a fraction of the window height (0..1). The
+   * drag vector that drives ParamAngleY is measured from this line instead
+   * of the window center, so a character whose face sits above center
+   * tracks the cursor without a downward bias. Defaults to 0.5.
+   */
+  readonly lookOriginY?: number
+  /**
+   * How long a tapped expression holds before easing back to neutral, in
+   * milliseconds. The official SDK has no hold concept (expressions last
+   * until replaced, fading over its 1s DefaultFadeTime); the pet defaults
+   * to 9000.
+   */
+  readonly expressionHoldMs?: number
+  /**
+   * Idle-state variations: while the pet is idle, activate one of the named
+   * expressions for `holdMs` every `everyMs` milliseconds (e.g. Furina's
+   * `walkSwitch` walking legs as a second idle stance). Taps override a
+   * running variant.
+   */
+  readonly idleVariants?: {
+    readonly expressions?: readonly string[]
+    readonly everyMs?: number
+    readonly holdMs?: number
+  }
+  /**
    * Cubism Part ids whose opacity is forced to `0` after `model.update()`.
    * Use this when a prop stays visible at parameter value 0 because it is a
    * separate Part (Furina's "牌子" is `Part187`).
@@ -172,6 +240,140 @@ function parseLive2D(value: unknown, path: string): PetLive2DDocument {
     }
     hideParameters = Object.freeze([...rawHide])
   }
+  let expressionParameters: Readonly<Record<string, string>> | undefined
+  const rawExpressionParameters = value.expressionParameters
+  if (rawExpressionParameters !== undefined && rawExpressionParameters !== null) {
+    if (!isObject(rawExpressionParameters)) {
+      throw new PetCharacterError(`${path}.expressionParameters must be an object`)
+    }
+    const mappedExpressionParameters: Record<string, string> = {}
+    for (const [name, id] of Object.entries(rawExpressionParameters)) {
+      if (name.length === 0 || typeof id !== 'string' || id.length === 0) {
+        throw new PetCharacterError(`${path}.expressionParameters entries must map non-empty names to parameter ids`)
+      }
+      mappedExpressionParameters[name] = id
+    }
+    expressionParameters = Object.freeze(mappedExpressionParameters)
+  }
+  let tapFallbackGroups: readonly string[] | undefined
+  const rawFallback = value.tapFallbackGroups
+  if (rawFallback !== undefined && rawFallback !== null) {
+    if (!Array.isArray(rawFallback) || rawFallback.some(id => typeof id !== 'string' || id.length === 0)) {
+      throw new PetCharacterError(`${path}.tapFallbackGroups must be an array of motion group names`)
+    }
+    tapFallbackGroups = Object.freeze([...rawFallback])
+  }
+  let hitAreaMotions: Readonly<Record<string, string>> | undefined
+  const rawHitAreaMotions = value.hitAreaMotions
+  if (rawHitAreaMotions !== undefined && rawHitAreaMotions !== null) {
+    if (!isObject(rawHitAreaMotions)) {
+      throw new PetCharacterError(`${path}.hitAreaMotions must be an object`)
+    }
+    const mappedHitAreaMotions: Record<string, string> = {}
+    for (const [name, group] of Object.entries(rawHitAreaMotions)) {
+      if (name.length === 0 || typeof group !== 'string' || group.length === 0) {
+        throw new PetCharacterError(`${path}.hitAreaMotions entries must map non-empty names to motion groups`)
+      }
+      mappedHitAreaMotions[name] = group
+    }
+    hitAreaMotions = Object.freeze(mappedHitAreaMotions)
+  }
+  let motionEndReset: Readonly<Record<string, number>> | undefined
+  const rawEndReset = value.motionEndReset
+  if (rawEndReset !== undefined && rawEndReset !== null) {
+    if (!isObject(rawEndReset)) {
+      throw new PetCharacterError(`${path}.motionEndReset must be an object`)
+    }
+    const mappedEndReset: Record<string, number> = {}
+    for (const [id, num] of Object.entries(rawEndReset)) {
+      if (id.length === 0 || typeof num !== 'number' || Number.isNaN(num)) {
+        throw new PetCharacterError(`${path}.motionEndReset entries must map non-empty parameter ids to numbers`)
+      }
+      mappedEndReset[id] = num
+    }
+    motionEndReset = Object.freeze(mappedEndReset)
+  }
+  let expressionCycles: PetLive2DDocument['expressionCycles'] | undefined
+  const rawCycles = value.expressionCycles
+  if (rawCycles !== undefined && rawCycles !== null) {
+    if (!isObject(rawCycles)) {
+      throw new PetCharacterError(`${path}.expressionCycles must be an object`)
+    }
+    const mappedCycles: Record<string, {
+      param: string, from: number, to: number, period: number
+    }> = {}
+    for (const [name, cycle] of Object.entries(rawCycles)) {
+      if (
+        name.length === 0
+        || !isObject(cycle)
+        || typeof cycle.param !== 'string'
+        || cycle.param.length === 0
+        || typeof cycle.from !== 'number'
+        || typeof cycle.to !== 'number'
+        || typeof cycle.period !== 'number'
+        || !Number.isFinite(cycle.period)
+        || cycle.period <= 0
+      ) {
+        throw new PetCharacterError(`${path}.expressionCycles.${name || '(empty)'} must map a name to { param, from, to, period > 0 }`)
+      }
+      mappedCycles[name] = Object.freeze({
+        param: cycle.param,
+        from: cycle.from,
+        to: cycle.to,
+        period: cycle.period,
+      })
+    }
+    expressionCycles = Object.freeze(mappedCycles)
+  }
+  let lookOriginY: number | undefined
+  const rawLookOriginY = value.lookOriginY
+  if (rawLookOriginY !== undefined && rawLookOriginY !== null) {
+    if (typeof rawLookOriginY !== 'number' || !Number.isFinite(rawLookOriginY) || rawLookOriginY < 0 || rawLookOriginY > 1) {
+      throw new PetCharacterError(`${path}.lookOriginY must be a number between 0 and 1`)
+    }
+    lookOriginY = rawLookOriginY
+  }
+  let expressionHoldMs: number | undefined
+  const rawHold = value.expressionHoldMs
+  if (rawHold !== undefined && rawHold !== null) {
+    if (typeof rawHold !== 'number' || !Number.isFinite(rawHold) || rawHold <= 0) {
+      throw new PetCharacterError(`${path}.expressionHoldMs must be a positive number`)
+    }
+    expressionHoldMs = rawHold
+  }
+  let idleVariants: PetLive2DDocument['idleVariants'] | undefined
+  const rawVariants = value.idleVariants
+  if (rawVariants !== undefined && rawVariants !== null) {
+    if (!isObject(rawVariants)) {
+      throw new PetCharacterError(`${path}.idleVariants must be an object`)
+    }
+    let expressions: readonly string[] | undefined
+    if (rawVariants.expressions !== undefined && rawVariants.expressions !== null) {
+      if (!Array.isArray(rawVariants.expressions) || rawVariants.expressions.some(id => typeof id !== 'string' || id.length === 0)) {
+        throw new PetCharacterError(`${path}.idleVariants.expressions must be an array of expression names`)
+      }
+      expressions = Object.freeze([...rawVariants.expressions])
+    }
+    let everyMs: number | undefined
+    if (rawVariants.everyMs !== undefined && rawVariants.everyMs !== null) {
+      if (typeof rawVariants.everyMs !== 'number' || !Number.isFinite(rawVariants.everyMs) || rawVariants.everyMs <= 0) {
+        throw new PetCharacterError(`${path}.idleVariants.everyMs must be a positive number`)
+      }
+      everyMs = rawVariants.everyMs
+    }
+    let holdMs: number | undefined
+    if (rawVariants.holdMs !== undefined && rawVariants.holdMs !== null) {
+      if (typeof rawVariants.holdMs !== 'number' || !Number.isFinite(rawVariants.holdMs) || rawVariants.holdMs <= 0) {
+        throw new PetCharacterError(`${path}.idleVariants.holdMs must be a positive number`)
+      }
+      holdMs = rawVariants.holdMs
+    }
+    idleVariants = Object.freeze({
+      ...(expressions === undefined ? {} : { expressions }),
+      ...(everyMs === undefined ? {} : { everyMs }),
+      ...(holdMs === undefined ? {} : { holdMs }),
+    })
+  }
   let hideParts: readonly string[] | undefined
   const rawParts = value.hideParts
   if (rawParts !== undefined && rawParts !== null) {
@@ -225,6 +427,14 @@ function parseLive2D(value: unknown, path: string): PetLive2DDocument {
     model,
     core,
     ...(hideParameters === undefined ? {} : { hideParameters }),
+    ...(expressionParameters === undefined ? {} : { expressionParameters }),
+    ...(tapFallbackGroups === undefined ? {} : { tapFallbackGroups }),
+    ...(hitAreaMotions === undefined ? {} : { hitAreaMotions }),
+    ...(motionEndReset === undefined ? {} : { motionEndReset }),
+    ...(expressionCycles === undefined ? {} : { expressionCycles }),
+    ...(lookOriginY === undefined ? {} : { lookOriginY }),
+    ...(expressionHoldMs === undefined ? {} : { expressionHoldMs }),
+    ...(idleVariants === undefined ? {} : { idleVariants }),
     ...(hideParts === undefined ? {} : { hideParts }),
     ...(expressionRevealParts === undefined ? {} : { expressionRevealParts }),
     ...(outfit === undefined ? {} : { outfit }),

@@ -15,7 +15,7 @@ desktop companion needs except the character itself:
 - `pet.html` — the sandboxed renderer page: a dependency-free bubble/emote
   state machine driven through `window.__dshPet.boot()/dispatch()`; the
   character itself is rendered entirely by the Live2D runtime that
-  `PetWindowController` injects (Cubism Core plus renderer glue) after load.
+  `PetWindowController` injects (Cubism Core plus the official Cubism Framework viewer) after load.
 
 Character plugins (such as `dsh-plugin-pet-hutao` and
 `dsh-plugin-pet-furina`) depend on this package, ship a strictly validated

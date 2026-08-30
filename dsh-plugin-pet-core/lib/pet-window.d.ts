@@ -39,6 +39,11 @@ export interface PetElectron {
         getDisplayMatching(bounds: PetRectangle): {
             readonly workArea: PetRectangle;
         };
+        /** Present in real Electron; lets the pet track the cursor screen-wide. */
+        getCursorScreenPoint?(): {
+            x: number;
+            y: number;
+        };
     };
 }
 /** Structural desktop-runtime capabilities the pet engine needs. */
@@ -67,6 +72,31 @@ export interface PetLive2DSelection {
     readonly model: string;
     /** Parameter ids forced to `0` each frame (declared prop hiding). */
     readonly hideParameters?: readonly string[];
+    /** Named expression overlays mapped to their Cubism parameter ids. */
+    readonly expressionParameters?: Readonly<Record<string, string>>;
+    /** Motion groups for taps that land outside every declared HitArea. */
+    readonly tapFallbackGroups?: readonly string[];
+    /** Hit-area names mapped to motion groups, overriding model bindings. */
+    readonly hitAreaMotions?: Readonly<Record<string, string>>;
+    /** Parameter values written back when an interaction motion finishes. */
+    readonly motionEndReset?: Readonly<Record<string, number>>;
+    /** Parameters cycled while a named expression is active. */
+    readonly expressionCycles?: Readonly<Record<string, {
+        readonly param: string;
+        readonly from: number;
+        readonly to: number;
+        readonly period: number;
+    }>>;
+    /** Vertical look origin as a fraction of the window height (0..1). */
+    readonly lookOriginY?: number;
+    /** How long a tapped expression holds before easing back (ms). */
+    readonly expressionHoldMs?: number;
+    /** Idle-state variations cycling while the pet is idle. */
+    readonly idleVariants?: {
+        readonly expressions?: readonly string[];
+        readonly everyMs?: number;
+        readonly holdMs?: number;
+    };
     /** Cubism Part ids forced to opacity `0` after model update. */
     readonly hideParts?: readonly string[];
     /** Expression name → part ids to stop hiding while that expression is on. */
@@ -122,7 +152,7 @@ export interface PetWindowOptions {
     readonly log?: (message: string) => void;
     readonly onCommand: (command: PetWindowCommand) => void;
 }
-/** Own one pet window: creation, pushes, strolls, persistence, disposal. */
+/** Own one pet window: creation, pushes, persistence, disposal. */
 export declare class PetWindowController {
     private readonly options;
     private window;
@@ -134,7 +164,8 @@ export declare class PetWindowController {
     /** Resolves once the optional Core+glue injection finished (or failed). */
     private bootGate;
     private saveTimer;
-    private strollStepTimer;
+    private cursorTimer;
+    private lastCursor;
     /** Designed content size; never re-read from getBounds during drag (DPI drift). */
     private layoutWidth;
     private layoutHeight;
@@ -153,18 +184,12 @@ export declare class PetWindowController {
     emit(state: PetState, line?: string): void;
     /** Apply a new window scale while keeping the current position. */
     applyScale(scale: number): void;
-    /**
-     * Walk one short hop sideways inside the work area as a smooth crawl, not
-     * an instant teleport — the renderer only holds the walk pose for a few
-     * seconds, and the walk-only accessory needs those frames to be visible.
-     */
-    stroll(): void;
     /** Re-send the boot payload (for example after preference changes). */
     reboot(): void;
     private queueBoot;
     private flushBoot;
     /**
-     * Evaluate the operator-procured Cubism Core, the renderer glue, and the
+     * Evaluate the operator-procured Cubism Core, the official viewer, and the
      * full in-memory asset table before boot delivery. Bounded by a timeout so
      * a wedged page can never hold the pet hostage; on failure the log says so
      * and the window stays blank.
@@ -180,6 +205,16 @@ export declare class PetWindowController {
      */
     private handleManualMove;
     private run;
+    /**
+     * Feed the model's look-at target from the OS cursor so the pet tracks the
+     * mouse across the whole screen, not only while it hovers the window. The
+     * poller is the off-window complement of the page's own mousemove feed:
+     * while the cursor is over the pet both produce the same client point, and
+     * once it leaves only this keeps updating.
+     */
+    private startCursorTracking;
+    private stopCursorTracking;
+    private pollCursor;
     private clampToWorkArea;
     private schedulePositionSave;
     private flushPositionSave;

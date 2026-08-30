@@ -7,7 +7,7 @@ export { parsePetCharacterDocument, pickPetLine, PetCharacterError, PET_LINE_CAT
 export type { PetCharacterDocument, PetCharacterId, PetLineCategory, PetLines, PetLocale, PetState, } from './contracts.ts';
 export type { PetActivityEvent } from './pet-events.ts';
 export { loadPetElectron, petStatePath, petStateDuration, PetWindowController, resolvePetLive2DUrls, PET_SPEECH_SLOT_PX, } from './pet-window.ts';
-export { PET_LIVE2D_RUNTIME_GLUE, readPetLive2DCoreText } from './pet-live2d-host.ts';
+export { readPetLive2DCoreText, readPetLive2DViewerText } from './pet-live2d-host.ts';
 export type { PetBootPayload, PetBrowserWindow, PetElectron, PetLive2DAssets, PetLive2DSelection, PetRectangle, PetRuntimeHost, } from './pet-window.ts';
 /** Settings presented by every character pet plugin. */
 export interface PetSettings {

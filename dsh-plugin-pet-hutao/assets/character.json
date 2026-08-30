@@ -93,6 +93,17 @@
     "height": 300
   },
   "live2d": {
-    "model": "pet.model3.json"
+    "model": "pet.model3.json",
+    "tapFallbackGroups": [
+      "Tap1",
+      "Tap2",
+      "Tap3",
+      "Tap4",
+      "Tap5",
+      "Tap6"
+    ],
+    "hitAreaMotions": {
+      "阴险2": "Tap6"
+    }
   }
 }

@@ -6,10 +6,11 @@ import { dirname, join } from 'node:path'
 import type { PetCharacterDocument, PetLocale, PetState } from './contracts.ts'
 import {
   collectPetLive2DAssetChunks,
-  PET_LIVE2D_RUNTIME_GLUE,
+  collectPetLive2DShaderChunks,
   petLive2DChunkStatement,
   petLive2DFinalizeStatement,
   readPetLive2DCoreText,
+  readPetLive2DViewerText,
 } from './pet-live2d-host.ts'
 
 /** Rectangle values shared with Electron's screen and window APIs. */
@@ -47,6 +48,8 @@ export interface PetElectron {
   readonly BrowserWindow: new (options: Record<string, unknown>) => PetBrowserWindow
   readonly screen?: {
     getDisplayMatching(bounds: PetRectangle): { readonly workArea: PetRectangle }
+    /** Present in real Electron; lets the pet track the cursor screen-wide. */
+    getCursorScreenPoint?(): { x: number, y: number }
   }
 }
 
@@ -78,6 +81,33 @@ export interface PetLive2DSelection {
   readonly model: string
   /** Parameter ids forced to `0` each frame (declared prop hiding). */
   readonly hideParameters?: readonly string[]
+  /** Named expression overlays mapped to their Cubism parameter ids. */
+  readonly expressionParameters?: Readonly<Record<string, string>>
+  /** Motion groups for taps that land outside every declared HitArea. */
+  readonly tapFallbackGroups?: readonly string[]
+  /** Hit-area names mapped to motion groups, overriding model bindings. */
+  readonly hitAreaMotions?: Readonly<Record<string, string>>
+  /** Parameter values written back when an interaction motion finishes. */
+  readonly motionEndReset?: Readonly<Record<string, number>>
+  /** Parameters cycled while a named expression is active. */
+  readonly expressionCycles?: Readonly<
+    Record<string, {
+      readonly param: string
+      readonly from: number
+      readonly to: number
+      readonly period: number
+    }>
+  >
+  /** Vertical look origin as a fraction of the window height (0..1). */
+  readonly lookOriginY?: number
+  /** How long a tapped expression holds before easing back (ms). */
+  readonly expressionHoldMs?: number
+  /** Idle-state variations cycling while the pet is idle. */
+  readonly idleVariants?: {
+    readonly expressions?: readonly string[]
+    readonly everyMs?: number
+    readonly holdMs?: number
+  }
   /** Cubism Part ids forced to opacity `0` after model update. */
   readonly hideParts?: readonly string[]
   /** Expression name → part ids to stop hiding while that expression is on. */
@@ -113,6 +143,14 @@ export function resolvePetLive2DUrls(
   return {
     model: live2d.model,
     ...(live2d.hideParameters === undefined ? {} : { hideParameters: live2d.hideParameters }),
+    ...(live2d.expressionParameters === undefined ? {} : { expressionParameters: live2d.expressionParameters }),
+    ...(live2d.tapFallbackGroups === undefined ? {} : { tapFallbackGroups: live2d.tapFallbackGroups }),
+    ...(live2d.hitAreaMotions === undefined ? {} : { hitAreaMotions: live2d.hitAreaMotions }),
+    ...(live2d.motionEndReset === undefined ? {} : { motionEndReset: live2d.motionEndReset }),
+    ...(live2d.expressionCycles === undefined ? {} : { expressionCycles: live2d.expressionCycles }),
+    ...(live2d.lookOriginY === undefined ? {} : { lookOriginY: live2d.lookOriginY }),
+    ...(live2d.expressionHoldMs === undefined ? {} : { expressionHoldMs: live2d.expressionHoldMs }),
+    ...(live2d.idleVariants === undefined ? {} : { idleVariants: live2d.idleVariants }),
     ...(live2d.hideParts === undefined ? {} : { hideParts: live2d.hideParts }),
     ...(live2d.expressionRevealParts === undefined ? {} : { expressionRevealParts: live2d.expressionRevealParts }),
     ...(live2d.outfit === undefined ? {} : { outfit: live2d.outfit }),
@@ -146,16 +184,15 @@ export function petStateDuration(state: PetState): number {
 }
 
 const POSITION_FILE_VERSION = 1
-const STROLL_DISTANCE_PX = 48
 const WORK_AREA_MARGIN_PX = 8
 /** Window pixels reserved above the character so speech never covers the model.
  *  Keep in sync with `--pet-speech-slot` in `pet.html`. */
 export const PET_SPEECH_SLOT_PX = 80
 /** Per-message cap for renderer-driven drag deltas. */
 const MANUAL_MOVE_MAX_PX = 64
-/** Crawl pacing for one stroll hop: 16 steps × 60ms ≈ 1s of visible walking. */
-const STROLL_STEP_MS = 60
 const POSITION_SAVE_DEBOUNCE_MS = 600
+/** OS cursor polling cadence for screen-wide look-at tracking. */
+const CURSOR_TRACK_MS = 16
 
 interface PetPositionFile {
   readonly version: 1
@@ -240,7 +277,7 @@ export interface PetWindowOptions {
   readonly onCommand: (command: PetWindowCommand) => void
 }
 
-/** Own one pet window: creation, pushes, strolls, persistence, disposal. */
+/** Own one pet window: creation, pushes, persistence, disposal. */
 export class PetWindowController {
   private window: PetBrowserWindow | undefined
   private disposed = false
@@ -251,7 +288,8 @@ export class PetWindowController {
   /** Resolves once the optional Core+glue injection finished (or failed). */
   private bootGate: Promise<void> | undefined
   private saveTimer: ReturnType<typeof setTimeout> | undefined
-  private strollStepTimer: ReturnType<typeof setTimeout> | undefined
+  private cursorTimer: ReturnType<typeof setInterval> | undefined
+  private lastCursor: { x: number, y: number } | undefined
   /** Designed content size; never re-read from getBounds during drag (DPI drift). */
   private layoutWidth = 0
   private layoutHeight = 0
@@ -339,11 +377,15 @@ export class PetWindowController {
       this.handleNavigate(args[0] as { preventDefault(): void } | undefined, args[1] as string | undefined)
     })
     window.once('ready-to-show', () => {
-      if (!this.disposed && this.window === window && !window.isDestroyed()) window.show()
+      if (!this.disposed && this.window === window && !window.isDestroyed()) {
+        window.show()
+        this.startCursorTracking()
+      }
     })
     window.on('closed', () => {
       if (this.window === window) this.window = undefined
       this.pageReady = false
+      this.stopCursorTracking()
     })
     window.on('moved', () => { this.schedulePositionSave() })
     this.queueBoot()
@@ -357,6 +399,7 @@ export class PetWindowController {
   /** Close the current window, if any. */
   close(): void {
     this.flushPositionSave()
+    this.stopCursorTracking()
     const window = this.window
     this.window = undefined
     this.pageReady = false
@@ -369,10 +412,6 @@ export class PetWindowController {
   /** Dispose permanently; the controller cannot be reopened afterwards. */
   dispose(): void {
     this.disposed = true
-    if (this.strollStepTimer !== undefined) {
-      clearTimeout(this.strollStepTimer)
-      this.strollStepTimer = undefined
-    }
     this.close()
   }
 
@@ -410,58 +449,6 @@ export class PetWindowController {
       width: size.width,
       height: size.height,
     })
-  }
-
-  /**
-   * Walk one short hop sideways inside the work area as a smooth crawl, not
-   * an instant teleport — the renderer only holds the walk pose for a few
-   * seconds, and the walk-only accessory needs those frames to be visible.
-   */
-  stroll(): void {
-    if (!this.isOpen() || !this.isVisible()) return
-    if (this.strollStepTimer !== undefined) {
-      clearTimeout(this.strollStepTimer)
-      this.strollStepTimer = undefined
-    }
-    const window = this.window!
-    const bounds = window.getBounds()
-    const width = this.layoutWidth || bounds.width
-    const height = this.layoutHeight || bounds.height
-    const workArea = this.options.electron.screen
-      ?.getDisplayMatching(bounds).workArea
-    this.emit('walk')
-    if (workArea === undefined) return
-    const direction = Math.random() < 0.5 ? -1 : 1
-    const target = clamp(
-      bounds.x + direction * STROLL_DISTANCE_PX,
-      workArea.x + WORK_AREA_MARGIN_PX,
-      workArea.x + workArea.width - width - WORK_AREA_MARGIN_PX,
-    )
-    // First step lands synchronously; the rest ride one timer chain that is
-    // cleared on close/dispose so a dead window can never keep walking.
-    const steps = 16
-    const startX = bounds.x
-    const stepTo = (index: number): void => {
-      const current = this.window
-      if (current === undefined || current.isDestroyed() || !this.isOpen()) return
-      current.setBounds({
-        x: clamp(
-          Math.round(startX + ((target - startX) * index) / steps),
-          workArea.x + WORK_AREA_MARGIN_PX,
-          Math.max(workArea.x + WORK_AREA_MARGIN_PX, workArea.x + workArea.width - width - WORK_AREA_MARGIN_PX),
-        ),
-        y: bounds.y,
-        width,
-        height,
-      })
-      if (index < steps) {
-        this.strollStepTimer = setTimeout(() => {
-          this.strollStepTimer = undefined
-          stepTo(index + 1)
-        }, STROLL_STEP_MS)
-      }
-    }
-    stepTo(1)
   }
 
   /** Re-send the boot payload (for example after preference changes). */
@@ -504,12 +491,12 @@ export class PetWindowController {
       this.run(`window.__dshPet && window.__dshPet.boot(${JSON.stringify(payload)});`)
     }
     // Boot always rides behind the injection gate: the page must have the
-    // Cubism Core and the renderer glue before it receives a character.
+    // Cubism Core and the official viewer before it receives a character.
     void gate.then(deliver)
   }
 
   /**
-   * Evaluate the operator-procured Cubism Core, the renderer glue, and the
+   * Evaluate the operator-procured Cubism Core, the official viewer, and the
    * full in-memory asset table before boot delivery. Bounded by a timeout so
    * a wedged page can never hold the pet hostage; on failure the log says so
    * and the window stays blank.
@@ -550,8 +537,13 @@ export class PetWindowController {
           if (exposed !== 'ok') {
             throw new Error('cubism core did not define its wrapper classes after injection')
           }
-          await evaluate(PET_LIVE2D_RUNTIME_GLUE)
-          for (const chunk of collectPetLive2DAssetChunks(live2dDir)) {
+          await evaluate(
+            `/* DSH pet Cubism viewer */\n${readPetLive2DViewerText()}\nvoid 0;\n`,
+          )
+          for (const chunk of [
+            ...collectPetLive2DShaderChunks(),
+            ...collectPetLive2DAssetChunks(live2dDir),
+          ]) {
             await evaluate(petLive2DChunkStatement(chunk))
           }
           await evaluate(petLive2DFinalizeStatement())
@@ -653,6 +645,37 @@ export class PetWindowController {
     }
     if (delayMs === undefined) dispatch()
     else setTimeout(dispatch, delayMs)
+  }
+
+  /**
+   * Feed the model's look-at target from the OS cursor so the pet tracks the
+   * mouse across the whole screen, not only while it hovers the window. The
+   * poller is the off-window complement of the page's own mousemove feed:
+   * while the cursor is over the pet both produce the same client point, and
+   * once it leaves only this keeps updating.
+   */
+  private startCursorTracking(): void {
+    if (this.cursorTimer !== undefined) return
+    this.cursorTimer = setInterval(() => { this.pollCursor() }, CURSOR_TRACK_MS)
+  }
+
+  private stopCursorTracking(): void {
+    if (this.cursorTimer !== undefined) clearInterval(this.cursorTimer)
+    this.cursorTimer = undefined
+    this.lastCursor = undefined
+  }
+
+  private pollCursor(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed() || !this.isOpen() || !this.isVisible()) return
+    const point = this.options.electron.screen?.getCursorScreenPoint?.()
+    if (point === undefined) return
+    const bounds = window.getBounds()
+    const x = point.x - bounds.x
+    const y = point.y - bounds.y
+    if (this.lastCursor !== undefined && this.lastCursor.x === x && this.lastCursor.y === y) return
+    this.lastCursor = { x, y }
+    this.run(`var rt = window.__dshPetLive2DRuntime; rt && rt.setPointer(${x}, ${y});`)
   }
 
   private clampToWorkArea(

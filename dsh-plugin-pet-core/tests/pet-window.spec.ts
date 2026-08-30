@@ -438,35 +438,38 @@ describe('PetWindowController', () => {
     expect(window.options.y).toBe(0)
   })
 
-  it('strolls sideways as a timed crawl and emits walk up front', () => {
-    vi.useFakeTimers()
-    try {
-      const windowController = controller()
-      windowController.open()
-      const window = FakeWindow.created[0]!
-      window.emit('ready-to-show')
-      const before = window.getBounds().x
-      const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9)
-      windowController.stroll()
-      randomSpy.mockRestore()
-      // The walk state rides ahead of the movement so the accessory shows.
-      expect(window.webContents.executed.some(code => code.includes('"state":"walk"'))).toBe(true)
-      // One step has landed synchronously; the crawl needs its timer chain.
-      expect(window.getBounds().x).not.toBe(before)
-      const afterFirstStep = window.getBounds().x
-      expect(afterFirstStep).toBeGreaterThan(before - 48)
-      vi.advanceTimersByTime(16 * 60 + 100)
-      // The default resting spot is 24px from the right edge; a 48px stroll to
-      // the right clamps back to the 8px work-area margin.
-      expect(window.getBounds().x).toBe(1920 - 216 - 8)
-      expect(window.getBounds().y).toBe(FakeWindow.created[0]!.getBounds().y)
-      // A closed window stops walking instead of stepping on stale bounds.
-      window.close()
-      vi.advanceTimersByTime(2000)
-      expect(window.getBounds().x).toBe(1920 - 216 - 8)
-    } finally {
-      vi.useRealTimers()
+  it('feeds the os cursor to the model screen-wide, deduplicated', () => {
+    let cursor = { x: 660, y: 436 }
+    const electron: PetElectron = {
+      BrowserWindow: FakeWindow as unknown as PetElectron['BrowserWindow'],
+      screen: {
+        getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }),
+        getCursorScreenPoint: () => ({ ...cursor }),
+      },
     }
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    window.emit('ready-to-show')
+    window.setPosition(600, 400)
+    vi.advanceTimersByTime(250)
+    // Client-space feed: cursor (660,436) - window (600,400) = (60,36).
+    expect(window.webContents.executed.some(code => code.includes('setPointer(60, 36)'))).toBe(true)
+    const feedCount = window.webContents.executed
+      .filter(code => code.includes('setPointer(60, 36)')).length
+    // A stationary cursor must not spam the renderer with identical feeds.
+    vi.advanceTimersByTime(500)
+    expect(window.webContents.executed
+      .filter(code => code.includes('setPointer(60, 36)')).length).toBe(feedCount)
+    // A far-away cursor keeps tracking outside the window bounds.
+    cursor = { x: 300, y: 200 }
+    vi.advanceTimersByTime(250)
+    expect(window.webContents.executed.some(code => code.includes('setPointer(-300, -200)'))).toBe(true)
+    windowController.dispose()
+    // Disposal stops the poller outright.
+    const after = window.webContents.executed.length
+    vi.advanceTimersByTime(500)
+    expect(window.webContents.executed.length).toBe(after)
   })
 
   it('applies scale changes while keeping position', () => {

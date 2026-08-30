@@ -47,25 +47,8 @@ describe('dsh-plugin-pet-furina composition', () => {
     expect(character.live2d.model).toBe('pet.model3.json')
     expect(character.live2d.core).toBe('vendor/live2dcubismcore.min.js')
     expect(character.live2d.hideParameters).toEqual(['Param15'])
-    // Only the watermark board stays pinned; walk accessory is reveal-on-switch.
-    expect(character.live2d.hideParts).toEqual([
-      'Part187',
-      'Part148',
-    ])
+    expect(character.live2d.hideParts).toEqual(['Part187', 'Part148'])
     expect(character.live2d.expressionRevealParts).toEqual({ walkSwitch: ['Part148'] })
-    // Param4 1 = white form, 0 = black form; each side hides its mirror set.
-    expect(character.live2d.outfit).toEqual({
-      parameter: 'Param4',
-      lowParts: [
-        'Part88', 'Part92', 'Part113', 'Part114', 'Part165', 'Part115', 'Part116',
-        'Part175', 'Part176', 'Part168', 'Part170', 'Part122', 'Part125', 'Part172',
-        'Part158', 'Part25', 'Part81',
-      ],
-      highParts: [
-        'Part87', 'Part91', 'Part109', 'Part110', 'Part164', 'Part111', 'Part112',
-        'Part173', 'Part174', 'Part167', 'Part169', 'Part123', 'Part124', 'Part171',
-        'Part157', 'Part24', 'Part80',
-      ],
-    })
+    expect(character.live2d.outfit).toEqual({ parameter: 'Param4' })
   })
 })

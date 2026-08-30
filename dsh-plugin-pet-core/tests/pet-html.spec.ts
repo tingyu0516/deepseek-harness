@@ -20,12 +20,10 @@ describe('pet.html renderer contract', () => {
     expect(page).toContain('__dshPetLive2DRuntime')
     expect(page).toContain('runtime.attach(petWrap, spec)')
     expect(page).toContain("callRuntime('setState'")
-    expect(page).toContain("callRuntime('setExpression'")
-    // Boot payload only names the model key; Cubism Core is injected by the
-    // main process before boot and is not a renderer URL.
+    expect(page).toContain('rt.tap(clientX, clientY)')
+    expect(page).toContain("callRuntime('playMotionGroup', 'Special')")
     expect(page).toContain('if (!spec || !spec.model) return Promise.resolve(false);')
     expect(page).not.toContain('spec.core')
-    // Renderer failures are reported back through the private pet scheme.
     expect(page).toContain('live2dfailed')
   })
 
@@ -60,8 +58,6 @@ describe('pet.html renderer contract', () => {
   })
 
   it('drags via the private scheme instead of app-region', () => {
-    // The OS-level drag region cannot coexist with click = pat on the same
-    // surface; dragging goes through scheme deltas applied by the main process.
     expect(page).not.toContain('-webkit-app-region')
     expect(page).toContain("'://move?dx='")
     expect(page).toContain('DRAG_THRESHOLD_PX')
@@ -72,26 +68,15 @@ describe('pet.html renderer contract', () => {
     expect(page).toContain('movementX')
     expect(page).toContain('tapFace')
     expect(page).toContain('playSpecial')
-    expect(page).toContain('setExpression')
-    expect(page).toContain('expressionNames')
-    expect(page).toContain('defaultExpressionFor(next)')
-    expect(page).toContain('STATE_EXPRESSIONS')
     expect(page).toContain('contextmenu')
-    expect(page).toContain('walkSwitch')
-    expect(page).toContain('walkSwitch: true')
-    expect(page).toContain("callRuntime('toggleForm')")
-    expect(page).toContain('hitTest')
-    expect(page).toContain('playMotionGroup')
-    expect(page).toContain('wrapToNdc')
+    expect(page).toContain("enter('pat', pick('pat'), 3200)")
     expect(page).toContain('tapFace(x, y)')
-    expect(page).toContain('canvas.getBoundingClientRect()')
-    expect(page).toContain("group !== 'body'")
-    expect(page).toContain('if (!(explicitFace && next !== \'walk\'))')
-    expect(page).toContain('function pickExpression()')
-    expect(page).toContain('CLICK_EXPRESSIONS')
-    expect(page).toContain("'cake', 'drink', 'spoon', 'star', 'fish'")
-    expect(page).toContain('pickExpression()')
+    expect(page).toContain("callRuntime('playMotionGroup', 'Special')")
     expect(page).toContain('applyLive2D(payload.live2d).then')
+    expect(page).not.toContain('toggleForm')
+    expect(page).not.toContain('pickExpression')
+    expect(page).not.toContain('CLICK_EXPRESSIONS')
+    expect(page).not.toContain('STATE_EXPRESSIONS')
   })
 
   it('honors reduced-motion preferences for the bubble', () => {

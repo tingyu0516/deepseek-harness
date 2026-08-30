@@ -94,54 +94,58 @@
   },
   "live2d": {
     "model": "pet.model3.json",
-    "hideParameters": ["Param15"],
+    "hideParameters": [
+      "Param15"
+    ],
     "hideParts": [
       "Part187",
       "Part148"
     ],
     "expressionRevealParts": {
-      "walkSwitch": ["Part148"]
+      "walkSwitch": [
+        "Part148"
+      ]
     },
     "outfit": {
-      "parameter": "Param4",
-      "lowParts": [
-        "Part88",
-        "Part92",
-        "Part113",
-        "Part114",
-        "Part165",
-        "Part115",
-        "Part116",
-        "Part175",
-        "Part176",
-        "Part168",
-        "Part170",
-        "Part122",
-        "Part125",
-        "Part172",
-        "Part158",
-        "Part25",
-        "Part81"
+      "parameter": "Param4"
+    },
+    "expressionParameters": {
+      "chinRest": "Param2",
+      "hat": "Param5",
+      "angry": "Param6",
+      "blush": "Param7",
+      "cry": "Param8",
+      "sweat": "Param9",
+      "star": "Param10",
+      "fish": "Param11",
+      "walkSwitch": "Param12",
+      "ahogeFan": "Param13",
+      "genius": "Param14",
+      "catMouth": "Param16",
+      "cake": "Param19",
+      "spoon": "Param20",
+      "drink": "Param21",
+      "coverMouth": "Param"
+    },
+    "motionEndReset": {
+      "Param83": 0
+    },
+    "expressionCycles": {
+      "ahogeFan": {
+        "param": "Param128",
+        "from": 0,
+        "to": 30,
+        "period": 0.6
+      }
+    },
+    "lookOriginY": 0.42,
+    "expressionHoldMs": 9000,
+    "idleVariants": {
+      "expressions": [
+        "walkSwitch"
       ],
-      "highParts": [
-        "Part87",
-        "Part91",
-        "Part109",
-        "Part110",
-        "Part164",
-        "Part111",
-        "Part112",
-        "Part173",
-        "Part174",
-        "Part167",
-        "Part169",
-        "Part123",
-        "Part124",
-        "Part171",
-        "Part157",
-        "Part24",
-        "Part80"
-      ]
+      "everyMs": 30000,
+      "holdMs": 12000
     }
   }
 }

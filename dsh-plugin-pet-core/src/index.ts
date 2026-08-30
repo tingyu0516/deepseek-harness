@@ -35,7 +35,7 @@ export {
   resolvePetLive2DUrls,
   PET_SPEECH_SLOT_PX,
 } from './pet-window.ts'
-export { PET_LIVE2D_RUNTIME_GLUE, readPetLive2DCoreText } from './pet-live2d-host.ts'
+export { readPetLive2DCoreText, readPetLive2DViewerText } from './pet-live2d-host.ts'
 export type {
   PetBootPayload,
   PetBrowserWindow,
@@ -121,10 +121,6 @@ const TRAY_COPY: Readonly<Record<'zh' | 'en', PetTrayCopy>> = Object.freeze({
   }),
 })
 
-const STROLL_MIN_MS = 2 * 60 * 1000
-const STROLL_MAX_MS = 4.5 * 60 * 1000
-const ACTIVITY_QUIET_MS = 90 * 1000
-
 type ReactionState = 'work' | 'cheer' | 'sad' | 'idle'
 const REACTION_CATEGORIES: Readonly<Record<Exclude<ReactionState, 'idle'>, PetLineCategory>> = Object.freeze({
   work: 'work',
@@ -185,8 +181,6 @@ export function createPetPlugin(options: PetPluginOptions): {
       let controller: PetWindowController | undefined
       let trayRegistration: { refresh(): void, dispose(): void } | undefined
       const tracker = new PetActivityTracker()
-      let lastActivityAt = 0
-      let strollTimer: ReturnType<typeof setTimeout> | undefined
 
       const line = (category: PetLineCategory): string => pickPetLine(character, locale(), category)
 
@@ -221,22 +215,7 @@ export function createPetPlugin(options: PetPluginOptions): {
           controller?.emit('idle')
           return
         }
-        lastActivityAt = Date.now()
         controller?.emit(state, line(REACTION_CATEGORIES[state]))
-      }
-
-      const scheduleStroll = (): void => {
-        const delay = STROLL_MIN_MS + Math.random() * (STROLL_MAX_MS - STROLL_MIN_MS)
-        strollTimer = setTimeout(() => {
-          strollTimer = undefined
-          if (settings.enabled
-            && controller !== undefined
-            && controller.isVisible()
-            && Date.now() - lastActivityAt > ACTIVITY_QUIET_MS) {
-            controller.stroll()
-          }
-          scheduleStroll()
-        }, delay)
       }
 
       ctx.effect(() => {
@@ -254,10 +233,7 @@ export function createPetPlugin(options: PetPluginOptions): {
           },
         })
         if (settings.enabled) controller.open()
-        scheduleStroll()
         return () => {
-          if (strollTimer !== undefined) clearTimeout(strollTimer)
-          strollTimer = undefined
           controller?.dispose()
           controller = undefined
         }
@@ -303,7 +279,6 @@ export function createPetPlugin(options: PetPluginOptions): {
             label: () => trayCopy().wave,
             enabled: () => settings.enabled,
             invoke: () => {
-              lastActivityAt = Date.now()
               controller?.emit('special', line('special'))
             },
           },

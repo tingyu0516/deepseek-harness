@@ -46,6 +46,72 @@ export interface PetLive2DDocument {
      */
     readonly hideParameters?: readonly string[];
     /**
+     * Named expression overlays mapped to their Cubism parameter ids
+     * (`{ "blush": "Param7" }`). The renderer eases the bound parameter to 1
+     * while the expression is active and to 0 otherwise, so tapping a region
+     * can pin a face. Character data: ids are model-specific, so characters
+     * without this table never get any expression writes.
+     */
+    readonly expressionParameters?: Readonly<Record<string, string>>;
+    /**
+     * Motion groups the renderer may pick at random when a tap lands on the
+     * model but outside every declared HitArea. Without this table only the
+     * declared HitAreas respond to taps.
+     */
+    readonly tapFallbackGroups?: readonly string[];
+    /**
+     * Hit-area names mapped to motion groups, overriding or supplementing the
+     * `Motion` bindings declared in the model's `HitAreas` (for entries the
+     * model author left unbound).
+     */
+    readonly hitAreaMotions?: Readonly<Record<string, string>>;
+    /**
+     * Parameter ids written back to the declared value when an interaction
+     * motion finishes (`{ "Param83": 0 }` = fade the backlight fully off).
+     * Use this for params an interaction motion drives that neither the Idle
+     * motion nor physics reset afterwards — otherwise a motion interrupted
+     * mid-curve freezes them at a partial value.
+     */
+    readonly motionEndReset?: Readonly<Record<string, number>>;
+    /**
+     * Parameters cycled continuously while a named expression is active
+     * (`{ "ahogeFan": { "param": "Param128", "from": 0, "to": 30,
+     * "period": 1 } }` sweeps the fan rotation once per second). An authored
+     * expression may turn a prop on but rely on the app to animate it; the
+     * curve is a sawtooth from `from` to `to` over `period` seconds.
+     */
+    readonly expressionCycles?: Readonly<Record<string, {
+        readonly param: string;
+        readonly from: number;
+        readonly to: number;
+        readonly period: number;
+    }>>;
+    /**
+     * Vertical look origin as a fraction of the window height (0..1). The
+     * drag vector that drives ParamAngleY is measured from this line instead
+     * of the window center, so a character whose face sits above center
+     * tracks the cursor without a downward bias. Defaults to 0.5.
+     */
+    readonly lookOriginY?: number;
+    /**
+     * How long a tapped expression holds before easing back to neutral, in
+     * milliseconds. The official SDK has no hold concept (expressions last
+     * until replaced, fading over its 1s DefaultFadeTime); the pet defaults
+     * to 9000.
+     */
+    readonly expressionHoldMs?: number;
+    /**
+     * Idle-state variations: while the pet is idle, activate one of the named
+     * expressions for `holdMs` every `everyMs` milliseconds (e.g. Furina's
+     * `walkSwitch` walking legs as a second idle stance). Taps override a
+     * running variant.
+     */
+    readonly idleVariants?: {
+        readonly expressions?: readonly string[];
+        readonly everyMs?: number;
+        readonly holdMs?: number;
+    };
+    /**
      * Cubism Part ids whose opacity is forced to `0` after `model.update()`.
      * Use this when a prop stays visible at parameter value 0 because it is a
      * separate Part (Furina's "牌子" is `Part187`).

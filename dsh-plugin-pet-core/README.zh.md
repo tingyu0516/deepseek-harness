@@ -10,7 +10,7 @@ DSH Desktop 角色桌宠插件的共享引擎。除角色本身外，桌宠所�
   （`work` / `cheer` / `sad`），过滤规则与桌面通知行一致。
 - `pet.html` —— 沙箱渲染页：零依赖的气泡/表情状态机，通过
   `window.__dshPet.boot()/dispatch()` 驱动；角色本体完全交给 Live2D 渲染器，
-  由 `PetWindowController` 在页面加载后自动注入 Cubism Core 与渲染胶水。
+  由 `PetWindowController` 在页面加载后自动注入 Cubism Core 与官方 Cubism Framework 查看器。
 
 角色插件（如 `dsh-plugin-pet-hutao` 与 `dsh-plugin-pet-furina`）依赖本包，
 附带经严格校验的 `assets/character.json`（配色、台词与必填的 `live2d`

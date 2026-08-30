@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@framework/*": ["./vendor/cubism-framework/*"]
+    }
+  },
+  "include": [
+    "src/live2d/**/*.ts",
+    "vendor/cubism-sample/**/*.ts",
+    "vendor/cubism-core/live2dcubismcore.d.ts"
+  ]
+}

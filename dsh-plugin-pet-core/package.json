@@ -25,6 +25,8 @@
     "lib/**/*.map",
     "lib/**/*.d.ts",
     "pet.html",
+    "vendor/cubism-shaders/**",
+    "vendor/CUBISM-FRAMEWORK-LICENSE.md",
     "LICENSE",
     "README.md",
     "README.zh.md"
