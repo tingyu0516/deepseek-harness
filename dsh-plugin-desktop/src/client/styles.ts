@@ -13,7 +13,7 @@ const DESKTOP_OWNED_STYLES = `
 html, body, #root { width: 100%; height: 100%; }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) { margin: 0; background-color: transparent !important; background-image: var(--dsw-character-bg-image, none); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed; }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) #root { background-color: transparent !important; background-image: var(--dsw-character-bg-image, none); background-size: cover; background-position: center; background-repeat: no-repeat; }
-.dshDesktopFrame { position: relative; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background-color: transparent; transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
+.dshDesktopFrame { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background-color: transparent; transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out), grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out), padding-right var(--ds-transition-duration-slow) var(--ds-ease-in-out); }
 .dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: transparent; position: relative; grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; background: transparent; border-right: 1px solid var(--dsw-alias-border-l1); }
 body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])[data-dsh-desktop-material="off"] .dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1); background: var(--dsw-alias-bg-layer-1); }
 .dshDesktopUpstreamSidebar { box-sizing: border-box; width: 100%; height: 100%; }
@@ -37,9 +37,8 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopWindowsCaptionRow { position: relative; grid-column: 2 / -1; grid-row: 1; min-width: 0; background: var(--dsw-alias-bg-base); }
 .dshDesktopWindowsCaptionRow::before { content: ""; position: absolute; inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0; user-select: none; -webkit-app-region: drag; }
 .dshDesktopFrame[data-dragging] { transition: none; }
-.dshDesktopFrame[data-terminal-open] { width: calc(100% - min(640px, 92vw)); }
+.dshDesktopFrame[data-terminal-open] { padding-right: min(640px, 92vw); }
 .dshDesktopOverlay { position: absolute; z-index: 1000; inset: 0; pointer-events: none; }
-.dshDesktopFrame[data-terminal-open] .dshDesktopOverlay { right: calc(-1 * min(640px, 92vw)); }
 .dshDesktopOverlay > * { pointer-events: auto; }
 .dshDesktopTerminalDrawer { position: absolute; z-index: 20; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: min(640px, 92vw); min-width: 280px; background: var(--dsw-alias-bg-layer-1); border-left: 1px solid var(--dsw-alias-border-l1); box-shadow: -12px 0 28px rgb(0 0 0 / 18%); -webkit-app-region: no-drag; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="win32"] .dshDesktopTerminalDrawer { top: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px; }
