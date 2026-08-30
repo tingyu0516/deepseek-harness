@@ -24,6 +24,7 @@ export interface DesktopFrameTitlebarInjected {
     'openTerminal' | 'restart' | 'restartToRecovery' | 'reloadRenderer' | 'toggleDeveloperTools' | 'checkForUpdates'
   >
   readonly setMode: (mode: DesktopClientMode) => Promise<void>
+  readonly onOpenTerminal?: () => void
 }
 
 export type DesktopFrameTitlebarProps = PropsRuntime<'shell.overlay'>
@@ -169,7 +170,7 @@ export function DesktopModeControl({
 }
 
 /** Horizontal frame surface; the unrelated upstream content starts below it. */
-export function DesktopFrameTitlebar({ api, environment, setMode, t }: DesktopFrameTitlebarProps) {
+export function DesktopFrameTitlebar({ api, environment, setMode, t, onOpenTerminal }: DesktopFrameTitlebarProps) {
   return createPortal((
     <header
       className="dshDesktopFrameTitlebar"
@@ -188,7 +189,12 @@ export function DesktopFrameTitlebar({ api, environment, setMode, t }: DesktopFr
         />
       </div>
       <div className="dshDesktopFrameActions">
-        <DesktopNativeActions api={api} t={t} placement="titlebar" />
+        <DesktopNativeActions
+          api={api}
+          t={t}
+          placement="titlebar"
+          {...(onOpenTerminal === undefined ? {} : { onOpenTerminal })}
+        />
       </div>
     </header>
   ), document.body)

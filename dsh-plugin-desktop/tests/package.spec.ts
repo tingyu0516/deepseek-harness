@@ -451,6 +451,10 @@ describe('published package surface', () => {
     const client = readFileSync(new URL('lib/client.js', packageRoot), 'utf8')
 
     expect(config).toContain("'process.env.NODE_ENV': JSON.stringify('production')")
+    expect(config).toContain('dsh-css-global-inline')
+    expect(JSON.stringify(manifest.devDependencies ?? {})).not.toContain('@tsdown/css')
+    expect(JSON.stringify(manifest.dependencies ?? {})).not.toContain('@tsdown/css')
+    expect(client).toContain('.xterm')
     expect(client).not.toMatch(/\bprocess(?:\.|\[)/u)
   })
 

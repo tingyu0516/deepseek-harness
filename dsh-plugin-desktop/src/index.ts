@@ -54,6 +54,7 @@ import {
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
 } from './desktop-settings-route.ts'
+import { DESKTOP_TERMINAL_CHANNEL_PATH } from './desktop-terminal-channel.ts'
 import type {} from './desktop-settings-controller.ts'
 import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
@@ -262,6 +263,18 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('webserver/index-inject', table => {
     table.push(...desktopBootRecoveryInjections())
   })
+  const terminalChannel = ctx.get('desktopTerminalChannel')
+  if (terminalChannel !== undefined && typeof ctx.webServer.registerUpgrade === 'function') {
+    ctx.effect(
+      () => ctx.webServer.registerUpgrade({
+        path: DESKTOP_TERMINAL_CHANNEL_PATH,
+        handler: (req, socket, head) => {
+          terminalChannel.handleUpgrade(req, socket, head, rendererOrigin)
+        },
+      }),
+      'dsh-plugin-desktop: private terminal drawer channel',
+    )
+  }
   const desktopSettings = ctx.get('desktopSettingsController')
   if (desktopSettings !== undefined) {
     const reportSettingsError = (operation: string, cause: unknown): void => {

@@ -37,6 +37,7 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     }
   }, 'desktop: advanced shell styles')
 
+<<<<<<< HEAD
   ctx.effect(() => installExtendedStyles(), 'desktop: advanced titlebar styles')
 
   const api = createDesktopSettingsApi()
@@ -56,6 +57,13 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     () => installDesktopThemePresenter(ctx),
     'desktop: theme presenter',
   )
+=======
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'desktop-terminal-drawer',
+    order: 10,
+  }, DesktopTerminalDrawer))
+>>>>>>> parent of 6cbe4b3e86 (Revert "feat: add desktop terminal drawer")
 
   ctx.effect(() => ctx.slots.register({
     name: 'root',
