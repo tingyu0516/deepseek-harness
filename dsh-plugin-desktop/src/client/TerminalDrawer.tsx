@@ -39,13 +39,19 @@ type Listener = () => void
 let open = false
 const listeners = new Set<Listener>()
 
+function setDrawerState(next: boolean): void {
+  if (typeof document !== 'undefined') document.body.toggleAttribute('data-dsh-terminal-open', next)
+}
+
 export function openDesktopTerminalDrawer(): void {
   open = true
+  setDrawerState(true)
   listeners.forEach(listener => listener())
 }
 
 export function closeDesktopTerminalDrawer(): void {
   open = false
+  setDrawerState(false)
   listeners.forEach(listener => listener())
 }
 
