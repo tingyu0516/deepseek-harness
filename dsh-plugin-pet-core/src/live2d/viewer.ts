@@ -683,8 +683,8 @@ async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
   }
   ready = true
   status('ok')
-  loop()
   startVariantTicker()
+  loop()
   return true
 }
 

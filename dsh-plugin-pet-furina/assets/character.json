@@ -144,8 +144,8 @@
       "expressions": [
         "walkSwitch"
       ],
-      "everyMs": 30000,
-      "holdMs": 12000
+      "everyMs": 45000,
+      "holdMs": 15000
     }
   }
 }

@@ -15275,8 +15275,8 @@
 		}
 		ready = true;
 		status("ok");
-		loop();
 		startVariantTicker();
+		loop();
 		return true;
 	}
 	function pickTapExpression(region) {

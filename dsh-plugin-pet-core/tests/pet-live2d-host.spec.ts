@@ -94,4 +94,12 @@ describe('pet live2d host', () => {
     expect(src).not.toContain('setRandomExpression')
     expect(src).not.toContain("region === 'rightHand'")
   })
+
+  it('starts the idle variant timer before the first render frame', () => {
+    const src = readFileSync(join(packageRoot, 'src/live2d/viewer.ts'), 'utf8')
+    const attachStart = src.indexOf('async function attach(')
+    const attach = src.slice(attachStart)
+    expect(attach.indexOf('startVariantTicker()')).toBeGreaterThanOrEqual(0)
+    expect(attach.indexOf('startVariantTicker()')).toBeLessThan(attach.indexOf('loop()'))
+  })
 })
