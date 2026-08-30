@@ -183,7 +183,7 @@ export class CubismMotionQueueManager {
 
   /**
    * 指定したCubismMotionQueueEntryの取得
-
+   *
    * @param   motionQueueEntryNumber  モーションの識別番号
    * @return  指定したCubismMotionQueueEntry
    * @return  null   見つからなかった
