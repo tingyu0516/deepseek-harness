@@ -1,8 +1,6 @@
 /** Strict same-origin WebSocket bridge for one Desktop-owned interactive PTY. */
 
 import type { IncomingMessage } from 'node:http'
-import { realpathSync, statSync } from 'node:fs'
-import { isAbsolute } from 'node:path'
 import type { Duplex } from 'node:stream'
 import type { Context } from '@deepseek-ai/cordis'
 import { spawn as spawnPty, type IPty, type IPtyForkOptions } from 'node-pty'
@@ -124,16 +122,6 @@ function isDimension(value: unknown, minimum: number, maximum: number): value is
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= maximum
 }
 
-function resolveTerminalCwd(value: unknown, fallback: string): string {
-  if (typeof value !== 'string' || !isAbsolute(value)) return fallback
-  try {
-    return statSync(realpathSync(value)).isDirectory() ? realpathSync(value) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-
 /** One process-local, single-session PTY authority for the Desktop renderer. */
 export class DesktopTerminalChannel {
   private readonly terminal: DesktopTerminalProfileOptions
@@ -211,13 +199,8 @@ export class DesktopTerminalChannel {
     } catch {
       return this.protocolFailure(websocket, 'invalid terminal message')
     }
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)
-      && (value as { type?: unknown }).type === 'spawn'
-      && Object.keys(value).every(key => key === 'type' || key === 'cols' || key === 'rows' || key === 'cwd')
-      && Object.keys(value).length >= 3 && Object.keys(value).length <= 4
-      && Object.prototype.hasOwnProperty.call(value, 'cols')
-      && Object.prototype.hasOwnProperty.call(value, 'rows')) {
-      return this.spawn(websocket, (value as { cols: unknown }).cols, (value as { rows: unknown }).rows, (value as { cwd?: unknown }).cwd)
+    if (exactRecord(value, ['type', 'cols', 'rows']) && value.type === 'spawn') {
+      return this.spawn(websocket, value.cols, value.rows)
     }
     if (exactRecord(value, ['type', 'data']) && value.type === 'input') {
       return this.input(websocket, value.data)
@@ -234,7 +217,7 @@ export class DesktopTerminalChannel {
     this.protocolFailure(websocket, 'invalid terminal message')
   }
 
-  private spawn(websocket: TerminalWebSocket, cols: unknown, rows: unknown, cwd: unknown): void {
+  private spawn(websocket: TerminalWebSocket, cols: unknown, rows: unknown): void {
     if (this.pty !== undefined) return this.protocolFailure(websocket, 'terminal already spawned')
     if (!isDimension(cols, MIN_COLUMNS, MAX_COLUMNS) || !isDimension(rows, MIN_ROWS, MAX_ROWS)) {
       return this.protocolFailure(websocket, 'invalid terminal dimensions')
@@ -245,7 +228,7 @@ export class DesktopTerminalChannel {
         name: 'xterm-256color',
         cols,
         rows,
-        cwd: resolveTerminalCwd(cwd, spec.cwd),
+        cwd: spec.cwd,
         env: spec.env,
       })
       this.pty = pty
