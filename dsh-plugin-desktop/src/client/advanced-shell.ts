@@ -41,10 +41,7 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       getCwd: () => {
         const state = ctx.sessions.list.getSnapshot()
         const current = state.current === undefined ? undefined : state.byId[state.current]
-        if (current?.cwd !== undefined) return current.cwd
-        const workspaceState = ctx.workspaces.list.getSnapshot()
-        const recent = workspaceState.recentWorkspaceId
-        return recent === undefined ? undefined : workspaceState.items.find(item => item.workspaceId === recent)?.path
+        return current?.cwd
       },
     }),
   }, DesktopTerminalDrawer))
