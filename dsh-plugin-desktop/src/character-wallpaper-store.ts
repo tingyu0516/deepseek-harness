@@ -7,6 +7,7 @@ import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import {
   CHARACTER_WALLPAPER_ASSET_PREFIX,
   DEFAULT_CHARACTER_WALLPAPER_ID,
+  defaultCharacterWallpaperUrl,
   isCustomCharacterWallpaperId,
   type CharacterWallpaperCatalog,
   type CharacterWallpaperThemeId,
@@ -106,7 +107,7 @@ function builtinView(theme: CharacterWallpaperThemeId): CharacterWallpaperView {
   return Object.freeze({
     id: DEFAULT_CHARACTER_WALLPAPER_ID,
     theme,
-    url: `/themes/${theme}.png`,
+    url: defaultCharacterWallpaperUrl(theme),
     label: DEFAULT_CHARACTER_WALLPAPER_ID,
     deletable: false,
   })

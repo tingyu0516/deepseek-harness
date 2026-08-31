@@ -20,10 +20,7 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   margin: 0;
   overflow: hidden;
   background-color: transparent !important;
-  background-image: var(--dsw-character-bg-image, none);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-image: none;
 }
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
   position: fixed;
@@ -37,10 +34,7 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   overflow: hidden;
   transform: translateZ(0);
   background-color: transparent !important;
-  background-image: var(--dsw-character-bg-image, none);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-image: none;
 }
 body[data-dsh-desktop-mode="compatibility"] #root {
   box-sizing: border-box;

@@ -4,10 +4,7 @@ import { CHARACTER_THEMES } from './character-themes.ts'
 const CHARACTER_THEME_BACKGROUND_STYLES = `
 body[data-dsh-character-theme] {
   background-color: transparent !important;
-  background-image: var(--dsw-character-bg-image, none) !important;
-  background-size: cover !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
+  background-image: none !important;
 }
 body[data-dsh-character-theme]::before {
   content: "";
@@ -19,6 +16,8 @@ body[data-dsh-character-theme]::before {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  contain: paint;
+  transform: translateZ(0);
 }
 body[data-dsh-character-theme] #root {
   background-color: transparent !important;
