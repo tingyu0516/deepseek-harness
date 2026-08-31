@@ -63,4 +63,3 @@ export function injectDesktopRightSidebarToggle(ctx: ClientContext): void {
     }),
   }, DesktopSessionTerminalAction))
 }
-
