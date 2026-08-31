@@ -44,6 +44,15 @@ export class DesktopStartupGeneration {
     }
   }
 
+  /**
+   * Whether final release has started.
+   * Host `boot()` can still return after this, because Cordis may dispose the
+   * Loader while startup is in flight and treat that as a completed boot.
+   */
+  get isReleased(): boolean {
+    return this.released
+  }
+
   /** Bind the only Cordis Host that may own this generation's effects. */
   bindHost(host: DesktopStartupGenerationHost): void {
     this.assertActive()

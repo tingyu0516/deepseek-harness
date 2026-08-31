@@ -378,6 +378,8 @@ describe('Desktop settings Slot registration', () => {
     expect(bind).toHaveBeenNthCalledWith(2, { namespace: DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE })
     expect(inject).toHaveBeenCalledWith('settings.section', expect.any(Function))
     expect(inject).toHaveBeenCalledWith('settings.action', expect.any(Function))
+    expect(inject).not.toHaveBeenCalledWith('conversation.session.header.actions', expect.any(Function))
+    expect(inject).not.toHaveBeenCalledWith('conversation.session.header.utilities', expect.any(Function))
     const [options, component] = register.mock.calls[0] as unknown as [
       { id: string; order: number; locale: string; label: () => string; inject: () => Record<string, unknown> },
       unknown,
@@ -408,6 +410,7 @@ describe('Desktop settings Slot registration', () => {
     })
     expect(actionOptions.inject()).toHaveProperty('api')
     expect(actionComponent).toBe(DesktopTerminalSettingsAction)
+    expect(register.mock.calls).toHaveLength(2)
     await control.setMode('extended')
     expect(scope.set).toHaveBeenCalledWith('mode', 'extended')
   })

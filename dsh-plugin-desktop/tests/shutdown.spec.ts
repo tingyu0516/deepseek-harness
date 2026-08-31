@@ -123,7 +123,7 @@ describe('application shutdown requests', () => {
 
   it('routes native quit and process signals through one removable coordinator', () => {
     const signalListeners = new Map<string, () => void>()
-    const appListeners = new Map<string, (event: DesktopQuitEvent) => void>()
+    const appListeners = new Map<string, ((event: DesktopQuitEvent) => void) | (() => void)>()
     const signals: DesktopSignalSource = {
       on: (event, listener) => signalListeners.set(event, listener),
       off: (event, listener) => {
@@ -142,10 +142,12 @@ describe('application shutdown requests', () => {
 
     signalListeners.get('SIGINT')?.()
     signalListeners.get('SIGTERM')?.()
-    appListeners.get('before-quit')?.(quitEvent)
+    ;(appListeners.get('before-quit') as ((event: DesktopQuitEvent) => void) | undefined)?.(quitEvent)
+    ;(appListeners.get('window-all-closed') as (() => void) | undefined)?.()
 
     expect(requestQuit.mock.calls).toEqual([[130], [0], [0]])
     expect(quitEvent.preventDefault).toHaveBeenCalledOnce()
+    expect(appListeners.has('window-all-closed')).toBe(true)
 
     remove()
     expect(signalListeners.size).toBe(0)

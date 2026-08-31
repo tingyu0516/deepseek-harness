@@ -23,7 +23,6 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   background-image: none;
 }
 body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"]) #root {
-  box-sizing: border-box;
   position: fixed;
   top: ${DESKTOP_FRAME_HEIGHT}px;
   right: 0;
@@ -36,6 +35,12 @@ body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extende
   transform: translateZ(0);
   background-color: transparent !important;
   background-image: none;
+}
+body[data-dsh-desktop-mode="compatibility"] #root {
+  box-sizing: border-box;
+}
+body[data-dsh-desktop-mode="compatibility"][data-dsh-terminal-open] #root {
+  padding-right: min(640px, 92vw);
 }
 /* The custom frame owns the top band. A shell overlay is the containing block
    for fixed plugin surfaces, so they cannot escape into Desktop chrome. */
@@ -87,7 +92,8 @@ body[data-dsh-desktop-mode="extended"] .dshDesktopConversationSurface {
   background: var(--dsw-alias-bg-base);
   background-clip: padding-box;
 }
-body[data-dsh-desktop-mode="extended"] .dshDesktopDetailsSurface {
+body[data-dsh-desktop-mode="extended"] .dshDesktopDetailsSurface,
+body[data-dsh-desktop-mode="extended"] .dshDesktopTerminalSurface {
   box-sizing: border-box;
   border-top: 1px solid var(--dsw-alias-border-l1);
 }
@@ -348,7 +354,8 @@ body[data-dsh-desktop-mode="extended"]:not([data-dsh-desktop-material="off"]) {
   -webkit-app-region: no-drag;
 }
 .dshDesktopTitlebarIconButton:hover:not(:disabled),
-.dshDesktopTitlebarIconButton[aria-expanded="true"] {
+.dshDesktopTitlebarIconButton[aria-expanded="true"],
+.dshDesktopTitlebarIconButton[aria-pressed="true"] {
   border-color: var(--dsw-alias-border-l2);
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);

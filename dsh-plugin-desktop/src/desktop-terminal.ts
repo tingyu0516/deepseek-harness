@@ -28,6 +28,8 @@ const WINDOWS_SHIM_DIRECTORY = 'DSH_DESKTOP_SHIM_DIRECTORY'
 const WINDOWS_POWERSHELL_WELCOME = 'DSH_DESKTOP_POWERSHELL_WELCOME'
 const WINDOWS_CMD_WELCOME = 'DSH_DESKTOP_CMD_WELCOME'
 const WINDOWS_SHELL_EXECUTABLE = 'DSH_DESKTOP_SHELL_EXECUTABLE'
+/** Working directory for an embedded PTY; welcome scripts fall back to the profile directory. */
+export const DESKTOP_TERMINAL_WORKING_DIRECTORY = 'DSH_DESKTOP_WORKING_DIRECTORY'
 const WINDOWS_GENERATED_ENVIRONMENT_KEYS = new Set([
   DEFAULT_PROFILE,
   WINDOWS_APP_EXECUTABLE,
@@ -40,6 +42,7 @@ const WINDOWS_GENERATED_ENVIRONMENT_KEYS = new Set([
   WINDOWS_POWERSHELL_WELCOME,
   WINDOWS_CMD_WELCOME,
   WINDOWS_SHELL_EXECUTABLE,
+  DESKTOP_TERMINAL_WORKING_DIRECTORY,
 ])
 const STATE_DIRECTORY_MODE = 0o700
 const EXECUTABLE_FILE_MODE = 0o700
@@ -75,8 +78,8 @@ export interface WindowsTerminalLauncher {
   arguments?: readonly string[]
 }
 
-/** Inputs for one isolated desktop terminal launch. */
-export interface DesktopTerminalOptions {
+/** Inputs shared by native and embedded desktop terminal launches. */
+export interface DesktopTerminalProfileOptions {
   /** Host platform selecting the generated scripts and native launcher. */
   platform: NodeJS.Platform
   /** Electron executable reused as Node by command shims. */
@@ -97,18 +100,30 @@ export interface DesktopTerminalOptions {
   homeDir: string
   /** Private directory receiving the generated terminal files. */
   stateDir: string
-  /** Process launcher; production passes `node:child_process.spawn`. */
-  spawn: DesktopTerminalSpawn
   /** Environment copied into the terminal child; defaults to `process.env`. */
   environment?: NodeJS.ProcessEnv
-  /** Optional Windows terminal wrapper. Windows Terminal is discovered when omitted. */
-  windowsTerminal?: WindowsTerminalLauncher
   /** Windows executable existence probe; defaults to `existsSync`. */
   windowsExecutableExists?: DesktopTerminalExecutableExists
   /** Windows executable resolver; defaults to a trusted PATH/SystemRoot lookup. */
   windowsExecutableResolver?: DesktopTerminalExecutableResolver
+}
+
+/** Inputs for one isolated desktop terminal launch. */
+export interface DesktopTerminalOptions extends DesktopTerminalProfileOptions {
+  /** Process launcher; production passes `node:child_process.spawn`. */
+  spawn: DesktopTerminalSpawn
+  /** Optional Windows terminal wrapper. Windows Terminal is discovered when omitted. */
+  windowsTerminal?: WindowsTerminalLauncher
   /** Reporter attached before the platform launcher can emit an asynchronous failure. */
   onLaunchError?: (cause: Error) => void
+}
+
+/** Trusted command, argv, cwd, and environment for one embedded desktop PTY. */
+export interface DesktopEmbeddedTerminalSpec {
+  command: string
+  args: readonly string[]
+  cwd: string
+  env: NodeJS.ProcessEnv
 }
 
 /** Files and process created for one desktop terminal launch. */
@@ -234,7 +249,7 @@ function windowsShim(): string {
 }
 
 /** Build the DSH shim with Loader internals and one process-local default profile. */
-function macDshShim(options: DesktopTerminalOptions): string {
+function macDshShim(options: DesktopTerminalProfileOptions): string {
   return [
     '#!/bin/sh',
     [
@@ -259,7 +274,7 @@ function windowsDshShim(): string {
 }
 
 /** Build a pnpm shim with Electron native-module settings scoped to its process tree. */
-function macPnpmShim(options: DesktopTerminalOptions): string {
+function macPnpmShim(options: DesktopTerminalProfileOptions): string {
   return [
     '#!/bin/sh',
     [
@@ -289,7 +304,7 @@ function windowsPnpmShim(): string {
 }
 
 /** Build a zsh startup file that preserves the user's rc and then restores desktop variables. */
-function macZshRc(options: DesktopTerminalOptions, shimDir: string): string {
+function macZshRc(options: DesktopTerminalProfileOptions, shimDir: string): string {
   return [
     'if [[ -n "${DSH_DESKTOP_USER_ZDOTDIR:-}" && -r "${DSH_DESKTOP_USER_ZDOTDIR}/.zshrc" ]]; then',
     '  ZDOTDIR="${DSH_DESKTOP_USER_ZDOTDIR}"',
@@ -306,7 +321,7 @@ function macZshRc(options: DesktopTerminalOptions, shimDir: string): string {
 }
 
 /** Build a bash startup file that preserves the user's rc and then restores desktop variables. */
-function macBashRc(options: DesktopTerminalOptions, shimDir: string): string {
+function macBashRc(options: DesktopTerminalProfileOptions, shimDir: string): string {
   return [
     'if [ -n "${DSH_DESKTOP_USER_BASHRC:-}" ] && [ -r "${DSH_DESKTOP_USER_BASHRC}" ]; then',
     '  . "${DSH_DESKTOP_USER_BASHRC}"',
@@ -324,7 +339,7 @@ function macBashRc(options: DesktopTerminalOptions, shimDir: string): string {
 
 /** Build the macOS script opened by LaunchServices in the user's terminal. */
 function macWelcome(
-  options: DesktopTerminalOptions,
+  options: DesktopTerminalProfileOptions,
   shimDir: string,
   bashRcPath: string,
 ): string {
@@ -337,7 +352,11 @@ function macWelcome(
     `unset ${RUN_AS_NODE}`,
     `export ${DSH_HOME}=${quoteSh(options.homeDir)}`,
     `export PATH=${quoteSh(shimDir)}:"\${PATH:-}"`,
-    `cd ${quoteSh(options.profileDir)}`,
+    `if [ -n "\${${DESKTOP_TERMINAL_WORKING_DIRECTORY}:-}" ]; then`,
+    `  cd "\${${DESKTOP_TERMINAL_WORKING_DIRECTORY}}"`,
+    'else',
+    `  cd ${quoteSh(options.profileDir)}`,
+    'fi',
     "printf '\\033[2J\\033[3J\\033[H'",
     `printf '%s\\n' ${quoteSh(`DSH Desktop ${options.productVersion} terminal`)}`,
     `printf '%s\\n' ${quoteSh(`Profile: ${options.profileName}`)}`,
@@ -381,7 +400,11 @@ function windowsWelcome(): string {
     `$dshDesktopShimDir = $env:${WINDOWS_SHIM_DIRECTORY}`,
     `$dshDesktopPath = @($env:${PATH} -split ';' | Where-Object { -not [string]::Equals($_, $dshDesktopShimDir, [StringComparison]::OrdinalIgnoreCase) })`,
     `$env:${PATH} = (@($dshDesktopShimDir) + $dshDesktopPath) -join ';'`,
-    `Set-Location -LiteralPath $env:${WINDOWS_PROFILE_DIRECTORY}`,
+    `if ([string]::IsNullOrWhiteSpace($env:${DESKTOP_TERMINAL_WORKING_DIRECTORY})) {`,
+    `  Set-Location -LiteralPath $env:${WINDOWS_PROFILE_DIRECTORY}`,
+    '} else {',
+    `  Set-Location -LiteralPath $env:${DESKTOP_TERMINAL_WORKING_DIRECTORY}`,
+    '}',
     `Write-Host ("DSH Desktop {0} terminal" -f $env:${WINDOWS_PRODUCT_VERSION})`,
     `Write-Host ("Profile: {0}" -f $env:${DEFAULT_PROFILE})`,
     `Write-Host ("Profile directory: {0}" -f $env:${WINDOWS_PROFILE_DIRECTORY})`,
@@ -407,7 +430,11 @@ function windowsCmdWelcome(): string {
     '@echo off',
     'setlocal EnableDelayedExpansion',
     `set "${RUN_AS_NODE}="`,
-    `cd /d "!${WINDOWS_PROFILE_DIRECTORY}!"`,
+    `if defined ${DESKTOP_TERMINAL_WORKING_DIRECTORY} (`,
+    `  cd /d "!${DESKTOP_TERMINAL_WORKING_DIRECTORY}!"`,
+    ') else (',
+    `  cd /d "!${WINDOWS_PROFILE_DIRECTORY}!"`,
+    ')',
     `echo(DSH Desktop !${WINDOWS_PRODUCT_VERSION}! terminal`,
     `echo(Profile: !${DEFAULT_PROFILE}!`,
     `echo(Profile directory: !${WINDOWS_PROFILE_DIRECTORY}!`,
@@ -425,7 +452,7 @@ function windowsCmdWelcome(): string {
 }
 
 /** Create command shims and the interactive welcome script. */
-function prepareDesktopTerminalFiles(options: DesktopTerminalOptions): DesktopTerminalFiles {
+function prepareDesktopTerminalFiles(options: DesktopTerminalProfileOptions): DesktopTerminalFiles {
   if (options.platform !== 'darwin' && options.platform !== 'win32') {
     throw new Error(`dsh-plugin-desktop: terminal is unsupported on ${options.platform}`)
   }
@@ -482,7 +509,7 @@ function prepareDesktopTerminalFiles(options: DesktopTerminalOptions): DesktopTe
 }
 
 /** Copy the Host environment and scope desktop command discovery to one terminal child. */
-function terminalEnvironment(options: DesktopTerminalOptions, files: DesktopTerminalFiles): NodeJS.ProcessEnv {
+function terminalEnvironment(options: DesktopTerminalProfileOptions, files: DesktopTerminalFiles): NodeJS.ProcessEnv {
   const source = options.environment ?? process.env
   const env: NodeJS.ProcessEnv = {}
   let inheritedPath: string | undefined
@@ -491,6 +518,7 @@ function terminalEnvironment(options: DesktopTerminalOptions, files: DesktopTerm
     if (
       normalized === RUN_AS_NODE
       || normalized === DSH_HOME
+      || normalized === DESKTOP_TERMINAL_WORKING_DIRECTORY
     ) continue
     if (options.platform === 'win32' && WINDOWS_GENERATED_ENVIRONMENT_KEYS.has(normalized)) continue
     if (normalized === PATH) {
@@ -569,7 +597,7 @@ function resolveWindowsTerminal(
 
 /** Select PowerShell 7, Windows PowerShell, or the built-in command prompt. */
 function resolveWindowsShell(
-  options: DesktopTerminalOptions,
+  options: DesktopTerminalProfileOptions,
   environment: Readonly<NodeJS.ProcessEnv>,
 ): ResolvedWindowsShell {
   const exists = options.windowsExecutableExists ?? existsSync
@@ -610,7 +638,7 @@ function windowsShellArgv(
 
 /** Resolve the trusted command processor used only to invoke the `start` broker. */
 function resolveWindowsCommandProcessor(
-  options: DesktopTerminalOptions,
+  options: DesktopTerminalProfileOptions,
   environment: Readonly<NodeJS.ProcessEnv>,
   shell: ResolvedWindowsShell,
 ): string {
@@ -654,6 +682,32 @@ function reportLaunchError(options: DesktopTerminalOptions, cause: Error): void 
     }
   }
   process.stderr.write(`dsh-plugin-desktop: failed to open terminal: ${cause.message}\n`)
+}
+
+/** Prepare the same private DSH environment for an in-window PTY session. */
+export function prepareDesktopEmbeddedTerminal(
+  options: DesktopTerminalProfileOptions,
+): DesktopEmbeddedTerminalSpec {
+  const files = prepareDesktopTerminalFiles(options)
+  const env = terminalEnvironment(options, files)
+  if (options.platform === 'darwin') {
+    return {
+      command: '/bin/sh',
+      args: [files.welcomePath],
+      cwd: options.profileDir,
+      env,
+    }
+  }
+  if (options.platform === 'win32') {
+    const shell = resolveWindowsShell(options, env)
+    return {
+      command: shell.executable,
+      args: windowsShellArgv(shell, files),
+      cwd: options.profileDir,
+      env,
+    }
+  }
+  throw new Error(`dsh-plugin-desktop: terminal is unsupported on ${options.platform}`)
 }
 
 /**

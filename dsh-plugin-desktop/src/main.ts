@@ -21,6 +21,8 @@ import {
   installDesktopPnpmRuntime,
 } from './desktop-runtime-environment.ts'
 import { desktopProductVersion, ElectronDesktopRuntime } from './electron-runtime.ts'
+import { DesktopTerminalChannel } from './desktop-terminal-channel.ts'
+import { desktopTerminalStateDirectory } from './desktop-terminal.ts'
 import {
   ElectronStderrLogger,
   installDesktopChildProcessLogging,
@@ -650,6 +652,33 @@ async function start(): Promise<void> {
         hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, environment)
         hostCtx.provide('desktopRuntime', runtime)
         hostCtx.provide('desktopPnpmBootstrap', desktopPnpmBootstrap)
+        if (process.platform === 'darwin' || process.platform === 'win32') {
+          const terminalChannel = new DesktopTerminalChannel({
+            terminal: {
+              platform: process.platform,
+              appExecutable: process.execPath,
+              dshBootstrapPath,
+              pnpmBinPath,
+              electronVersion,
+              profileName: activeProfileName,
+              productVersion: appVersion,
+              profileDir: prepared.profile.dir,
+              homeDir: prepared.homeDir,
+              stateDir: desktopTerminalStateDirectory(app.getPath('userData'), activeProfileName),
+              environment: process.env,
+            },
+            reportError: (operation, cause) => {
+              hostCtx.logger.error(
+                `${BIN_NAME}: failed to ${operation}: ${cause instanceof Error ? cause.message : String(cause)}`,
+              )
+            },
+          })
+          hostCtx.provide('desktopTerminalChannel', terminalChannel)
+          hostCtx.effect(
+            () => () => terminalChannel.close(),
+            'dsh-plugin-desktop: terminal drawer channel',
+          )
+        }
         await hostCtx.plugin(DesktopActionsService, {
           openTerminal: () => { runtime.openTerminal() },
           requestRestart: () => runtime.requestRestart(),
@@ -749,6 +778,12 @@ async function start(): Promise<void> {
       releasePackageResolver()
       throw cause
     })
+    if (generation.isReleased) {
+      electronLogger.error(`${BIN_NAME}: Host boot returned after the startup generation was released`)
+      startupRecoveryController?.dispose()
+      await generation.release()
+      return
+    }
     generation.bindHost(ctx)
     fileExporter?.setThreshold((ctx.settings.get(DESKTOP_SETTINGS_NAMESPACE) as DesktopSettings | undefined)?.logLevel ?? 'info')
     ctx.on('settings/updated', (namespace, next) => {
@@ -791,6 +826,11 @@ async function start(): Promise<void> {
     lifecycleRecorder.failRendererBootIfPending(lifecycleRendererFailureReason(runtime.rendererBootFailureReason))
     lifecycleRecorder.failStartup(startupStage, lifecycleStartupFailureReason(cause, runtime))
     electronLogger.errorCause(cause)
+    if (generation.isReleased) {
+      startupRecoveryController?.dispose()
+      await generation.release()
+      return
+    }
     let exitCode = 1
     const failureRoute = routeDesktopStartupFailure({
       appReady: app.isReady(),

@@ -136,11 +136,14 @@ describe('Desktop startup generation ownership', () => {
   it('rejects a second Host or resource registration after release', async () => {
     const target = generation()
     const first = { fiber: { dispose: vi.fn(async () => {}) } }
+    expect(target.value.isReleased).toBe(false)
     target.value.bindHost(first)
     expect(() => target.value.bindHost({ fiber: { dispose: vi.fn(async () => {}) } }))
       .toThrow('startup generation already owns another Host')
 
     await target.value.release()
+    expect(target.value.isReleased).toBe(true)
+    expect(() => target.value.bindHost(first)).toThrow('startup generation is already released')
     expect(() => target.value.own(() => {})).toThrow('startup generation is already released')
   })
 })

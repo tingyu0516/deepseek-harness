@@ -1,0 +1,4 @@
+# Hu Tao desktop pet: one Host row owning its transparent companion window.
+- insert:
+    - id: desktop-pet-hutao
+      name: dsh-plugin-pet-hutao

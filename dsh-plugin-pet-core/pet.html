@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- Cubism Core compiles wasm in-page; textures are decoded from blob URLs
+     built from the injected asset table. No network origins are permitted. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; img-src blob:;">
+<title>DSH Pet</title>
+<style>
+  :root {
+    --pet-accent: #e05252;
+    --pet-bubble-bg: rgba(30, 22, 27, 0.92);
+    --pet-bubble-text: #f2e6d8;
+    --pet-bubble-border: rgba(224, 82, 82, 0.45);
+    --pet-speech-slot: 80px;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  .stage {
+    position: fixed;
+    inset: 0;
+  }
+  body.dragging, body.dragging * { cursor: grabbing !important; }
+  /* Reserved band above the character. Line length must not steal canvas
+     height (that reads as the pet popping larger/smaller) or cover the model. */
+  .bubble {
+    position: absolute;
+    left: 8px;
+    right: 24px;
+    top: 6px;
+    max-height: calc(var(--pet-speech-slot) - 10px);
+    overflow: hidden;
+    z-index: 2;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 7px 12px;
+    border: 1px solid var(--pet-bubble-border);
+    border-radius: 12px;
+    border-bottom-left-radius: 4px;
+    background: var(--pet-bubble-bg);
+    color: var(--pet-bubble-text);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+  }
+  .bubble.visible { opacity: 1; transform: translateY(0) scale(1); }
+  .pet-wrap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: var(--pet-speech-slot);
+    bottom: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 0;
+  }
+  /* Intrinsic canvas ratio, fitted inside the wrap. Click mapping uses this
+     element's box so hits land on the same pixels the model is drawn into. */
+  .pet-wrap canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
+    flex: 0 0 auto;
+  }
+  .emote {
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    font-size: 17px;
+    line-height: 1;
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    pointer-events: none;
+  }
+  .emote.visible { opacity: 1; transform: scale(1) rotate(-8deg); }
+  .hide {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 3;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(20, 20, 24, 0.36);
+    color: rgba(255, 255, 255, 0.85);
+    font: 600 11px/20px "Segoe UI", system-ui, sans-serif;
+    text-align: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .stage:hover .hide, .hide:focus-visible { opacity: 1; }
+  .hide:hover { background: rgba(20, 20, 24, 0.6); }
+  @media (prefers-reduced-motion: reduce) {
+    .bubble, .emote { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main id="stage" class="stage">
+  <div id="bubble" class="bubble"><span id="bubbleText"></span></div>
+  <div id="petWrap" class="pet-wrap" title="">
+    <span id="emote" class="emote" aria-hidden="true"></span>
+  </div>
+  <button id="hide" class="hide" type="button" title="✕" aria-label="hide">&#10005;</button>
+</main>
+<script>
+(function () {
+  'use strict';
+  var STATE_MS = { greet: 4200, cheer: 3200, sad: 4200, pat: 2200, special: 3600, walk: 2600, work: 0, idle: 0, boot: 0 };
+  var EMOTES = { work: '\u270E', cheer: '\u2726', sad: '\uD83D\uDCA7', pat: '\u2665', special: '\u2728', walk: '\u266A', greet: '\u2728', idle: '' };
+  var bubble = document.getElementById('bubble');
+  var bubbleText = document.getElementById('bubbleText');
+  var petWrap = document.getElementById('petWrap');
+  var emote = document.getElementById('emote');
+  var hideButton = document.getElementById('hide');
+  var character = null;
+  var chatter = true;
+  var state = 'boot';
+  var stateTimer = 0;
+  var bubbleTimer = 0;
+  var chatterTimer = 0;
+  var clickTimer = 0;
+
+  function pick(category) {
+    var copy = character && character.copy[docLocale()];
+    if (!copy) return '';
+    var lines = copy.lines[category] || [];
+    if (lines.length === 0) return '';
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+  function docLocale() { return /(^|&)locale=en(&|$)/.test(location.search) ? 'en' : 'zh'; }
+  function clearStateTimer() { if (stateTimer) { clearTimeout(stateTimer); stateTimer = 0; } }
+  function clearChatter() { if (chatterTimer) { clearTimeout(chatterTimer); chatterTimer = 0; } }
+  function say(text, ms) {
+    if (!text) return;
+    bubbleText.textContent = text;
+    bubble.classList.add('visible');
+    if (bubbleTimer) clearTimeout(bubbleTimer);
+    bubbleTimer = setTimeout(function () {
+      bubbleTimer = 0;
+      bubble.classList.remove('visible');
+    }, ms || 5200);
+  }
+  function showEmote(next) {
+    emote.textContent = EMOTES[next] || '';
+    if (EMOTES[next]) emote.classList.add('visible');
+    else emote.classList.remove('visible');
+  }
+  function scheduleChatter() {
+    clearChatter();
+    if (!chatter || state !== 'idle') return;
+    chatterTimer = setTimeout(function () {
+      chatterTimer = 0;
+      if (state === 'idle' && chatter) say(pick('idle'), 5600);
+      scheduleChatter();
+    }, 45000 + Math.floor(Math.random() * 70000));
+  }
+  function runtime() { return window.__dshPetLive2DRuntime; }
+  function callRuntime(method, arg) {
+    var rt = runtime();
+    if (!rt || typeof rt[method] !== 'function') return undefined;
+    try { return rt[method](arg); } catch (err) { return undefined; }
+  }
+  function enter(next, line, ms) {
+    state = next;
+    showEmote(next);
+    if (line) say(line, ms || 5400);
+    var played = callRuntime('setState', next);
+    clearStateTimer();
+    var duration = ms !== undefined ? ms : STATE_MS[next] || 0;
+    if (duration > 0 && typeof played === 'number' && played > duration) duration = played;
+    if (duration > 0) {
+      stateTimer = setTimeout(function () {
+        stateTimer = 0;
+        if (state === next) enter('idle');
+      }, duration);
+    }
+    if (next === 'idle') scheduleChatter();
+    else clearChatter();
+  }
+  function tapFace(clientX, clientY) {
+    var rt = runtime();
+    if (rt && typeof rt.tap === 'function') {
+      try { rt.tap(clientX, clientY); } catch (err) { /* model tap is best-effort */ }
+    }
+    clearChatter();
+  }
+  function applyLive2D(spec) {
+    if (!spec || !spec.model) return Promise.resolve(false);
+    var runtime = window.__dshPetLive2DRuntime;
+    if (!runtime || typeof runtime.attach !== 'function') return Promise.resolve(false);
+    var report = function (err) {
+      // Tell the main process why so the plugin log shows the exact failing
+      // stage instead of a silent blank window.
+      var msg = err && err.message ? String(err.message) : String(err);
+      try {
+        if (character) {
+          location.href = 'dsh-pet-' + character.id + '://live2dfailed?r='
+            + encodeURIComponent(msg.slice(0, 180));
+        }
+      } catch (e) { /* navigation reporting is best-effort */ }
+      return false;
+    };
+    try {
+      return Promise.resolve(runtime.attach(petWrap, spec)).catch(report);
+    } catch (err) { report(err); return Promise.resolve(false); }
+  }
+  function boot(payload) {
+    if (!payload || !payload.character) return;
+    character = payload.character;
+    chatter = payload.idleChatter !== false;
+    var root = document.documentElement;
+    root.style.setProperty('--pet-accent', character.palette.accent);
+    root.style.setProperty('--pet-bubble-bg', character.palette.bubbleBg);
+    root.style.setProperty('--pet-bubble-text', character.palette.bubbleText);
+    root.style.setProperty('--pet-bubble-border', character.palette.bubbleBorder);
+    var locale = payload.locale || docLocale();
+    document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en';
+    document.title = 'DSH Pet \u00B7 ' + (character.copy[locale] || character.copy.zh).label;
+    petWrap.title = (character.copy[locale] || character.copy.zh).label;
+    // attach() is async (wasm + textures). Calling enter() before rt.ready
+    // dropped the greet expression and left a still face until the first click.
+    applyLive2D(payload.live2d).then(function () {
+      enter('greet', pick('greet'), 6000);
+    });
+  }
+  function playSpecial() {
+    var played = callRuntime('playMotionGroup', 'Special');
+    state = 'special';
+    showEmote('special');
+    say(pick('special'), 3600);
+    clearStateTimer();
+    var hold = Math.max(1800, typeof played === 'number' ? played : 0);
+    stateTimer = setTimeout(function () {
+      stateTimer = 0;
+      if (state === 'special') enter('idle');
+    }, hold);
+    clearChatter();
+  }
+  hideButton.addEventListener('mouseup', function (e) {
+    e.stopPropagation();
+    if (character) location.href = 'dsh-pet-' + character.id + '://hide';
+  });
+
+  /* Manual window drag through the private scheme: the renderer sends small
+     integer deltas and the main process applies them with setPosition, so
+     dragging works even though the window is focusable:false frameless.
+     A press under DRAG_THRESHOLD_PX stays a click (pat / special). */
+  var DRAG_THRESHOLD_PX = 24;
+  var MOVE_MAX_PER_MESSAGE = 56;
+  var DBLCLICK_MS = 280;
+  var downX = 0, downY = 0, lastX = 0, lastY = 0;
+  var armed = false, dragging = false;
+  var dragAccX = 0, dragAccY = 0, moveQueued = false;
+  var lastUpAt = 0;
+  var lastUpX = 0;
+  var lastUpY = 0;
+  function resetDrag() {
+    armed = false; dragging = false;
+    document.body.classList.remove('dragging');
+  }
+  function queueMoveDispatch() {
+    if (moveQueued || !character) return;
+    moveQueued = true;
+    requestAnimationFrame(function () {
+      moveQueued = false;
+      var dx = Math.round(dragAccX);
+      var dy = Math.round(dragAccY);
+      if (dx === 0 && dy === 0) return;
+      if (dx > MOVE_MAX_PER_MESSAGE) dx = MOVE_MAX_PER_MESSAGE;
+      else if (dx < -MOVE_MAX_PER_MESSAGE) dx = -MOVE_MAX_PER_MESSAGE;
+      if (dy > MOVE_MAX_PER_MESSAGE) dy = MOVE_MAX_PER_MESSAGE;
+      else if (dy < -MOVE_MAX_PER_MESSAGE) dy = -MOVE_MAX_PER_MESSAGE;
+      // Keep the fractional remainder so rounding never drifts the pet.
+      dragAccX -= dx; dragAccY -= dy;
+      location.href = 'dsh-pet-' + character.id + '://move?dx=' + dx + '&dy=' + dy;
+    });
+  }
+  document.addEventListener('mousedown', function (e) {
+    if (!character || e.button !== 0) return;
+    if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    downX = lastX = e.clientX;
+    downY = lastY = e.clientY;
+    armed = true;
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!dragging && !armed) {
+      var rt = window.__dshPetLive2DRuntime;
+      if (rt && typeof rt.setPointer === 'function') {
+        try { rt.setPointer(e.clientX, e.clientY); } catch (err) { /* look-at is best-effort */ }
+      }
+      return;
+    }
+    // movementX/Y are screen deltas; clientX jumps backward after the window
+    // follows the cursor and that feedback loop reads as stretching/zoom.
+    var dxm = typeof e.movementX === 'number' ? e.movementX : e.clientX - lastX;
+    var dym = typeof e.movementY === 'number' ? e.movementY : e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    if (armed) {
+      var adx = e.clientX - downX;
+      var ady = e.clientY - downY;
+      if (Math.abs(adx) < DRAG_THRESHOLD_PX && Math.abs(ady) < DRAG_THRESHOLD_PX) return;
+      armed = false;
+      dragging = true;
+      document.body.classList.add('dragging');
+    }
+    dragAccX += dxm; dragAccY += dym;
+    queueMoveDispatch();
+  });
+  document.addEventListener('mouseup', function (e) {
+    if (e.button !== 0) { resetDrag(); return; }
+    var wasDragging = dragging;
+    resetDrag();
+    if (!character || wasDragging) return;
+    if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    var now = Date.now();
+    var dxu = e.clientX - lastUpX;
+    var dyu = e.clientY - lastUpY;
+    var isDbl = (now - lastUpAt) < DBLCLICK_MS && (dxu * dxu + dyu * dyu) < 1600;
+    lastUpAt = now;
+    lastUpX = e.clientX;
+    lastUpY = e.clientY;
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = 0; }
+    if (isDbl) {
+      playSpecial();
+      return;
+    }
+    var x = e.clientX;
+    var y = e.clientY;
+    clickTimer = setTimeout(function () {
+      clickTimer = 0;
+      tapFace(x, y);
+    }, DBLCLICK_MS);
+  });
+  window.addEventListener('blur', resetDrag);
+  document.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    if (!character) return;
+    if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    enter('pat', pick('pat'), 3200);
+  });
+  function dispatch(payload) {
+    if (!payload) return;
+    if (payload.kind === 'boot') { boot(payload); return; }
+    if (payload.kind !== 'dispatch') return;
+    if (!character) return;
+    if (payload.state === 'idle') { enter('idle'); return; }
+    enter(payload.state, payload.line);
+  }
+  window.__dshPet = {
+    boot: boot,
+    dispatch: dispatch,
+    state: function () { return state; },
+    setLive2D: applyLive2D,
+  };
+})();
+</script>
+</body>
+</html>

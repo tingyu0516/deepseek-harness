@@ -1,0 +1,109 @@
+{
+  "id": "hutao",
+  "copy": {
+    "zh": {
+      "label": "胡桃",
+      "lines": {
+        "greet": [
+          "嘿嘿，胡桃来啦！今天也要元气满满哦～",
+          "哇，被你发现了！本堂主闪亮登场～"
+        ],
+        "idle": [
+          "嗯～要不要去晒晒太阳？",
+          "工作久了，来块杏仁豆腐休息一下吧！",
+          "嘿嘿，想听往生堂的传说吗？",
+          "喂喂，别把我晾在这儿嘛～",
+          "一、二、三…嘿嘿，数到三就出现！"
+        ],
+        "work": [
+          "往生堂堂主亲自监工，放心啦！",
+          "加油加油，一起用力！",
+          "嗯…让我看看进展如何～",
+          "这单生意，势在必得！"
+        ],
+        "cheer": [
+          "搞定！这就是实力的证明！",
+          "哇，太棒啦！庆典时间到～",
+          "本堂主就知道你能行！"
+        ],
+        "sad": [
+          "呜…遇到麻烦了吗？歇口气再来！",
+          "哎呀，翻车了…没事没事，重来！"
+        ],
+        "pat": [
+          "嘿嘿，好痒呀！",
+          "哇！干什么啦～",
+          "再摸摸，再摸摸！"
+        ],
+        "special": [
+          "看招——幽灵小伙伴，现身！",
+          "嘿！吓一跳吧？哈哈哈！"
+        ]
+      }
+    },
+    "en": {
+      "label": "Hu Tao",
+      "lines": {
+        "greet": [
+          "Hehe, Hu Tao's here! Let's make today a blast~",
+          "Whoa, you found me! The 77th Director makes her debut~"
+        ],
+        "idle": [
+          "Hmm~ how about a little sunbathing?",
+          "You've earned an almond tofu break!",
+          "Wanna hear a Wangsheng Funeral Parlor legend?",
+          "Hey hey, don't leave me hanging here~",
+          "One, two, three... hehe, appear!"
+        ],
+        "work": [
+          "With the Director supervising, what could go wrong?",
+          "Go go, full power!",
+          "Lemme see how it's going~",
+          "This deal is as good as done!"
+        ],
+        "cheer": [
+          "Done! Proof of true skill!",
+          "Woohoo! Time to celebrate~",
+          "I knew you had it in you!"
+        ],
+        "sad": [
+          "Aww... trouble? Take a breather and try again!",
+          "Oops, we slipped... no worries, one more time!"
+        ],
+        "pat": [
+          "Hehe, that tickles!",
+          "Waah! What was that for~",
+          "More pats, more pats!"
+        ],
+        "special": [
+          "Behold—my ghostly little buddy!",
+          "Boo! ...Gotcha! Hahaha!"
+        ]
+      }
+    }
+  },
+  "palette": {
+    "accent": "#e05252",
+    "bubbleBg": "#2e2027",
+    "bubbleText": "#f2e6d8",
+    "bubbleBorder": "#5a3a42"
+  },
+  "baseSize": {
+    "width": 216,
+    "height": 300
+  },
+  "live2d": {
+    "model": "pet.model3.json",
+    "tapFallbackGroups": [
+      "Tap1",
+      "Tap2",
+      "Tap3",
+      "Tap4",
+      "Tap5",
+      "Tap6"
+    ],
+    "hitAreaMotions": {
+      "阴险2": "Tap6"
+    }
+  }
+}

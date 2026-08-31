@@ -1,0 +1,151 @@
+{
+  "id": "furina",
+  "copy": {
+    "zh": {
+      "label": "芙宁娜",
+      "lines": {
+        "greet": [
+          "哼哼——水之神最忠实的伙伴，芙宁娜，登场！",
+          "今天的舞台，也由我为你呈现！"
+        ],
+        "idle": [
+          "嗯……要不要来块蛋糕？",
+          "下一幕，会是怎样的剧情呢～",
+          "请记住，我永远是最耀眼的主角！",
+          "哪、哪怕是等待，也要等得优雅！",
+          "这顶帽子，和我很相称吧？"
+        ],
+        "work": [
+          "看好了，这就是完美的指挥！",
+          "嗯哼，进展不错，继续保持！",
+          "聚光灯下，可不许偷懒哦！",
+          "这出戏，正在走向高潮！"
+        ],
+        "cheer": [
+          "完美谢幕！把掌声送给这一刻！",
+          "看到了吗？这便是吾辈的舞台！",
+          "太出色了，堪比歌剧的高潮！"
+        ],
+        "sad": [
+          "呜哇…这、这只是剧情需要的眼泪！",
+          "怎么会这样…不，主角是不会认输的！"
+        ],
+        "pat": [
+          "哼、哼哼，崇拜我也可以哦！",
+          "做、做什么！突然这样…很失礼的！",
+          "……好吧，就允许你再摸一下。"
+        ],
+        "special": [
+          "水之旋律，此刻为你奏响～",
+          "这就是我隐藏的真正实力！"
+        ]
+      }
+    },
+    "en": {
+      "label": "Furina",
+      "lines": {
+        "greet": [
+          "Hmph hmph—Furina, the Hydro Archon's most devoted companion, takes the stage!",
+          "Today's stage is yours to enjoy—courtesy of me!"
+        ],
+        "idle": [
+          "Hmm... how about a slice of cake?",
+          "What will the next scene bring, I wonder~",
+          "Remember, I am always the most dazzling lead!",
+          "E-even waiting must be done elegantly!",
+          "This hat suits me rather well, don't you think?"
+        ],
+        "work": [
+          "Watch closely—this is what perfect conducting looks like!",
+          "Mm-hm, splendid progress. Keep it up!",
+          "Under the spotlight, no slacking allowed!",
+          "This play is heading toward its climax!"
+        ],
+        "cheer": [
+          "A flawless curtain call! Applause, if you please!",
+          "Behold—this is my stage!",
+          "Magnificent! Worthy of an opera's climax!"
+        ],
+        "sad": [
+          "Waah... th-these are purely dramatic tears!",
+          "How could this be... no. A true lead never gives up!"
+        ],
+        "pat": [
+          "H-hmph, admiring me is only natural!",
+          "Wh-what! So suddenly... how rude!",
+          "...Fine. I shall permit one more pat."
+        ],
+        "special": [
+          "Let the melody of water play for you~",
+          "Behold, my true hidden talent!"
+        ]
+      }
+    }
+  },
+  "palette": {
+    "accent": "#4cc9f0",
+    "bubbleBg": "#16263f",
+    "bubbleText": "#eaf6ff",
+    "bubbleBorder": "#2a4a6e"
+  },
+  "baseSize": {
+    "width": 216,
+    "height": 300
+  },
+  "live2d": {
+    "model": "pet.model3.json",
+    "hideParameters": [
+      "Param15"
+    ],
+    "hideParts": [
+      "Part187",
+      "Part148"
+    ],
+    "expressionRevealParts": {
+      "walkSwitch": [
+        "Part148"
+      ]
+    },
+    "outfit": {
+      "parameter": "Param4"
+    },
+    "expressionParameters": {
+      "chinRest": "Param2",
+      "hat": "Param5",
+      "angry": "Param6",
+      "blush": "Param7",
+      "cry": "Param8",
+      "sweat": "Param9",
+      "star": "Param10",
+      "fish": "Param11",
+      "walkSwitch": "Param12",
+      "ahogeFan": "Param13",
+      "genius": "Param14",
+      "catMouth": "Param16",
+      "cake": "Param19",
+      "spoon": "Param20",
+      "drink": "Param21",
+      "coverMouth": "Param"
+    },
+    "motionEndReset": {
+      "Param83": 0
+    },
+    "expressionCycles": {
+      "ahogeFan": {
+        "param": "Param128",
+        "from": 0,
+        "to": 30,
+        "period": 0.6
+      }
+    },
+    "lookOriginY": 0.42,
+    "expressionHoldMs": 9000,
+    "idleVariants": {
+      "expressions": [
+        "walkSwitch"
+      ],
+      "everyMs": 45000,
+      "holdMs": 15000
+    }
+  }
+}

@@ -62,14 +62,14 @@ const workspaceManifest = JSON.parse(readFileSync(new URL('package.json', worksp
 const ciWorkflow = readFileSync(new URL('.github/workflows/ci.yml', workspaceRoot), 'utf8')
 
 describe('published package surface', () => {
-  it('runs desktop and community market typechecks from the root command', () => {
+  it('runs pet, desktop, and community market typechecks from the root command', () => {
     expect(workspaceManifest.scripts?.typecheck)
-      .toBe('yarn workspace dsh-plugin-desktop typecheck && yarn workspace dsh-community-market typecheck')
+      .toBe('yarn workspace dsh-plugin-pet-core typecheck && yarn workspace dsh-plugin-pet-hutao typecheck && yarn workspace dsh-plugin-pet-furina typecheck && yarn workspace dsh-plugin-desktop typecheck && yarn workspace dsh-community-market typecheck')
   })
 
-  it('runs desktop and community market tests from the root command', () => {
+  it('runs pet, desktop, and community market tests from the root command', () => {
     expect(workspaceManifest.scripts?.test)
-      .toBe('yarn workspace dsh-plugin-desktop test && yarn workspace dsh-community-market test')
+      .toBe('yarn workspace dsh-plugin-pet-core test && yarn workspace dsh-plugin-pet-hutao test && yarn workspace dsh-plugin-pet-furina test && yarn workspace dsh-plugin-desktop test && yarn workspace dsh-community-market test')
   })
 
   it('registers both npm launcher names', () => {
@@ -451,6 +451,10 @@ describe('published package surface', () => {
     const client = readFileSync(new URL('lib/client.js', packageRoot), 'utf8')
 
     expect(config).toContain("'process.env.NODE_ENV': JSON.stringify('production')")
+    expect(config).toContain('dsh-css-global-inline')
+    expect(JSON.stringify(manifest.devDependencies ?? {})).not.toContain('@tsdown/css')
+    expect(JSON.stringify(manifest.dependencies ?? {})).not.toContain('@tsdown/css')
+    expect(client).toContain('.xterm')
     expect(client).not.toMatch(/\bprocess(?:\.|\[)/u)
   })
 
@@ -488,6 +492,11 @@ describe('published package surface', () => {
     expect(main).not.toContain("'--port', '0'")
     expect(main).toContain("import { DesktopStartupGeneration } from './startup-generation.ts'")
     expect(main).toContain('async () => { await generation.release() }')
+    expect(main).toContain('if (generation.isReleased)')
+    const releasedAfterBoot = main.indexOf('if (generation.isReleased)', boot)
+    const bindAfterBoot = main.indexOf('generation.bindHost(ctx)', boot)
+    expect(releasedAfterBoot).toBeGreaterThan(boot)
+    expect(bindAfterBoot).toBeGreaterThan(releasedAfterBoot)
     expect(main).not.toContain('disposePnpmRuntime')
     expect(main).not.toContain('disposeDshRuntime')
   })
@@ -602,6 +611,8 @@ describe('published package surface', () => {
     const requested = main.indexOf('if (recoveryModeRequested)')
     const prepare = main.indexOf('let prepared = prepareDesktopProfile(')
     const quiesce = main.indexOf('const recoveryActionsSafe = await generation.quiesceForRecovery()')
+    const catchBlock = main.indexOf('} catch (cause) {')
+    const skipReleasedRecovery = main.indexOf('if (generation.isReleased) {', catchBlock)
 
     expect(windows).toHaveLength(2)
     expect(windows[0]).toBeGreaterThan(requested)
@@ -609,6 +620,8 @@ describe('published package surface', () => {
     expect(windows[1]).toBeGreaterThan(windows[0]!)
     expect(quiesce).toBeGreaterThan(prepare)
     expect(windows[1]).toBeGreaterThan(quiesce)
+    expect(skipReleasedRecovery).toBeGreaterThan(catchBlock)
+    expect(skipReleasedRecovery).toBeLessThan(quiesce)
     expect(main).not.toContain('installRecovery')
     expect(main).not.toContain('restoreLatest')
     expect(main).not.toContain('restoreLastKnownGood')
@@ -618,6 +631,8 @@ describe('published package surface', () => {
     expect(main).toContain("startupStage = 'renderer-startup'")
     expect(main).toContain("return report.status === 'failed'")
     expect(main).toContain('void run().catch(async (cause: unknown) => { await handleFatalLauncherFailure(cause) })')
+    expect(readFileSync(new URL('src/shutdown.ts', packageRoot), 'utf8'))
+      .toContain("nativeApp.on('window-all-closed', windowAllClosed)")
   })
 
   it('uses the upstream child-environment scrub around login-shell recovery', () => {

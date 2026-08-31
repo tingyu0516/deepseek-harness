@@ -78,12 +78,13 @@ For one `DesktopStartupGeneration`:
 5. Final release waits for an in-flight Host disposal; if that disposal failed, final release retries the bound Host once through the same Cordis interface.
 6. Final release then invokes every owned resource callback in reverse registration order, even when another callback fails.
 7. Concurrent and repeated final-release requests share one result.
+8. After final release starts, `isReleased` is true. Host `boot()` can still return because Cordis may dispose the Loader while startup is in flight. The composition root must not `bindHost` or open the startup recovery window; it awaits the in-flight release.
 
-The existing shutdown deadline remains the outer process-level guarantee. The generation module does not force native exit and does not weaken the rule that recovery mutation requires a successfully quiesced Host.
+The existing shutdown deadline remains the outer process-level guarantee. The generation module does not force native exit and does not weaken the rule that recovery mutation requires a successfully quiesced Host. Closing the last `BrowserWindow` does not quit Desktop; `installShutdownRequests` owns a `window-all-closed` listener so an auxiliary window that closes before the main window exists cannot release the generation.
 
 ## Verification
 
-Focused tests cover one-Host ownership, concurrent final release, shared Host-effect callbacks, concurrent recovery quiescence, timeout behavior, failed-disposal retry, reverse resource release, and failure preservation. Package structure tests verify that `main.ts` delegates pnpm and DSH runtime ownership, shutdown, fail-loud cleanup, and recovery quiescence to the generation module.
+Focused tests cover one-Host ownership, concurrent final release, shared Host-effect callbacks, concurrent recovery quiescence, timeout behavior, failed-disposal retry, reverse resource release, failure preservation, and `isReleased` after final release. Package structure tests verify that `main.ts` delegates pnpm and DSH runtime ownership, shutdown, fail-loud cleanup, and recovery quiescence to the generation module, and that it skips `bindHost` and the recovery window when the generation is already released.
 
 The Desktop type check passed. Its full test suite completed 626 tests with 11 platform skips. The root `corepack yarn check` passed with Market 255/255, the Desktop build and tests, runtime closure, CLI, Loader and profile smoke checks, and license verification. An earlier root run hit a Fetch forbidden-port allocation in an unchanged Market HTTP test; that test and the complete root gate both passed on rerun.
 

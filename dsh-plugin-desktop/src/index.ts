@@ -54,6 +54,7 @@ import {
   handleDesktopSettingsRequest,
   handleDesktopTerminalOpenRequest,
 } from './desktop-settings-route.ts'
+import { DESKTOP_TERMINAL_CHANNEL_PATH } from './desktop-terminal-channel.ts'
 import type {} from './desktop-settings-controller.ts'
 import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
 import type { DesktopShellMode } from './runtime.ts'
@@ -79,6 +80,15 @@ import {
 } from './character-wallpaper-route.ts'
 import { CharacterWallpaperStore } from './character-wallpaper-store.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
+import {
+  DESKTOP_WORKSPACE_FILE_PATH,
+  DESKTOP_WORKSPACE_TREE_PATH,
+  handleDesktopWorkspaceFileRequest,
+} from './workspace-file-route.ts'
+import {
+  DESKTOP_WORKSPACE_CHANGES_PATH,
+  handleDesktopWorkspaceChangesRequest,
+} from './workspace-changes-route.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
@@ -262,6 +272,18 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('webserver/index-inject', table => {
     table.push(...desktopBootRecoveryInjections())
   })
+  const terminalChannel = ctx.get('desktopTerminalChannel')
+  if (terminalChannel !== undefined && typeof ctx.webServer.registerUpgrade === 'function') {
+    ctx.effect(
+      () => ctx.webServer.registerUpgrade({
+        path: DESKTOP_TERMINAL_CHANNEL_PATH,
+        handler: (req, socket, head) => {
+          terminalChannel.handleUpgrade(req, socket, head, rendererOrigin)
+        },
+      }),
+      'dsh-plugin-desktop: private terminal drawer channel',
+    )
+  }
   const desktopSettings = ctx.get('desktopSettingsController')
   if (desktopSettings !== undefined) {
     const reportSettingsError = (operation: string, cause: unknown): void => {
@@ -312,6 +334,28 @@ export function apply(ctx: Context, config: Config): void {
       ),
     }),
     'dsh-plugin-desktop: renderer boot report route',
+  )
+  const workspaceRoots = (): readonly string[] => {
+    const registry = ctx.get('workspaceRegistry') as { list(): readonly { readonly path: string }[] } | undefined
+    return registry?.list().map(workspace => workspace.path) ?? []
+  }
+  for (const path of [DESKTOP_WORKSPACE_FILE_PATH, DESKTOP_WORKSPACE_TREE_PATH]) {
+    ctx.effect(
+      () => ctx.webServer.register({
+        kind: 'exact',
+        path,
+        handler: (req, res) => { void handleDesktopWorkspaceFileRequest(req, res, rendererOrigin, workspaceRoots) },
+      }),
+      `dsh-plugin-desktop: workspace route ${path}`,
+    )
+  }
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: DESKTOP_WORKSPACE_CHANGES_PATH,
+      handler: (req, res) => { void handleDesktopWorkspaceChangesRequest(req, res, rendererOrigin, workspaceRoots) },
+    }),
+    'dsh-plugin-desktop: workspace changes route',
   )
   const characterThemePackageRoot = fileURLToPath(new URL('..', import.meta.url))
   const characterThemeAssetsDir = resolveCharacterThemeAssetsDir(characterThemePackageRoot)
