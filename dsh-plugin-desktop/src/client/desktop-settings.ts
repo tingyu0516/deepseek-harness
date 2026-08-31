@@ -4,7 +4,12 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { DesktopSettingsSection, type DesktopNotificationSettings, type DesktopShellSettings } from './DesktopSettingsSection.tsx'
+import {
+  DesktopSettingsSection,
+  type DesktopNotificationSettings,
+  type DesktopPetSettings,
+  type DesktopShellSettings,
+} from './DesktopSettingsSection.tsx'
 import { DesktopTerminalSettingsAction } from './DesktopTerminalSettingsAction.tsx'
 import { createDesktopSettingsApi } from './desktop-settings-api.ts'
 import { en, zh, type DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
@@ -17,6 +22,10 @@ export const DESKTOP_SETTINGS_LOCALE_NAMESPACE = 'desktop.settings'
 /** Host settings namespaces bound through the standard client settings service. */
 export const DESKTOP_SHELL_SETTINGS_NAMESPACE = 'dsh-desktop'
 export const DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE = 'dsh-desktop-notifications'
+/** Host settings namespace registered by `dsh-plugin-pet-hutao`. */
+export const DESKTOP_PET_HUTAO_SETTINGS_NAMESPACE = 'dsh-desktop-pet-hutao'
+/** Host settings namespace registered by `dsh-plugin-pet-furina`. */
+export const DESKTOP_PET_FURINA_SETTINGS_NAMESPACE = 'dsh-desktop-pet-furina'
 
 /** Shared client controls consumed by settings and Desktop-owned window chrome. */
 export interface DesktopSettingsClientControl {
@@ -42,6 +51,12 @@ export function applyDesktopSettings(
   const notificationSettings = ctx.settingsScope.bind<DesktopNotificationSettings>({
     namespace: DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE,
   })
+  const hutaoPetSettings = ctx.settingsScope.bind<DesktopPetSettings>({
+    namespace: DESKTOP_PET_HUTAO_SETTINGS_NAMESPACE,
+  })
+  const furinaPetSettings = ctx.settingsScope.bind<DesktopPetSettings>({
+    namespace: DESKTOP_PET_FURINA_SETTINGS_NAMESPACE,
+  })
   const api = createDesktopSettingsApi()
   const t = ctx.locale.bind(DESKTOP_SETTINGS_LOCALE_NAMESPACE)
 
@@ -66,6 +81,8 @@ export function applyDesktopSettings(
       micaSupported: environment.micaSupported,
       desktopSettings,
       notificationSettings,
+      hutaoPetSettings,
+      furinaPetSettings,
     }),
   }, DesktopSettingsSection))
   ctx.slots.inject('settings.action', () => ctx.slots.register({

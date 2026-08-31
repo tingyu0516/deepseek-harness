@@ -21,9 +21,11 @@ of the bundled Hu Tao character theme for its speech bubble.
 
 ## Install
 
-Add `dsh-plugin-pet-hutao` to the active desktop profile's
-`dsh.profile.bundles` list and restart DSH Desktop. The bundle can be
-disabled or removed again through Desktop's plugin management.
+DSH Desktop already composes this plugin. Enable the companion in Desktop
+settings (**Show Hu Tao**) or the tray checkbox (`Pet · Hu Tao`). The
+window stays closed until that switch is on. You can still disable the
+plugin through Desktop's plugin management if it was also added as a
+profile bundle.
 
 ## License
 

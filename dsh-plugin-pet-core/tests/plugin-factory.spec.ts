@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createPetPlugin, type PetSettings } from '../src/index.ts'
+import { createPetPlugin, petSettingsSchema, type PetSettings } from '../src/index.ts'
 import { parsePetCharacterDocument, type PetCharacterDocument } from '../src/contracts.ts'
 import type { PetElectron } from '../src/pet-window.ts'
 import { makeLive2DFixture } from './live2d-fixture.ts'
@@ -150,6 +150,10 @@ function fakeContext(options: {
 }
 
 describe('createPetPlugin', () => {
+  it('defaults the companion to hidden until settings or the tray enable it', () => {
+    expect(petSettingsSchema()({}).enabled).toBe(false)
+  })
+
   it('shapes a complete Cordis plugin', () => {
     const plugin = createPetPlugin({
       pluginName: 'desktop-pet-furina',
@@ -261,7 +265,7 @@ describe('createPetPlugin', () => {
     expect(submenu[1]!.label()).toBe('Say hello')
   })
 
-  it('closes the initially created window when persisted settings disable the pet', () => {
+  it('does not open the window when persisted settings disable the pet', () => {
     createdWindows.length = 0
     const { ctx } = fakeContext({ electron: petElectron(), settings: { enabled: false } })
     const plugin = createPetPlugin({
@@ -272,11 +276,8 @@ describe('createPetPlugin', () => {
       loadLive2DDir: fixtureDirLoader,
       loadElectron: () => petElectron(),
     })
-    // The window effect opens with the defaults before the settings service
-    // arrives; the reconcile must close that window for a disabled pet.
     plugin.apply(ctx as never)
-    expect(createdWindows).toHaveLength(1)
-    expect(createdWindows[0]!.destroyed).toBe(true)
+    expect(createdWindows).toHaveLength(0)
   })
 
   it('closes the window when the effect scope disposes', () => {

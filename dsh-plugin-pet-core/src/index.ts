@@ -48,7 +48,7 @@ export type {
 
 /** Settings presented by every character pet plugin. */
 export interface PetSettings {
-  /** Whether the pet window should exist at all. */
+  /** Whether the pet window should exist at all. Defaults to hidden. */
   enabled: boolean
   /** Window scale multiplier applied live. */
   scale: number
@@ -62,7 +62,7 @@ export const PET_SCALES = [0.75, 1, 1.25, 1.5] as const
 
 export function petSettingsSchema() {
   return z.object({
-    enabled: z.boolean().default(true),
+    enabled: z.boolean().default(false),
     scale: z.union(PET_SCALES).default(1),
     eventReactions: z.boolean().default(true),
     idleChatter: z.boolean().default(true),

@@ -359,6 +359,14 @@ virtualStoreDirMaxLength: 60
     expect(rows.find(row => row.id === 'desktop-profiles')).toEqual(expect.objectContaining({
       name: 'dsh-plugin-desktop/profiles',
     }))
+    expect(rows.find(row => row.id === 'desktop-pet-hutao')).toEqual(expect.objectContaining({
+      name: 'dsh-plugin-pet-hutao',
+    }))
+    expect(rows.find(row => row.id === 'desktop-pet-furina')).toEqual(expect.objectContaining({
+      name: 'dsh-plugin-pet-furina',
+    }))
+    expect(rows.filter(row => row.id === 'desktop-pet-hutao')).toHaveLength(1)
+    expect(rows.filter(row => row.id === 'desktop-pet-furina')).toHaveLength(1)
   })
 
   it('keeps both Market providers absent until the user explicitly enables one', () => {
@@ -772,6 +780,37 @@ virtualStoreDirMaxLength: 60
       disabled: { __jsExpr: "process.platform !== 'win32'" },
       config: { cwd: 'C:\\workspace' },
     }))
+  })
+
+  it('keeps one pet row when the profile already owns the character bundles', () => {
+    const home = temporaryHome()
+    installBundle(home, 'dsh-plugin-pet-hutao', [
+      '- insert:',
+      '    - id: desktop-pet-hutao',
+      '      name: dsh-plugin-pet-hutao',
+      '',
+    ].join('\n'))
+    installBundle(home, 'dsh-plugin-pet-furina', [
+      '- insert:',
+      '    - id: desktop-pet-furina',
+      '      name: dsh-plugin-pet-furina',
+      '',
+    ].join('\n'))
+    const profileManifestPath = join(ensureDesktopProfile(home), 'package.json')
+    const profileManifest = JSON.parse(readFileSync(profileManifestPath, 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    profileManifest.dsh.profile.bundles.push('dsh-plugin-pet-hutao', 'dsh-plugin-pet-furina')
+    writeFileSync(profileManifestPath, JSON.stringify(profileManifest) + '\n')
+
+    const prepared = prepareDesktopProfile(undefined, home, 'darwin')
+    const rows = composeEntries([prepared.patches])
+    expect(rows.filter(row => row.id === 'desktop-pet-hutao')).toEqual([
+      expect.objectContaining({ id: 'desktop-pet-hutao', name: 'dsh-plugin-pet-hutao' }),
+    ])
+    expect(rows.filter(row => row.id === 'desktop-pet-furina')).toEqual([
+      expect.objectContaining({ id: 'desktop-pet-furina', name: 'dsh-plugin-pet-furina' }),
+    ])
   })
 
   it('rejects a bundle and user patch that register the same loader entry id', () => {
