@@ -85,6 +85,10 @@ import {
   DESKTOP_WORKSPACE_TREE_PATH,
   handleDesktopWorkspaceFileRequest,
 } from './workspace-file-route.ts'
+import {
+  DESKTOP_WORKSPACE_CHANGES_PATH,
+  handleDesktopWorkspaceChangesRequest,
+} from './workspace-changes-route.ts'
 import { DESKTOP_FRAME_HEIGHT } from './window-chrome.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
@@ -331,8 +335,10 @@ export function apply(ctx: Context, config: Config): void {
     }),
     'dsh-plugin-desktop: renderer boot report route',
   )
-  const workspaceRegistry = ctx.get('workspaceRegistry') as { list(): readonly { readonly path: string }[] } | undefined
-  const workspaceRoots = (): readonly string[] => workspaceRegistry?.list().map(workspace => workspace.path) ?? []
+  const workspaceRoots = (): readonly string[] => {
+    const registry = ctx.get('workspaceRegistry') as { list(): readonly { readonly path: string }[] } | undefined
+    return registry?.list().map(workspace => workspace.path) ?? []
+  }
   for (const path of [DESKTOP_WORKSPACE_FILE_PATH, DESKTOP_WORKSPACE_TREE_PATH]) {
     ctx.effect(
       () => ctx.webServer.register({
@@ -343,6 +349,14 @@ export function apply(ctx: Context, config: Config): void {
       `dsh-plugin-desktop: workspace route ${path}`,
     )
   }
+  ctx.effect(
+    () => ctx.webServer.register({
+      kind: 'exact',
+      path: DESKTOP_WORKSPACE_CHANGES_PATH,
+      handler: (req, res) => { void handleDesktopWorkspaceChangesRequest(req, res, rendererOrigin, workspaceRoots) },
+    }),
+    'dsh-plugin-desktop: workspace changes route',
+  )
   const characterThemePackageRoot = fileURLToPath(new URL('..', import.meta.url))
   const characterThemeAssetsDir = resolveCharacterThemeAssetsDir(characterThemePackageRoot)
     ?? fileURLToPath(new URL('../build/themes', import.meta.url))

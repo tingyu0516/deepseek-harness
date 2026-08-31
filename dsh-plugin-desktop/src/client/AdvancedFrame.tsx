@@ -116,7 +116,11 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       data-details-collapsed={columns.details === 0 || undefined}
       data-terminal-open={terminalOpen || undefined}
       data-dragging={dragging || undefined}
-      style={{ gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px` }}
+      style={{
+        gridTemplateColumns: terminalInset > 0
+          ? `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px ${terminalInset}px`
+          : `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px`,
+      }}
     >
       {mode === 'advanced' && platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
       <aside className="dshDesktopSidebarSurface">
@@ -126,6 +130,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       </aside>
       <main className="dshDesktopConversationSurface">{renderSlot('conversation', {})}</main>
       <aside className="dshDesktopDetailsSurface">{renderSlot('details', {})}</aside>
+      {terminalInset > 0 && <aside className="dshDesktopTerminalSurface" aria-hidden="true" />}
       {/* Electron resolves app regions in DOM order; Desktop overlays must remain later. */}
       {mode === 'advanced' && platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
       <div className="dshDesktopOverlay" data-shell-overlay>

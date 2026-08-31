@@ -1,17 +1,23 @@
-import { SquareTerminal } from 'lucide-react'
-import { openDesktopTerminalDrawer } from './TerminalDrawer.tsx'
+import { PanelRight } from 'lucide-react'
+import { toggleDesktopTerminalDrawer, useDesktopTerminalDrawerOpen } from './TerminalDrawer.tsx'
 
-/** cwd lookup injected by the Desktop shell or settings registration. */
+/** cwd lookup injected by the session-header sidebar toggle. */
 export interface DesktopSessionTerminalActionProps {
   readonly getCwd?: () => string | undefined
 }
 
 export function DesktopSessionTerminalAction({ getCwd }: DesktopSessionTerminalActionProps) {
+  const open = useDesktopTerminalDrawerOpen()
   return (
-    <button type="button" className="dshDesktopSessionTerminalButton" aria-label="Open current terminal" title="Open current terminal" onClick={() => {
-      openDesktopTerminalDrawer(getCwd?.())
-    }}>
-      <SquareTerminal aria-hidden="true" />
+    <button
+      type="button"
+      className="dshDesktopTitlebarIconButton"
+      aria-label="Toggle right sidebar"
+      aria-pressed={open}
+      title="Toggle right sidebar"
+      onClick={() => { toggleDesktopTerminalDrawer(getCwd?.()) }}
+    >
+      <PanelRight aria-hidden="true" />
     </button>
   )
 }

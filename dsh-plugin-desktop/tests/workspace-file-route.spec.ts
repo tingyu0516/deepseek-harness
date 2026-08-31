@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   DESKTOP_WORKSPACE_TREE_PATH,
@@ -51,9 +51,43 @@ describe('desktop workspace file route', () => {
         expect.objectContaining({ name: 'src', kind: 'directory' }),
       ]))
 
+      const missingDir = response()
+      await handleDesktopWorkspaceFileRequest(request(join(root, 'gone'), DESKTOP_WORKSPACE_TREE_PATH), missingDir, origin, [root])
+      expect(missingDir.statusCode).toBe(404)
+
       const outside = response()
       await handleDesktopWorkspaceFileRequest(request(join(tmpdir(), 'outside.txt')), outside, origin, [root])
       expect(outside.statusCode).toBe(403)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('lists a workspace when the allowed root has a trailing separator', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-file-route-'))
+    await writeFile(join(root, 'README.md'), '# Desktop', 'utf8')
+    try {
+      const res = response()
+      await handleDesktopWorkspaceFileRequest(
+        request(`${root}${sep}`, DESKTOP_WORKSPACE_TREE_PATH),
+        res,
+        origin,
+        [`${root}${sep}`],
+      )
+      expect(res.statusCode).toBe(200)
+      expect(JSON.parse(res.body).path).toBe(root)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('skips a missing allowed root and still lists an existing workspace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-file-route-'))
+    const missing = join(root, 'missing-root')
+    await writeFile(join(root, 'README.md'), '# Desktop', 'utf8')
+    try {
+      const res = response()
+      await handleDesktopWorkspaceFileRequest(request(root, DESKTOP_WORKSPACE_TREE_PATH), res, origin, [missing, root])
+      expect(res.statusCode).toBe(200)
+      expect(JSON.parse(res.body).entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'README.md', kind: 'file' }),
+      ]))
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 

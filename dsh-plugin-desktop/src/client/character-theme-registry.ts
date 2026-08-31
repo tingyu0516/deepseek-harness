@@ -39,6 +39,10 @@ body[data-dsh-character-theme] .dshDesktopConversationSurface,
 body[data-dsh-character-theme] .dshDesktopDetailsSurface {
   background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, transparent) !important;
 }
+body[data-dsh-character-theme] .dshDesktopTerminalSurface,
+body[data-dsh-character-theme] .dshDesktopTerminalDrawer {
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, var(--dsw-alias-bg-layer-3)) !important;
+}
 `
 
 /** Theme service methods used to compose Desktop character themes. */

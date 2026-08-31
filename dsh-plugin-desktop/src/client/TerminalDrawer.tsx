@@ -1,7 +1,9 @@
 import { Terminal } from '@xterm/xterm'
-import { ChevronRight, FileText, Folder, FolderOpen, FolderTree, SquareTerminal, X } from 'lucide-react'
+import { ChevronRight, FileDiff, FileText, Folder, FolderOpen, FolderTree, SquareTerminal, X } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+
+import { DesktopChangesPanel } from './ChangesPanel.tsx'
 
 export const DESKTOP_TERMINAL_CHANNEL_PROTOCOL = 'dsh-desktop-terminal-v1'
 const DESKTOP_TERMINAL_CHANNEL_PATH = '/api/desktop/terminal/channel'
@@ -33,6 +35,8 @@ export interface DesktopWorkspaceListing {
 
 export interface DesktopTerminalDrawerProps {
   readonly getCwd?: () => string | undefined
+  readonly workspaceRoot?: () => string | undefined
+  readonly lastAgentFiles?: () => readonly string[]
   readonly listDirectory?: (path?: string, signal?: AbortSignal) => Promise<DesktopWorkspaceListing>
 }
 
@@ -97,6 +101,12 @@ export function closeDesktopTerminalDrawer(): void {
   open = false
   setDrawerState(false)
   listeners.forEach(listener => listener())
+}
+
+/** Open or close the right sidebar drawer. */
+export function toggleDesktopTerminalDrawer(cwd?: string): void {
+  if (open) closeDesktopTerminalDrawer()
+  else openDesktopTerminalDrawer(cwd)
 }
 
 function subscribe(listener: Listener): () => void {
@@ -240,9 +250,9 @@ function FileManager({ listDirectory }: { readonly listDirectory?: DesktopTermin
 }
 
 /** Root overlay occupant. It owns xterm and the socket lifecycle. */
-export function DesktopTerminalDrawer({ getCwd, listDirectory }: DesktopTerminalDrawerProps) {
+export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, listDirectory }: DesktopTerminalDrawerProps) {
   const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
-  const [tab, setTab] = useState<'terminal' | 'files'>('terminal')
+  const [tab, setTab] = useState<'terminal' | 'files' | 'changes'>('terminal')
   const terminalRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<WebSocket | undefined>(undefined)
   const terminalInstanceRef = useRef<Terminal | undefined>(undefined)
@@ -310,16 +320,24 @@ export function DesktopTerminalDrawer({ getCwd, listDirectory }: DesktopTerminal
 
   if (!isOpen) return null
   return (
-    <section className="dshDesktopTerminalDrawer" role="dialog" aria-label="Terminal and File Manager" aria-modal="false">
+    <section className="dshDesktopTerminalDrawer" role="dialog" aria-label="Terminal, File Manager, and Changes" aria-modal="false">
       <header className="dshDesktopTerminalDrawerHeader">
         <div className="dshDesktopTerminalDrawerTabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab === 'terminal'} className={tab === 'terminal' ? 'is-active' : ''} onClick={() => setTab('terminal')}><SquareTerminal size={15} aria-hidden="true" />Terminal</button>
           <button type="button" role="tab" aria-selected={tab === 'files'} className={tab === 'files' ? 'is-active' : ''} onClick={() => setTab('files')}><FolderTree size={15} aria-hidden="true" />File Manager</button>
+          <button type="button" role="tab" aria-selected={tab === 'changes'} className={tab === 'changes' ? 'is-active' : ''} onClick={() => setTab('changes')}><FileDiff size={15} aria-hidden="true" />Changes</button>
         </div>
         <button type="button" aria-label="Close terminal" title="Close terminal" onClick={closeDesktopTerminalDrawer}><X size={16} aria-hidden="true" /></button>
       </header>
       {tab === 'terminal' && error !== undefined && <div className="dshDesktopTerminalDrawerError" role="alert">{error}</div>}
-      {tab === 'terminal' ? <div ref={terminalRef} className="dshDesktopTerminalDrawerViewport" /> : <FileManager listDirectory={listDirectory} />}
+      {tab === 'terminal' && <div ref={terminalRef} className="dshDesktopTerminalDrawerViewport" />}
+      {tab === 'files' && <FileManager listDirectory={listDirectory} />}
+      {tab === 'changes' && (
+        <DesktopChangesPanel
+          {...(workspaceRoot === undefined ? {} : { workspaceRoot })}
+          {...(lastAgentFiles === undefined ? {} : { lastAgentFiles })}
+        />
+      )}
     </section>
   )
 }

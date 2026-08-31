@@ -73,7 +73,7 @@ export type {
   DesktopClientMode,
   DesktopClientPlatform,
 } from './environment.ts'
-export { DesktopTerminalDrawer, closeDesktopTerminalDrawer, createTerminalResizeMessage, openDesktopTerminalDrawer, readTerminalWebSocketConfig } from './TerminalDrawer.tsx'
+export { DesktopTerminalDrawer, closeDesktopTerminalDrawer, createTerminalResizeMessage, openDesktopTerminalDrawer, readTerminalWebSocketConfig, toggleDesktopTerminalDrawer } from './TerminalDrawer.tsx'
 export type { TerminalWebSocketConfig, TerminalWebSocketResizeMessage } from './TerminalDrawer.tsx'
 export type {
   DesktopWindowDragRegion,

@@ -7,6 +7,7 @@ import { applyAdvancedShell } from '../src/client/advanced-shell.ts'
 import { provideDesktopLayout } from '../src/client/layout-service.ts'
 import { parseDesktopClientEnvironment } from '../src/client/environment.ts'
 import { ExtendedFrame } from '../src/client/ExtendedFrame.tsx'
+import { DesktopSessionTerminalAction } from '../src/client/DesktopSessionTerminalAction.tsx'
 import { applyExtendedShell, applyFramedShell } from '../src/client/extended-shell.ts'
 import { installExtendedStyles } from '../src/client/extended-styles.ts'
 import {
@@ -75,6 +76,27 @@ describe('advanced desktop layout', () => {
     expect(caption).toBeLessThan(overlay)
     expect(frame).toContain('data-terminal-open={terminalOpen || undefined}')
     expect(frame).toContain("observer.observe(element, { box: 'border-box' })")
+    expect(frame).toContain('`${columns.sidebar}px minmax(0, 1fr) ${columns.details}px ${terminalInset}px`')
+    expect(frame).toContain('className="dshDesktopTerminalSurface"')
+    const drawer = readFileSync(new URL('../src/client/TerminalDrawer.tsx', import.meta.url), 'utf8')
+    expect(drawer).toContain("setTab('changes')")
+    expect(drawer).toContain('DesktopChangesPanel')
+    const changes = readFileSync(new URL('../src/client/ChangesPanel.tsx', import.meta.url), 'utf8')
+    expect(changes).toContain('Last Agent Turn')
+    expect(changes).toContain('Uncommitted')
+    expect(changes).toContain('Staged')
+    expect(changes).toContain('Unstaged')
+    expect(changes).toContain('Commits')
+    const titlebar = readFileSync(new URL('../src/client/ExtendedTitlebar.tsx', import.meta.url), 'utf8')
+    expect(titlebar).not.toContain('DesktopSessionTerminalAction')
+    expect(titlebar).not.toContain('dshDesktopFrameTrailing')
+    const drawerInject = readFileSync(new URL('../src/client/desktop-drawer-inject.ts', import.meta.url), 'utf8')
+    expect(drawerInject).toContain("name: 'conversation.session.header.utilities'")
+    expect(drawerInject).toContain("id: 'desktop-right-sidebar'")
+    const action = readFileSync(new URL('../src/client/DesktopSessionTerminalAction.tsx', import.meta.url), 'utf8')
+    expect(action).toContain('PanelRight')
+    expect(action).toContain('Toggle right sidebar')
+    expect(action).toContain('toggleDesktopTerminalDrawer')
   })
 
   it('owns native caption geometry with one fixed macOS drag strip above page content', () => {
@@ -104,9 +126,16 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/body:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\) #root \{[^}]*background-image: var\(--dsw-character-bg-image, none\);/)
       expect(css).toMatch(/\.dshDesktopFrame\[data-dragging\] \{ transition: none; \}/)
       expect(css).toMatch(/\.dshDesktopFrame \{[^}]*box-sizing: border-box;/)
-      expect(css).toMatch(/\.dshDesktopFrame \{[^}]*transition:/)
-      expect(css).toContain('body[data-dsh-terminal-open] .dshDesktopFrame .dshDesktopOverlay')
-      expect(css).toContain('dshDesktopFrame')
+      expect(css).not.toMatch(/\.dshDesktopFrame \{[^}]*transition:/)
+      expect(css).toMatch(/\.dshDesktopOverlay \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ -1;/)
+      expect(css).not.toContain('right: calc(-1 * min(640px, 92vw))')
+      expect(css).not.toContain('width: calc(100% - min(640px, 92vw))')
+      expect(css).toMatch(/\.dshDesktopTerminalDrawer \{[^}]*isolation: isolate;[^}]*background: var\(--dsw-alias-bg-base\);/)
+      expect(css).toContain('.dshDesktopChangesToolbar')
+      expect(css).toContain('.dshDesktopChangesMenu')
+      expect(css).toMatch(/\.dshDesktopTerminalSurface \{[^}]*grid-column: 4;[^}]*background: var\(--dsw-alias-bg-base\);/)
+      expect(css).not.toContain('.dshDesktopFrame .dshDesktopTerminalDrawer { background: transparent; border-left: none; }')
+      expect(css).not.toMatch(/\.dshDesktopTerminalDrawer \{[^}]*background: var\(--dsw-alias-bg-layer-1\)/)
       expect(css).not.toMatch(/padding-right var\(--ds-transition-duration-slow\)/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] \{[^}]*display: flex !important;[^}]*flex-direction: column;[^}]*max-height: min\(40vh, 240px\);[^}]*overflow-y: auto;/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] > \* \{[^}]*flex: none;[^}]*min-width: 0;/)
@@ -123,7 +152,7 @@ describe('advanced desktop layout', () => {
       expect(css).toContain(`grid-template-rows: ${ADVANCED_MACOS_CONTENT_INSET}px minmax(0, 1fr)`)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*grid-row: 1 \/ -1;/)
       expect(css).not.toMatch(/data-desktop-platform="darwin"\] \.dshDesktopSidebarSurface \{[^}]*-webkit-app-region: no-drag;/)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopDetailsSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="darwin"\] \.dshDesktopTerminalSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(new RegExp(`data-desktop-platform="darwin"\\] \\.dshDesktopSidebarSurface::before \\{[^}]*z-index: ${ADVANCED_MACOS_DRAG_LAYER_Z_INDEX};[^}]*left: ${MACOS_TRAFFIC_LIGHT_SAFE_WIDTH}px;[^}]*height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px;[^}]*-webkit-app-region: drag;`))
       expect(css).toMatch(new RegExp(`\\.dshDesktopMacCaptionRow \\{[^}]*position: absolute;[^}]*z-index: ${ADVANCED_MACOS_DRAG_LAYER_Z_INDEX};[^}]*grid-column: 2 / -1;[^}]*grid-row: 1;[^}]*left: 0;[^}]*height: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px;[^}]*background: var\\(--dsw-alias-bg-base\\);[^}]*-webkit-app-region: drag;`))
       expect(css).not.toContain('.dshDesktopMacCaptionRow::before')
@@ -137,7 +166,7 @@ describe('advanced desktop layout', () => {
       expect(css).not.toMatch(/html:has\(\[aria-modal="true"\]\) \.dshDesktopSidebarSurface/)
       expect(css).toContain(`grid-template-rows: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px minmax(0, 1fr)`)
       expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopSidebarSurface \{ grid-row: 1 \/ -1; \}/)
-      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface \{ grid-row: 2; \}/)
+      expect(css).toMatch(/\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopConversationSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopDetailsSurface,\s*\.dshDesktopFrame\[data-desktop-mode="advanced"\]\[data-desktop-platform="win32"\] \.dshDesktopTerminalSurface \{ grid-row: 2; \}/)
       expect(css).toMatch(/\.dshDesktopWindowsCaptionRow \{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 1;/)
       expect(css).toMatch(new RegExp(`\\.dshDesktopWindowsCaptionRow::before \\{[^}]*inset: 0 ${WINDOWS_CAPTION_CONTROLS_WIDTH}px 0 0;[^}]*-webkit-app-region: drag;`))
       expect(css).toContain(`.dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="win32"] .dshDesktopTerminalDrawer { top: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px; }`)
@@ -238,6 +267,13 @@ describe('advanced desktop layout', () => {
       const rootInject = (root?.inject as () => Record<string, unknown>)()
       expect(rootInject).toMatchObject({ platform: 'darwin' })
       expect(rootInject).not.toHaveProperty('mode')
+      expect(registrations.map(row => row.id)).toEqual([
+        'desktop-terminal-drawer', 'desktop-advanced-titlebar', 'desktop-right-sidebar', undefined,
+      ])
+      expect(registrations.find(row => row.id === 'desktop-right-sidebar')).toMatchObject({
+        name: 'conversation.session.header.utilities',
+        order: 100,
+      })
       expect(dataset).toMatchObject({
         dshDesktopMode: 'advanced',
         dshDesktopPlatform: 'darwin',
@@ -393,10 +429,10 @@ describe('independent Desktop frame', () => {
       expect(css).toMatch(/#root \{[^}]*position: fixed;[^}]*right: 0;[^}]*bottom: 0;[^}]*left: 0;[^}]*padding-top: 0;[^}]*transform: translateZ\(0\);/)
       expect(css).toContain(`top: ${DESKTOP_FRAME_HEIGHT}px`)
       expect(DESKTOP_FRAME_HEIGHT).toBe(36)
-      expect(css).toContain('body:is([data-dsh-desktop-mode="compatibility"], [data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])[data-dsh-terminal-open] #root')
-      expect(css).toContain('dshDesktopFrame')
-      expect(css).toMatch(/#root \{[^}]*transition: width/)
-       expect(css).toContain('width: calc(100% - min(640px, 92vw))')
+      expect(css).toContain('body[data-dsh-desktop-mode="compatibility"][data-dsh-terminal-open] #root')
+      expect(css).toContain('padding-right: min(640px, 92vw)')
+      expect(css).not.toContain('width: calc(100% - min(640px, 92vw))')
+      expect(css).not.toMatch(/#root \{[^}]*transition:/)
       expect(css).not.toMatch(/padding-right var\(--ds-transition-duration-slow\)/)
       expect(css).toMatch(/\[data-shell-overlay\] \{[^}]*overflow: hidden;[^}]*transform: translateZ\(0\);/)
       expect(css).toMatch(/\[data-slot="sidebar\.footer\.action"\] \{[^}]*display: flex !important;[^}]*flex-direction: column;[^}]*max-height: min\(40vh, 240px\);[^}]*overflow-y: auto;/)
@@ -416,6 +452,7 @@ describe('independent Desktop frame', () => {
       expect(css).toMatch(/\.dshDesktopFrameActions \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toContain('[data-platform="darwin"] .dshDesktopFrameActions { margin-left: auto; }')
       expect(css).toContain('[data-platform="win32"] .dshDesktopFrameActions { margin-right: auto; }')
+      expect(css).toContain('.dshDesktopTitlebarIconButton[aria-pressed="true"]')
       expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*-webkit-app-region: no-drag;/)
       expect(css).toMatch(/\.dshDesktopTitlebarIconButton \{[^}]*width: 26px;[^}]*height: 26px;[^}]*border-radius: 7px;/)
       expect(css).toMatch(/\.dshDesktopTitlebarIconButton svg,[^}]*width: 14px;[^}]*height: 14px;/)
@@ -511,7 +548,9 @@ describe('independent Desktop frame', () => {
       })
       expect(rootInject).not.toHaveProperty('mode')
       expect(occupants[0]).toBe(ExtendedFrame)
-      expect(registrations.map(row => row.id)).toEqual([undefined, 'desktop-terminal-drawer', 'desktop-frame-titlebar'])
+      expect(registrations.map(row => row.id)).toEqual([
+        undefined, 'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar',
+      ])
       expect(registrations[2]).toMatchObject({
         name: 'shell.overlay',
         id: 'desktop-frame-titlebar',
@@ -523,7 +562,17 @@ describe('independent Desktop frame', () => {
         api: expect.any(Object),
         setMode: expect.any(Function),
       })
-      expect(registrations).toHaveLength(3)
+      expect((registrations[2]?.inject as () => Record<string, unknown>)()).not.toHaveProperty('getCwd')
+      expect(registrations[3]).toMatchObject({
+        name: 'conversation.session.header.utilities',
+        id: 'desktop-right-sidebar',
+        order: 100,
+      })
+      expect((registrations[3]?.inject as () => Record<string, unknown>)()).toEqual({
+        getCwd: expect.any(Function),
+      })
+      expect(occupants[3]).toBe(DesktopSessionTerminalAction)
+      expect(registrations).toHaveLength(4)
       expect(dataset).toMatchObject({
         dshDesktopMode: 'extended',
         dshDesktopPlatform: 'win32',
@@ -575,8 +624,14 @@ describe('independent Desktop frame', () => {
         material: 'transparent',
         micaSupported: false,
       })
-      expect(injectedSlots).toEqual(['shell.overlay', 'shell.overlay'])
-      expect(registrations.map(row => row.id)).toEqual(['desktop-terminal-drawer', 'desktop-frame-titlebar'])
+      expect(injectedSlots).toEqual([
+        'shell.overlay',
+        'shell.overlay',
+        'conversation.session.header.utilities',
+      ])
+      expect(registrations.map(row => row.id)).toEqual([
+        'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar',
+      ])
       expect(registrations[1]).toMatchObject({
         name: 'shell.overlay',
         id: 'desktop-frame-titlebar',

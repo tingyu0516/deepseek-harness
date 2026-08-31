@@ -1,6 +1,6 @@
 /** Read-only Desktop workspace tree and file routes. */
 import { readdir, readFile, realpath, stat } from 'node:fs/promises'
-import { isAbsolute, normalize, relative, resolve, sep } from 'node:path'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isSameOriginLoopbackRequest } from './desktop-settings-route.ts'
 
@@ -22,7 +22,7 @@ export interface DesktopWorkspaceTreeResponse {
   readonly truncated: boolean
 }
 
-type AllowedRoots = readonly string[] | (() => readonly string[])
+export type DesktopWorkspaceAllowedRoots = readonly string[] | (() => readonly string[])
 
 function finish(res: ServerResponse, status: number, body: object): void {
   res.statusCode = status
@@ -36,11 +36,14 @@ function finish(res: ServerResponse, status: number, body: object): void {
 export function validateWorkspaceFilePath(value: string | null): string | undefined {
   if (value === null || value.includes('\0') || !isAbsolute(value)
     || value.split(/[\\/]/u).some(segment => segment === '..')) return undefined
-  const resolved = resolve(value)
-  return normalize(value) === resolved ? resolved : undefined
+  return resolve(value)
 }
 
-function rootList(allowedRoots: AllowedRoots | undefined): readonly string[] | undefined {
+function stripTrailingSeparators(value: string): string {
+  return value.replace(/[\\/]+$/u, '') || value
+}
+
+function rootList(allowedRoots: DesktopWorkspaceAllowedRoots | undefined): readonly string[] | undefined {
   if (allowedRoots === undefined) return undefined
   return (typeof allowedRoots === 'function' ? allowedRoots() : allowedRoots)
     .map(root => validateWorkspaceFilePath(root))
@@ -48,20 +51,41 @@ function rootList(allowedRoots: AllowedRoots | undefined): readonly string[] | u
 }
 
 function isInside(root: string, target: string): boolean {
-  const child = relative(root, target)
+  const from = stripTrailingSeparators(resolve(root))
+  const to = stripTrailingSeparators(resolve(target))
+  if (process.platform === 'win32') {
+    const fromKey = from.toLowerCase()
+    const toKey = to.toLowerCase()
+    return toKey === fromKey || toKey.startsWith(`${fromKey}\\`)
+  }
+  const child = relative(from, to)
   return child === '' || (child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child))
 }
 
-async function resolveAllowedPath(path: string, allowedRoots: AllowedRoots | undefined): Promise<string | undefined> {
+/**
+ * Resolve a workspace path that stays inside the allowed roots after realpath.
+ * @param path - absolute path already passed through {@link validateWorkspaceFilePath}.
+ * @param allowedRoots - workspace directories that may be read, or a live registry snapshot.
+ * @returns the confined path, or undefined when the path is outside every root.
+ */
+export async function resolveAllowedWorkspacePath(
+  path: string,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
+): Promise<string | undefined> {
   const roots = rootList(allowedRoots)
   if (roots === undefined) return path
   for (const root of roots) {
     if (!isInside(root, path)) continue
     try {
-      const [realRoot, realTarget] = await Promise.all([realpath(root), realpath(path)])
-      if (isInside(realRoot, realTarget)) return realTarget
+      const realRoot = await realpath(root)
+      try {
+        const realTarget = await realpath(path)
+        if (isInside(realRoot, realTarget)) return realTarget
+      } catch {
+        if (isInside(realRoot, path)) return path
+      }
     } catch {
-      return undefined
+      continue
     }
   }
   return undefined
@@ -71,7 +95,7 @@ async function handleTree(
   req: IncomingMessage,
   res: ServerResponse,
   rendererOrigin: string,
-  allowedRoots: AllowedRoots | undefined,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
 ): Promise<void> {
   if (req.method !== 'GET') {
     res.statusCode = 405
@@ -82,7 +106,7 @@ async function handleTree(
   const url = new URL(req.url ?? '/', rendererOrigin)
   const requested = validateWorkspaceFilePath(url.searchParams.get('path'))
   if (requested === undefined) return finish(res, 400, { error: 'invalid path' })
-  const directory = await resolveAllowedPath(requested, allowedRoots)
+  const directory = await resolveAllowedWorkspacePath(requested, allowedRoots)
   if (directory === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
   try {
     const metadata = await stat(directory)
@@ -120,7 +144,7 @@ async function handleFile(
   req: IncomingMessage,
   res: ServerResponse,
   rendererOrigin: string,
-  allowedRoots: AllowedRoots | undefined,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
 ): Promise<void> {
   if (req.method !== 'GET') {
     res.statusCode = 405
@@ -131,7 +155,7 @@ async function handleFile(
   const url = new URL(req.url ?? '/', rendererOrigin)
   const requested = validateWorkspaceFilePath(url.searchParams.get('path'))
   if (requested === undefined) return finish(res, 400, { error: 'invalid path' })
-  const filePath = await resolveAllowedPath(requested, allowedRoots)
+  const filePath = await resolveAllowedWorkspacePath(requested, allowedRoots)
   if (filePath === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
   try {
     const metadata = await stat(filePath)
@@ -149,7 +173,7 @@ export async function handleDesktopWorkspaceFileRequest(
   req: IncomingMessage,
   res: ServerResponse,
   rendererOrigin: string,
-  allowedRoots?: AllowedRoots,
+  allowedRoots?: DesktopWorkspaceAllowedRoots,
 ): Promise<void> {
   if (!isSameOriginLoopbackRequest(req, rendererOrigin, false)) {
     finish(res, 403, { error: 'forbidden' })

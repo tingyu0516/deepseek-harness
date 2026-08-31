@@ -27,6 +27,20 @@ export function resolveDesktopTerminalCwd(
   const currentId = sessions.current
   const current = currentId === undefined ? undefined : sessions.byId[currentId]
   if (current?.cwd !== undefined && current.cwd !== '') return current.cwd
+  return resolveDesktopWorkspaceRoot(sessions, workspaces)
+}
+
+/**
+ * File-manager root is the owning or recent workspace, never a session cwd outside it.
+ * @param sessions - live session list snapshot.
+ * @param workspaces - live workspace list snapshot.
+ * @returns the workspace directory, or undefined when none is known.
+ */
+export function resolveDesktopWorkspaceRoot(
+  sessions: DesktopTerminalCwdSessionList,
+  workspaces: DesktopTerminalCwdWorkspaceList,
+): string | undefined {
+  const currentId = sessions.current
   if (currentId !== undefined) {
     const owning = workspaces.items.find(item => item.sessionIds?.includes(currentId))
     if (owning !== undefined) return owning.path

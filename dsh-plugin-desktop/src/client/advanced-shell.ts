@@ -13,7 +13,7 @@ import { installDesktopOwnedStyles } from './styles.ts'
 import { installExtendedStyles } from './extended-styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
 import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
-import { resolveDesktopTerminalCwd } from './desktop-terminal-cwd.ts'
+import { desktopDrawerInject, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -41,25 +41,19 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     const settings = ctx.settingsScope.bind<DesktopShellSettings>({ namespace: 'dsh-desktop' })
     await settings.set('mode', mode)
   }
-  const cwd = (): string | undefined => resolveDesktopTerminalCwd(
-    ctx.sessions.list.getSnapshot(),
-    ctx.workspaces.list.getSnapshot(),
-  )
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'desktop-terminal-drawer', order: 10,
-    inject: () => ({
-      getCwd: cwd,
-      listDirectory: async (path?: string, signal?: AbortSignal) => {
-        const directory = path ?? cwd()
-        if (directory === undefined) throw new Error('No current workspace is selected')
-        return requestDesktopWorkspaceTree(directory, signal)
-      },
-    }),
+    inject: () => desktopDrawerInject(ctx, requestDesktopWorkspaceTree),
   }, DesktopTerminalDrawer))
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'desktop-advanced-titlebar', order: -1000, locale: 'desktop.settings',
-    inject: () => ({ api, environment, setMode }),
+    inject: () => ({
+      api,
+      environment,
+      setMode,
+    }),
   }, DesktopFrameTitlebar))
+  injectDesktopRightSidebarToggle(ctx)
   ctx.effect(() => ctx.slots.register({
     name: 'root',
     children: {
