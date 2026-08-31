@@ -92,6 +92,15 @@ export const REQUIRED_UNPACKED_RUNTIME_ENTRIES = [
   'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js',
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html',
   'node_modules/pnpm/bin/pnpm.mjs',
+  'node_modules/dsh-plugin-pet-core/package.json',
+  'node_modules/dsh-plugin-pet-core/lib/index.js',
+  'node_modules/dsh-plugin-pet-core/pet.html',
+  'node_modules/dsh-plugin-pet-hutao/package.json',
+  'node_modules/dsh-plugin-pet-hutao/lib/index.js',
+  'node_modules/dsh-plugin-pet-hutao/assets/live2d/pet.model3.json',
+  'node_modules/dsh-plugin-pet-furina/package.json',
+  'node_modules/dsh-plugin-pet-furina/lib/index.js',
+  'node_modules/dsh-plugin-pet-furina/assets/live2d/pet.model3.json',
 ] as const
 
 /** Prebuilt Node-API modules required when the Windows package skips native source rebuilds. */
@@ -122,6 +131,10 @@ export const REQUIRED_UNPACKED_PACKAGE_SPECIFIERS = [
   'dsh-plugin-desktop/windows-agent-presets',
   'dsh-plugin-desktop/windows-pwsh-sandbox',
   'dsh-plugin-desktop/package.json',
+  'dsh-plugin-pet-core',
+  'dsh-plugin-pet-core/pet.html',
+  'dsh-plugin-pet-hutao',
+  'dsh-plugin-pet-furina',
   '@deepseek-ai/dsh-base/package.json',
   '@deepseek-ai/schemastery/package.json',
   '@deepseek-ai/dsh-web-app/package.json',

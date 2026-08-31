@@ -85,6 +85,8 @@ The enhanced theme presenter projects the active upstream theme snapshot onto th
 
 Desktop registers Hu Tao (`hutao`) and Furina (`furina`) through the official `theme.register()` API and serves their wallpapers from `/themes/`. Choose them in Desktop settings under Desktop appearance and behavior. They are not shown in the official Appearance row, which still only persists `light` / `dark` / `system`. Selecting a character theme applies immediately, overrides that Appearance choice until you turn it off, and maps Electron's native chrome to dark. It does not replace `@deepseek-ai/dsh-client-ui-theme`.
 
+Desktop also composes the Hu Tao and Furina companion plugins. Their windows stay closed until you turn on **Show Hu Tao** or **Show Furina** in Desktop settings, or the matching tray checkbox. The choice applies immediately through the live `dsh-desktop-pet-hutao` and `dsh-desktop-pet-furina` settings namespaces.
+
 For an enhanced generation, the Electron adapter also reads the registered `ui-theme.preference` after Host boot and mirrors its built-in `light`, `dark`, or `system` value into Electron's native appearance before constructing the window. While a character theme is selected, that native appearance follows dark instead of the stored built-in preference. Committed preference changes update the native material while the window is active, and disposal restores the preceding Electron appearance.
 
 The desktop sidebar surface scopes the upstream sidebar-fill token to transparent, so the official sidebar and session-list fade reveal the native material without changing their component styles.

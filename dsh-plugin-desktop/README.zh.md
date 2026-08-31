@@ -85,6 +85,8 @@ desktop Client 会在所有呈现模式中提供不可变的 `desktopWindow` 原
 
 Desktop 通过官方 `theme.register()` 注册胡桃（`hutao`）和芙宁娜（`furina`），并提供 `/themes/` 壁纸。在「桌面版」设置的「桌面外观与行为」中选择；它们不会出现在官方「外观」行里，该行仍然只持久化 `light` / `dark` / `system`。选择角色主题后立即生效，会覆盖官方外观直到关闭，并把 Electron 原生外观映射为深色。这不会替换 `@deepseek-ai/dsh-client-ui-theme`。
 
+Desktop 还会组合胡桃与芙宁娜桌宠插件。窗口默认关闭，直到你在「桌面版」设置里打开「显示胡桃」或「显示芙宁娜」，或使用对应的托盘勾选项。选择通过实时生效的 `dsh-desktop-pet-hutao` 与 `dsh-desktop-pet-furina` settings namespace 立即生效。
+
 对于高级 generation，Electron adapter 还会在 Host boot 完成后读取已注册的 `ui-theme.preference`，并在创建窗口前把内置 `light`、`dark` 或 `system` 值同步到 Electron 原生外观。角色主题开启时，原生外观跟随深色，而不是已存储的内置偏好。窗口存续期间提交的 preference 变化会更新原生材质，dispose 则恢复此前的 Electron 外观。
 
 desktop sidebar surface 会把上游 sidebar-fill token 局部设为透明，因此官方 sidebar 与 session 列表渐隐可以透出原生材质，而无需改变其组件样式。

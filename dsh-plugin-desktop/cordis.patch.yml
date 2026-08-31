@@ -18,6 +18,10 @@
       name: dsh-plugin-desktop/profiles
     - id: desktop-updates
       name: dsh-plugin-desktop/updates
+    - id: desktop-pet-hutao
+      name: dsh-plugin-pet-hutao
+    - id: desktop-pet-furina
+      name: dsh-plugin-pet-furina
 
 # A desktop launch has no terminal operator waiting for the Web readiness line.
 - id: web-runtime

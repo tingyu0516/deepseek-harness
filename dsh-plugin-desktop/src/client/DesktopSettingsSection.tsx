@@ -34,6 +34,11 @@ export interface DesktopNotificationSettings {
   readonly notifyOnJobFailure: boolean
 }
 
+/** Browser view of one character pet plugin's `enabled` setting. */
+export interface DesktopPetSettings {
+  readonly enabled: boolean
+}
+
 /** Registration-side business face for the Desktop settings section. */
 export interface DesktopSettingsSectionInjected {
   readonly api: DesktopSettingsApi
@@ -42,6 +47,8 @@ export interface DesktopSettingsSectionInjected {
   readonly micaSupported: boolean
   readonly desktopSettings: SettingsScope<DesktopShellSettings>
   readonly notificationSettings: SettingsScope<DesktopNotificationSettings>
+  readonly hutaoPetSettings: SettingsScope<DesktopPetSettings>
+  readonly furinaPetSettings: SettingsScope<DesktopPetSettings>
 }
 
 /** Renderer-composed props for the official settings section entry. */
@@ -51,7 +58,7 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'wallpaper-select' | 'wallpaper-import' | 'wallpaper-delete' | 'notification'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'wallpaper-select' | 'wallpaper-import' | 'wallpaper-delete' | 'notification' | 'pet'
 type RestartState = 'none' | 'restarting' | 'required'
 
 function useScope<T>(scope: SettingsScope<T>) {
@@ -203,9 +210,13 @@ export function DesktopSettingsSection({
   micaSupported,
   desktopSettings,
   notificationSettings,
+  hutaoPetSettings,
+  furinaPetSettings,
 }: DesktopSettingsSectionProps) {
   const desktop = useScope(desktopSettings)
   const notifications = useScope(notificationSettings)
+  const hutaoPet = useScope(hutaoPetSettings)
+  const furinaPet = useScope(furinaPetSettings)
   const [view, setView] = useState<DesktopSettingsView>()
   const [profileName, setProfileName] = useState('')
   const [busy, setBusy] = useState<BusyOperation | undefined>('load')
@@ -257,6 +268,8 @@ export function DesktopSettingsSection({
   const requestRestart = (): void => { setRestart('restarting') }
   const settingsWritable = desktop.status === 'ready' && desktop.writable
   const notificationsWritable = notifications.status === 'ready' && notifications.writable
+  const hutaoPetWritable = hutaoPet.status === 'ready' && hutaoPet.writable
+  const furinaPetWritable = furinaPet.status === 'ready' && furinaPet.writable
   const mode = desktop.value?.mode ?? initialMode
   const characterTheme = desktop.value?.characterTheme ?? 'off'
   const hutaoWallpaper = desktop.value?.hutaoWallpaper ?? 'default'
@@ -268,6 +281,8 @@ export function DesktopSettingsSection({
     notifyOnJobCompletion: true,
     notifyOnJobFailure: true,
   }
+  const hutaoPetEnabled = hutaoPet.value?.enabled ?? false
+  const furinaPetEnabled = furinaPet.value?.enabled ?? false
 
   const createProfile = (event: FormEvent): void => {
     event.preventDefault()
@@ -384,6 +399,14 @@ export function DesktopSettingsSection({
 
   const setNotification = (field: keyof DesktopNotificationSettings, checked: boolean): void => {
     void run('notification', async () => { await notificationSettings.set(field, checked) })
+  }
+
+  const setHutaoPet = (checked: boolean): void => {
+    void run('pet', async () => { await hutaoPetSettings.set('enabled', checked) })
+  }
+
+  const setFurinaPet = (checked: boolean): void => {
+    void run('pet', async () => { await furinaPetSettings.set('enabled', checked) })
   }
 
   return (
@@ -707,6 +730,28 @@ export function DesktopSettingsSection({
             </button>
           </div>
         )}
+      </section>
+
+      <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-pet-title">
+        <div>
+          <h3 id="dsh-desktop-pet-title">{t('petTitle')}</h3>
+          <p className="dshDesktopSettingsGroupIntro">{t('petIntro')}</p>
+        </div>
+        {(hutaoPet.status === 'unavailable' || furinaPet.status === 'unavailable') && (
+          <p className="dshDesktopSettingsNotice">{t('readOnly')}</p>
+        )}
+        <ToggleRow
+          label={t('petHutao')}
+          checked={hutaoPetEnabled}
+          disabled={!hutaoPetWritable || busy !== undefined}
+          onChange={setHutaoPet}
+        />
+        <ToggleRow
+          label={t('petFurina')}
+          checked={furinaPetEnabled}
+          disabled={!furinaPetWritable || busy !== undefined}
+          onChange={setFurinaPet}
+        />
       </section>
 
       <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-notifications-title">

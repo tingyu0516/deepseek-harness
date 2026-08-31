@@ -27,6 +27,8 @@ import {
 import {
   applyDesktopSettings,
   DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE,
+  DESKTOP_PET_FURINA_SETTINGS_NAMESPACE,
+  DESKTOP_PET_HUTAO_SETTINGS_NAMESPACE,
   DESKTOP_SETTINGS_LOCALE_NAMESPACE,
   DESKTOP_SHELL_SETTINGS_NAMESPACE,
 } from '../src/client/desktop-settings.ts'
@@ -376,6 +378,8 @@ describe('Desktop settings Slot registration', () => {
 
     expect(bind).toHaveBeenNthCalledWith(1, { namespace: DESKTOP_SHELL_SETTINGS_NAMESPACE })
     expect(bind).toHaveBeenNthCalledWith(2, { namespace: DESKTOP_NOTIFICATIONS_SETTINGS_NAMESPACE })
+    expect(bind).toHaveBeenNthCalledWith(3, { namespace: DESKTOP_PET_HUTAO_SETTINGS_NAMESPACE })
+    expect(bind).toHaveBeenNthCalledWith(4, { namespace: DESKTOP_PET_FURINA_SETTINGS_NAMESPACE })
     expect(inject).toHaveBeenCalledWith('settings.section', expect.any(Function))
     expect(inject).toHaveBeenCalledWith('settings.action', expect.any(Function))
     expect(inject).not.toHaveBeenCalledWith('conversation.session.header.actions', expect.any(Function))
@@ -432,5 +436,14 @@ describe('Desktop settings Slot registration', () => {
     expect(source).toContain("set(theme === 'hutao' ? 'hutaoWallpaper' : 'furinaWallpaper', id)")
     expect(source).toContain('importWallpaper')
     expect(source).toContain('deleteWallpaper')
+    expect(zh.petTitle).toBe('桌宠')
+    expect(zh.petHutao).toBe('显示胡桃')
+    expect(zh.petFurina).toBe('显示芙宁娜')
+    expect(en.petTitle).toBe('Desktop companion')
+    expect(en.petHutao).toBe('Show Hu Tao')
+    expect(en.petFurina).toBe('Show Furina')
+    expect(source).toContain("set('enabled', checked)")
+    expect(source).toContain('hutaoPetSettings')
+    expect(source).toContain('furinaPetSettings')
   })
 })

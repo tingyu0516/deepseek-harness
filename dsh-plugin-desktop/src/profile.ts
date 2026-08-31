@@ -65,6 +65,10 @@ const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)
 const OBSOLETE_DESKTOP_BUNDLE_SET = new Set(['@deepseek-ai/dsh-desktop-app'])
 const INSTALL_ANCHOR = unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url)))
 const DESKTOP_PATCH_PATH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
+const DESKTOP_LAUNCHER_PET_PACKAGES = new Set([
+  'dsh-plugin-pet-hutao',
+  'dsh-plugin-pet-furina',
+])
 const DIRECTORY_PICKER_ROW_ID = 'directory-picker'
 const AUTO_PICKER_PACKAGE = '@deepseek-ai/dsh-host-directory-picker-auto'
 const BROWSE_PICKER_BACKEND = '@deepseek-ai/dsh-host-directory-picker-browse'
@@ -522,6 +526,32 @@ function rowDisabledOnPlatform(row: EntryOptions, platform: NodeJS.Platform): bo
   return Boolean(evaluate({ process: scopedProcess }, row.disabled.__jsExpr))
 }
 
+/**
+ * Drop launcher pet inserts when the profile already owns that bundle.
+ * The character packages ship the same Loader ids; composing both copies fails startup.
+ */
+function omitLauncherPetInsertsOwnedByProfile(
+  patches: readonly PatchOptions[],
+  profileOwnedPackages: ReadonlySet<string>,
+): PatchOptions[] {
+  return patches.flatMap((patch) => {
+    if (patch.insert === undefined) return [patch]
+    const insert = patch.insert.filter((row) => {
+      const packageName = row.name
+      return typeof packageName !== 'string'
+        || !DESKTOP_LAUNCHER_PET_PACKAGES.has(packageName)
+        || !profileOwnedPackages.has(packageName)
+    })
+    if (insert.length === patch.insert.length) return [patch]
+    if (insert.length === 0) {
+      const rest = { ...patch }
+      delete rest.insert
+      return Object.keys(rest).length === 0 ? [] : [rest]
+    }
+    return [{ ...patch, insert }]
+  })
+}
+
 /** Reject duplicate entries before the Loader turns them into a startup crash. */
 function assertUniqueEntryIds(rows: readonly EntryOptions[]): void {
   const seen = new Set<string>()
@@ -748,6 +778,11 @@ export function prepareDesktopProfile(
   if (marketSelection.requested === DESKTOP_MARKET_IDENTITIES.dshMarket.provider) {
     providerAwareDisabledBundles.delete(DESKTOP_MARKET_IDENTITIES.dshMarket.packageName)
   }
+  const profileOwnedPackages = new Set([
+    ...profile.layers.map(layer => layer.packageName),
+    ...disabledBundles,
+  ])
+  const launcherPatches = omitLauncherPetInsertsOwnedByProfile(desktopPatches, profileOwnedPackages)
   for (const layer of activeDesktopProfileLayers(profile, providerAwareDisabledBundles)) {
     if (layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName) {
       dshMarketPatches = layer.patches
@@ -755,7 +790,7 @@ export function prepareDesktopProfile(
     }
     bundlePatches.push(...layer.patches)
     if (layer.packageName !== '@deepseek-ai/dsh-web-app') continue
-    bundlePatches.push(...desktopPatches)
+    bundlePatches.push(...launcherPatches)
     desktopLayerInserted = true
   }
   if (!desktopLayerInserted) {

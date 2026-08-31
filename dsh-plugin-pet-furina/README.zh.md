@@ -18,8 +18,9 @@ DSH Desktop 的芙宁娜主题桌宠插件——角色本体是社区获取的 L
 
 ## 安装
 
-将 `dsh-plugin-pet-furina` 加入当前桌面 profile 的 `dsh.profile.bundles`
-列表并重启 DSH Desktop。之后可随时在 Desktop 的插件管理中停用或移除。
+DSH Desktop 已组合本插件。在「桌面版」设置中打开「显示芙宁娜」，或使用托盘
+菜单（`桌宠 · 芙宁娜`）的勾选项。开关关闭时窗口不会出现。若它也曾作为
+profile bundle 加入，仍可在 Desktop 的插件管理中停用或移除。
 
 ## 许可证
 
