@@ -24,6 +24,7 @@
     font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none;
     cursor: default;
   }
   .stage {
@@ -265,48 +266,33 @@
     if (character) location.href = 'dsh-pet-' + character.id + '://hide';
   });
 
-  /* Manual window drag through the private scheme: the renderer sends small
-     integer deltas and the main process applies them with setPosition, so
-     dragging works even though the window is focusable:false frameless.
-     A press under DRAG_THRESHOLD_PX stays a click (pat / special). */
+  /* Host-side drag: one dragstart/dragend pair. The main process follows the
+     OS cursor so the window does not wait on per-frame location.href IPC. */
   var DRAG_THRESHOLD_PX = 24;
-  var MOVE_MAX_PER_MESSAGE = 56;
   var DBLCLICK_MS = 280;
-  var downX = 0, downY = 0, lastX = 0, lastY = 0;
+  var downX = 0, downY = 0;
   var armed = false, dragging = false;
-  var dragAccX = 0, dragAccY = 0, moveQueued = false;
   var lastUpAt = 0;
   var lastUpX = 0;
   var lastUpY = 0;
+  function petHref(path) {
+    if (!character) return;
+    location.href = 'dsh-pet-' + character.id + '://' + path;
+  }
   function resetDrag() {
+    if (dragging) petHref('dragend');
     armed = false; dragging = false;
     document.body.classList.remove('dragging');
   }
-  function queueMoveDispatch() {
-    if (moveQueued || !character) return;
-    moveQueued = true;
-    requestAnimationFrame(function () {
-      moveQueued = false;
-      var dx = Math.round(dragAccX);
-      var dy = Math.round(dragAccY);
-      if (dx === 0 && dy === 0) return;
-      if (dx > MOVE_MAX_PER_MESSAGE) dx = MOVE_MAX_PER_MESSAGE;
-      else if (dx < -MOVE_MAX_PER_MESSAGE) dx = -MOVE_MAX_PER_MESSAGE;
-      if (dy > MOVE_MAX_PER_MESSAGE) dy = MOVE_MAX_PER_MESSAGE;
-      else if (dy < -MOVE_MAX_PER_MESSAGE) dy = -MOVE_MAX_PER_MESSAGE;
-      // Keep the fractional remainder so rounding never drifts the pet.
-      dragAccX -= dx; dragAccY -= dy;
-      location.href = 'dsh-pet-' + character.id + '://move?dx=' + dx + '&dy=' + dy;
-    });
-  }
-  document.addEventListener('mousedown', function (e) {
+  document.addEventListener('pointerdown', function (e) {
     if (!character || e.button !== 0) return;
     if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
-    downX = lastX = e.clientX;
-    downY = lastY = e.clientY;
+    downX = e.clientX;
+    downY = e.clientY;
     armed = true;
+    try { document.documentElement.setPointerCapture(e.pointerId); } catch (err) { /* capture is best-effort */ }
   });
-  document.addEventListener('mousemove', function (e) {
+  document.addEventListener('pointermove', function (e) {
     if (!dragging && !armed) {
       var rt = window.__dshPetLive2DRuntime;
       if (rt && typeof rt.setPointer === 'function') {
@@ -314,11 +300,6 @@
       }
       return;
     }
-    // movementX/Y are screen deltas; clientX jumps backward after the window
-    // follows the cursor and that feedback loop reads as stretching/zoom.
-    var dxm = typeof e.movementX === 'number' ? e.movementX : e.clientX - lastX;
-    var dym = typeof e.movementY === 'number' ? e.movementY : e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
     if (armed) {
       var adx = e.clientX - downX;
       var ady = e.clientY - downY;
@@ -326,11 +307,10 @@
       armed = false;
       dragging = true;
       document.body.classList.add('dragging');
+      petHref('dragstart?ox=' + Math.round(downX) + '&oy=' + Math.round(downY));
     }
-    dragAccX += dxm; dragAccY += dym;
-    queueMoveDispatch();
   });
-  document.addEventListener('mouseup', function (e) {
+  document.addEventListener('pointerup', function (e) {
     if (e.button !== 0) { resetDrag(); return; }
     var wasDragging = dragging;
     resetDrag();
@@ -355,6 +335,7 @@
       tapFace(x, y);
     }, DBLCLICK_MS);
   });
+  document.addEventListener('pointercancel', resetDrag);
   window.addEventListener('blur', resetDrag);
   document.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
   document.addEventListener('contextmenu', function (e) {
