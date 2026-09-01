@@ -8,9 +8,10 @@ of the bundled Hu Tao character theme for its speech bubble.
 ## What it does
 
 - Adds a transparent, always-on-top companion window that can be dragged
-  anywhere and survives restarts at its last position. The window only opens
-  when the Live2D assets are in place; otherwise the log explains what is
-  missing.
+  anywhere and survives restarts at its last position. The window is visible
+  on every workspace (fullscreen apps included), so the companion follows
+  desktop and fullscreen Space switches. The window only opens when the
+  Live2D assets are in place; otherwise the log explains what is missing.
 - Reacts to your work: pet works while a user-initiated turn runs, cheers
   when it completes, and sulks when it fails (background jobs included).
 - Speaks bilingual lines (中文 / English) picked from the character's own

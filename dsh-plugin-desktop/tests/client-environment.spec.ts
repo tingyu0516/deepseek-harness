@@ -79,7 +79,7 @@ describe('advanced desktop layout', () => {
     expect(frame).toContain('`${columns.sidebar}px minmax(0, 1fr) ${columns.details}px ${terminalInset}px`')
     expect(frame).toContain('className="dshDesktopTerminalSurface"')
     const drawer = readFileSync(new URL('../src/client/TerminalDrawer.tsx', import.meta.url), 'utf8')
-    expect(drawer).toContain("setTab('changes')")
+    expect(drawer).toContain("setActiveKey('changes')")
     expect(drawer).toContain('DesktopChangesPanel')
     const changes = readFileSync(new URL('../src/client/ChangesPanel.tsx', import.meta.url), 'utf8')
     expect(changes).toContain('Last Agent Turn')
