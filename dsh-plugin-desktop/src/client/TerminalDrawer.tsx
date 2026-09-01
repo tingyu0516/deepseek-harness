@@ -1,9 +1,21 @@
 import { Terminal } from '@xterm/xterm'
-import { ChevronRight, FileDiff, FileText, Folder, FolderOpen, FolderTree, SquareTerminal, X } from 'lucide-react'
+import { ChevronRight, FileDiff, FileText, Folder, FolderOpen, FolderTree, Plus, SquareTerminal, X } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { DesktopChangesPanel } from './ChangesPanel.tsx'
+import {
+  BASE_DRAWER_TABS,
+  INITIAL_DRAWER_TAB_KEY,
+  addDrawerTab,
+  drawerTabKey,
+  drawerTabLabel,
+  drawerTabOrdinal,
+  nextDrawerTabId,
+  removeDrawerTab,
+  resolveDrawerTabAfterClose,
+  type DrawerTab,
+} from './drawer-tabs.ts'
 
 export const DESKTOP_TERMINAL_CHANNEL_PROTOCOL = 'dsh-desktop-terminal-v1'
 const DESKTOP_TERMINAL_CHANNEL_PATH = '/api/desktop/terminal/channel'
@@ -249,18 +261,45 @@ function FileManager({ listDirectory }: { readonly listDirectory?: DesktopTermin
   )
 }
 
-/** Root overlay occupant. It owns xterm and the socket lifecycle. */
-export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, listDirectory }: DesktopTerminalDrawerProps) {
-  const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
-  const [tab, setTab] = useState<'terminal' | 'files' | 'changes'>('terminal')
-  const terminalRef = useRef<HTMLDivElement>(null)
-  const socketRef = useRef<WebSocket | undefined>(undefined)
-  const terminalInstanceRef = useRef<Terminal | undefined>(undefined)
-  const [config] = useState(() => readTerminalWebSocketConfig(typeof window === 'undefined' ? '' : window.location.search))
+interface TerminalSessionProps {
+  /** Whether this session's tab is the one on screen. */
+  readonly active: boolean
+  /** Host terminal WebSocket URL; absent uses the same-origin channel path. */
+  readonly url: string | undefined
+  readonly getCwd?: () => string | undefined
+}
+
+interface TerminalSessionHandle {
+  terminal?: Terminal
+  socket?: WebSocket
+  sendSize?: () => void
+  dispose?: () => void
+}
+
+/**
+ * One independent PTY view: its own xterm instance and WebSocket channel, so
+ * several tabs run several shells at once. The session is created lazily on
+ * first activation with a measurable viewport (hidden tabs report zero
+ * width), survives tab switches, and ends when unmounting — drawer close or
+ * tab removal.
+ */
+function TerminalSession({ active, url, getCwd }: TerminalSessionProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null)
+  const sessionRef = useRef<TerminalSessionHandle>({})
+  const getCwdRef = useRef(getCwd)
+  getCwdRef.current = getCwd
   const [error, setError] = useState<string | undefined>()
 
   useEffect(() => {
-    if (!isOpen || tab !== 'terminal' || terminalRef.current === null) return
+    if (!active) return
+    const element = viewportRef.current
+    if (element === null || element.clientWidth === 0) return
+    const session = sessionRef.current
+    if (session.dispose !== undefined) {
+      session.sendSize?.()
+      session.terminal?.focus()
+      return
+    }
     setError(undefined)
     const terminal = new Terminal({
       convertEol: true,
@@ -269,13 +308,10 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
       scrollback: 2000,
       theme: { background: 'rgba(0, 0, 0, 0)' },
     })
-    terminal.open(terminalRef.current)
-    terminalInstanceRef.current = terminal
-    const url = config.url ?? defaultTerminalWebSocketUrl()
-    const socket = new WebSocket(url, DESKTOP_TERMINAL_CHANNEL_PROTOCOL)
-    socketRef.current = socket
+    terminal.open(element)
+    const socket = new WebSocket(url ?? defaultTerminalWebSocketUrl(), DESKTOP_TERMINAL_CHANNEL_PROTOCOL)
     socket.addEventListener('open', () => {
-      const directory = currentCwd ?? getCwd?.()
+      const directory = currentCwd ?? getCwdRef.current?.()
       socket.send(JSON.stringify({
         type: 'spawn',
         cols: 80,
@@ -297,42 +333,153 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
       if (!event.wasClean) setError(`Terminal WebSocket closed (${String(event.code)})`)
     })
     const sendSize = (): void => {
-      const element = terminalRef.current
-      if (element === null) return
-      const message = createTerminalResizeMessage(element.clientWidth / 8, element.clientHeight / 18)
+      const current = viewportRef.current
+      if (current === null || current.clientWidth === 0) return
+      const message = createTerminalResizeMessage(current.clientWidth / 8, current.clientHeight / 18)
       terminal.resize(message.cols, message.rows)
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
     }
     const observer = new ResizeObserver(sendSize)
-    observer.observe(terminalRef.current)
+    observer.observe(element)
     terminal.onData(data => {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
     })
     sendSize()
-    return () => {
-      observer.disconnect()
-      terminal.dispose()
-      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close()
-      terminalInstanceRef.current = undefined
-      socketRef.current = undefined
+    sessionRef.current = {
+      terminal,
+      socket,
+      sendSize,
+      dispose: () => {
+        observer.disconnect()
+        terminal.dispose()
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close()
+      },
     }
-  }, [config.url, getCwd, isOpen, tab])
+  }, [active, url])
+
+  // Unmount (drawer closed or tab removed) always ends this PTY channel.
+  useEffect(() => () => { sessionRef.current.dispose?.() }, [])
+
+  return (
+    <div className="dshDesktopTerminalDrawerSession">
+      {error !== undefined && <div className="dshDesktopTerminalDrawerError" role="alert">{error}</div>}
+      <div ref={viewportRef} className="dshDesktopTerminalDrawerViewport" />
+    </div>
+  )
+}
+
+/** Root overlay occupant. It owns the tab list, xterm sessions, and sockets. */
+export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, listDirectory }: DesktopTerminalDrawerProps) {
+  const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
+  const [extraTabs, setExtraTabs] = useState<readonly DrawerTab[]>([])
+  const [activeKey, setActiveKey] = useState<string>(INITIAL_DRAWER_TAB_KEY)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const addWrapRef = useRef<HTMLDivElement | null>(null)
+  const [config] = useState(() => readTerminalWebSocketConfig(typeof window === 'undefined' ? '' : window.location.search))
+
+  // Closing the drawer ends every session, so the dynamic tabs reset with it.
+  useEffect(() => {
+    if (isOpen) return
+    setExtraTabs([])
+    setActiveKey(INITIAL_DRAWER_TAB_KEY)
+    setAddMenuOpen(false)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!addMenuOpen || typeof document === 'undefined') return
+    const handle = (event: PointerEvent): void => {
+      const wrap = addWrapRef.current
+      if (wrap !== null && event.target instanceof Node && wrap.contains(event.target)) return
+      setAddMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', handle)
+    return () => document.removeEventListener('pointerdown', handle)
+  }, [addMenuOpen])
+
+  const addTab = (kind: DrawerTab['kind']): void => {
+    const id = nextDrawerTabId([...BASE_DRAWER_TABS, ...extraTabs])
+    const tab: DrawerTab = { id, kind, closable: true }
+    setExtraTabs(previous => addDrawerTab(previous, kind, id))
+    setActiveKey(drawerTabKey(tab))
+    setAddMenuOpen(false)
+  }
+
+  const removeTab = (tab: DrawerTab): void => {
+    setExtraTabs(previous => removeDrawerTab(previous, tab.id))
+    setActiveKey(previous => resolveDrawerTabAfterClose(previous, drawerTabKey(tab)))
+  }
 
   if (!isOpen) return null
+  const tabs = [...BASE_DRAWER_TABS, ...extraTabs]
   return (
     <section className="dshDesktopTerminalDrawer" role="dialog" aria-label="Terminal, File Manager, and Changes" aria-modal="false">
       <header className="dshDesktopTerminalDrawerHeader">
         <div className="dshDesktopTerminalDrawerTabs" role="tablist">
-          <button type="button" role="tab" aria-selected={tab === 'terminal'} className={tab === 'terminal' ? 'is-active' : ''} onClick={() => setTab('terminal')}><SquareTerminal size={15} aria-hidden="true" />Terminal</button>
-          <button type="button" role="tab" aria-selected={tab === 'files'} className={tab === 'files' ? 'is-active' : ''} onClick={() => setTab('files')}><FolderTree size={15} aria-hidden="true" />File Manager</button>
-          <button type="button" role="tab" aria-selected={tab === 'changes'} className={tab === 'changes' ? 'is-active' : ''} onClick={() => setTab('changes')}><FileDiff size={15} aria-hidden="true" />Changes</button>
+          {tabs.map(tab => {
+            const key = drawerTabKey(tab)
+            const label = drawerTabLabel(tab, drawerTabOrdinal(tabs, tab))
+            const active = activeKey === key
+            return (
+              <div key={key} className="dshDesktopDrawerTab">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={active ? 'is-active' : ''}
+                  title={label}
+                  onClick={() => setActiveKey(key)}
+                >
+                  {tab.kind === 'terminal' ? <SquareTerminal size={15} aria-hidden="true" /> : <FolderTree size={15} aria-hidden="true" />}
+                  <span>{label}</span>
+                </button>
+                {tab.closable && (
+                  <button type="button" className="dshDesktopDrawerTabClose" aria-label={`Close ${label}`} title={`Close ${label}`} onClick={() => removeTab(tab)}>
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          <button type="button" role="tab" aria-selected={activeKey === 'changes'} className={activeKey === 'changes' ? 'is-active' : ''} onClick={() => setActiveKey('changes')}><FileDiff size={15} aria-hidden="true" />Changes</button>
+          <div className="dshDesktopTerminalDrawerAddWrap" ref={addWrapRef}>
+            <button
+              type="button"
+              className="dshDesktopTerminalDrawerAdd"
+              aria-label="New drawer tab"
+              aria-haspopup="menu"
+              aria-expanded={addMenuOpen}
+              title="New terminal or file manager"
+              onClick={() => setAddMenuOpen(current => !current)}
+            >
+              <Plus size={14} aria-hidden="true" />
+            </button>
+            {addMenuOpen && (
+              <div className="dshDesktopTerminalDrawerAddMenu" role="menu">
+                <button type="button" role="menuitem" onClick={() => addTab('terminal')}><SquareTerminal size={14} aria-hidden="true" />New terminal</button>
+                <button type="button" role="menuitem" onClick={() => addTab('files')}><FolderTree size={14} aria-hidden="true" />New file manager</button>
+              </div>
+            )}
+          </div>
         </div>
         <button type="button" aria-label="Close terminal" title="Close terminal" onClick={closeDesktopTerminalDrawer}><X size={16} aria-hidden="true" /></button>
       </header>
-      {tab === 'terminal' && error !== undefined && <div className="dshDesktopTerminalDrawerError" role="alert">{error}</div>}
-      {tab === 'terminal' && <div ref={terminalRef} className="dshDesktopTerminalDrawerViewport" />}
-      {tab === 'files' && <FileManager listDirectory={listDirectory} />}
-      {tab === 'changes' && (
+      {tabs.filter(tab => tab.kind === 'terminal').map(tab => {
+        const key = drawerTabKey(tab)
+        return (
+          <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
+            <TerminalSession active={activeKey === key} url={config.url} {...(getCwd === undefined ? {} : { getCwd })} />
+          </div>
+        )
+      })}
+      {tabs.filter(tab => tab.kind === 'files').map(tab => {
+        const key = drawerTabKey(tab)
+        return (
+          <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
+            <FileManager listDirectory={listDirectory} />
+          </div>
+        )
+      })}
+      {activeKey === 'changes' && (
         <DesktopChangesPanel
           {...(workspaceRoot === undefined ? {} : { workspaceRoot })}
           {...(lastAgentFiles === undefined ? {} : { lastAgentFiles })}
