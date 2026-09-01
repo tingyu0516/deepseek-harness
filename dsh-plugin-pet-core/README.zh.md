@@ -5,7 +5,9 @@ DSH Desktop 角色桌宠插件的共享引擎。除角色本身外，桌宠所�
 - `createPetPlugin()` —— Cordis Host 插件工厂：以 `desktopRuntime` 服务为门控，
   注册实时生效的设置项、贡献托盘菜单；在普通（非桌面版）DSH 启动中完全静默。
 - `PetWindowController` —— 透明、无边框、始终置顶窗口的生命周期管理：位置
-  持久化、Host→页面事件推送，以及沿工作区的定期漫步。
+  持久化、Host→页面事件推送，以及沿工作区的定期漫步。窗口加入所有工作区
+  （在全屏应用上也可见），macOS 切换桌面或全屏 Space 时桌宠跟随，
+  不会留在原桌面。
 - `PetActivityTracker` —— 把用户发起的会话回合与后台任务映射为桌宠状态
   （`work` / `cheer` / `sad`），过滤规则与桌面通知行一致。
 - `pet.html` —— 沙箱渲染页：零依赖的气泡/表情状态机，通过

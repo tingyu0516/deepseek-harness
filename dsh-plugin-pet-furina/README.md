@@ -8,9 +8,10 @@ of the bundled Furina character theme for its speech bubble.
 ## What it does
 
 - Adds a transparent, always-on-top companion window that can be dragged
-  anywhere and survives restarts at its last position. The window only opens
-  when the Live2D assets are in place; otherwise the log explains what is
-  missing.
+  anywhere and survives restarts at its last position. The window is visible
+  on every workspace (fullscreen apps included), so the companion follows
+  desktop and fullscreen Space switches. The window only opens when the
+  Live2D assets are in place; otherwise the log explains what is missing.
 - Reacts to your work: the star conducts while a user-initiated turn runs,
   takes a triumphant bow when it completes, and sheds purely dramatic tears
   when it fails (background jobs included).

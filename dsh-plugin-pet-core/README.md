@@ -8,7 +8,9 @@ desktop companion needs except the character itself:
   menu, and stays completely inert in an ordinary (non-desktop) DSH boot.
 - `PetWindowController` — lifecycle for one transparent, frameless,
   always-on-top window with position persistence, host→page pushes, and
-  periodic strolls along the work area.
+  periodic strolls along the work area. The window joins every workspace
+  (visible over fullscreen apps too), so the companion follows macOS desktop
+  and fullscreen Space switches instead of staying behind.
 - `PetActivityTracker` — maps user-initiated session turns and background
   jobs onto pet states (`work` / `cheer` / `sad`), mirroring the desktop
   notifications row's filtering rules.
