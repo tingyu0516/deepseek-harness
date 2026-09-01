@@ -11,7 +11,7 @@ export { readPetLive2DCoreText, readPetLive2DViewerText } from './pet-live2d-hos
 export type { PetBootPayload, PetBrowserWindow, PetElectron, PetLive2DAssets, PetLive2DSelection, PetRectangle, PetRuntimeHost, } from './pet-window.ts';
 /** Settings presented by every character pet plugin. */
 export interface PetSettings {
-    /** Whether the pet window should exist at all. */
+    /** Whether the pet window should exist at all. Defaults to hidden. */
     enabled: boolean;
     /** Window scale multiplier applied live. */
     scale: number;

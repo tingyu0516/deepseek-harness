@@ -20,6 +20,9 @@ export interface PetBrowserWindow {
     setBounds(bounds: PetRectangle): void;
     setPosition(x: number, y: number): void;
     setAlwaysOnTop(flag: boolean, level?: string): void;
+    setVisibleOnAllWorkspaces(visible: boolean, options?: {
+        visibleOnFullScreen?: boolean;
+    }): void;
     webContents: {
         on(event: string, listener: (...args: never[]) => void): void;
         setWindowOpenHandler(handler: () => {

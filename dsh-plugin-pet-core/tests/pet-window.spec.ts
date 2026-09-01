@@ -57,6 +57,7 @@ class FakeWindow {
   private visible = false
   private bounds: PetRectangle
   alwaysOnTop: { flag: boolean, level?: string } | undefined
+  visibleOnAllWorkspaces: { visible: boolean, options?: { visibleOnFullScreen?: boolean } } | undefined
 
   constructor(options: Record<string, unknown>) {
     this.options = options
@@ -101,6 +102,12 @@ class FakeWindow {
   }
   setAlwaysOnTop(flag: boolean, level?: string): void {
     this.alwaysOnTop = level === undefined ? { flag } : { flag, level }
+  }
+  setVisibleOnAllWorkspaces(
+    visible: boolean,
+    options?: { visibleOnFullScreen?: boolean },
+  ): void {
+    this.visibleOnAllWorkspaces = { visible, ...(options === undefined ? {} : { options }) }
   }
 }
 
@@ -185,6 +192,7 @@ describe('PetWindowController', () => {
     const window = FakeWindow.created[0] as unknown as {
       options: Record<string, unknown>
       alwaysOnTop: { flag: boolean, level?: string }
+      visibleOnAllWorkspaces: { visible: boolean, options?: { visibleOnFullScreen?: boolean } }
     }
     expect(window.options.transparent).toBe(true)
     expect(window.options.frame).toBe(false)
@@ -194,6 +202,10 @@ describe('PetWindowController', () => {
     expect(window.options.height).toBe(300 + PET_SPEECH_SLOT_PX)
     expect((window.options.webPreferences as Record<string, unknown>).sandbox).toBe(true)
     expect(window.alwaysOnTop).toEqual({ flag: true, level: 'screen-saver' })
+    expect(window.visibleOnAllWorkspaces).toEqual({
+      visible: true,
+      options: { visibleOnFullScreen: true },
+    })
   })
 
   it('refuses to open a window when Live2D assets are missing', () => {

@@ -648,6 +648,7 @@ var PetWindowController = class {
 		this.window = window;
 		this.pageReady = false;
 		window.setAlwaysOnTop(true, "screen-saver");
+		window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 		const lockZoom = window.webContents.setVisualZoomLevelLimits;
 		if (typeof lockZoom === "function") lockZoom.call(window.webContents, 1, 1);
 		window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -960,7 +961,7 @@ const PET_SCALES = [
 ];
 function petSettingsSchema() {
 	return z.object({
-		enabled: z.boolean().default(true),
+		enabled: z.boolean().default(false),
 		scale: z.union(PET_SCALES).default(1),
 		eventReactions: z.boolean().default(true),
 		idleChatter: z.boolean().default(true)

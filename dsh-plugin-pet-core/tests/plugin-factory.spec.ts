@@ -71,6 +71,7 @@ function petElectron(): PetElectron {
       setBounds(): void {}
       setPosition(): void {}
       setAlwaysOnTop(): void {}
+      setVisibleOnAllWorkspaces(): void {}
       webContents = {
         on(): void {},
         setWindowOpenHandler(): void {},
