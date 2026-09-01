@@ -34,6 +34,7 @@ export interface PetBrowserWindow {
   setBounds(bounds: PetRectangle): void
   setPosition(x: number, y: number): void
   setAlwaysOnTop(flag: boolean, level?: string): void
+  setVisibleOnAllWorkspaces(visible: boolean, options?: { visibleOnFullScreen?: boolean }): void
   webContents: {
     on(event: string, listener: (...args: never[]) => void): void
     setWindowOpenHandler(handler: () => { action: string }): void
@@ -369,6 +370,9 @@ export class PetWindowController {
     this.window = window
     this.pageReady = false
     window.setAlwaysOnTop(true, 'screen-saver')
+    // macOS pins a window to the Space it was created on until it joins all
+    // workspaces; visibleOnFullScreen keeps the pet over fullscreen Spaces too.
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     const lockZoom = window.webContents.setVisualZoomLevelLimits
     if (typeof lockZoom === 'function') void lockZoom.call(window.webContents, 1, 1)
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
