@@ -420,9 +420,10 @@ describe('PetWindowController', () => {
     const windowController = controller()
     windowController.open()
     const window = FakeWindow.created[0]!
+    // Default placement is the bottom-right corner. Move inward so a
+    // MANUAL_MOVE_MAX_PX clamp is observable without hitting the work-area edge.
+    window.setBounds({ ...window.getBounds(), x: 400, y: 200 })
     const before = window.getBounds()
-    // The default spot sits at the bottom-right corner; these deltas have
-    // headroom inside the work-area clamp.
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=10&dy=-4')
     expect(window.getBounds().x).toBe(before.x + 10)
     expect(window.getBounds().y).toBe(before.y - 4)
