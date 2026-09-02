@@ -14,6 +14,8 @@ export interface PetBrowserWindow {
     isDestroyed(): boolean;
     close(): void;
     show(): void;
+    /** macOS: show without becoming the key window of the current Space. */
+    showInactive(): void;
     hide(): void;
     isVisible(): boolean;
     getBounds(): PetRectangle;
@@ -22,6 +24,7 @@ export interface PetBrowserWindow {
     setAlwaysOnTop(flag: boolean, level?: string): void;
     setVisibleOnAllWorkspaces(visible: boolean, options?: {
         visibleOnFullScreen?: boolean;
+        skipTransformProcessType?: boolean;
     }): void;
     webContents: {
         on(event: string, listener: (...args: never[]) => void): void;
@@ -169,6 +172,9 @@ export declare class PetWindowController {
     private saveTimer;
     private cursorTimer;
     private lastCursor;
+    /** Grab offset while the Host follows the OS cursor during a drag. */
+    private dragGrab;
+    private dragTimer;
     /** Designed content size; never re-read from getBounds during drag (DPI drift). */
     private layoutWidth;
     private layoutHeight;
@@ -207,6 +213,15 @@ export declare class PetWindowController {
      * persists the resulting position.
      */
     private handleManualMove;
+    /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
+    private startManualDrag;
+    /**
+     * @param resumeLookAt - restore screen-wide look-at after a user drag ends.
+     *   Closing the window passes false so a disposed controller does not restart
+     *   the cursor poller.
+     */
+    private stopManualDrag;
+    private tickManualDrag;
     private run;
     /**
      * Feed the model's look-at target from the OS cursor so the pet tracks the

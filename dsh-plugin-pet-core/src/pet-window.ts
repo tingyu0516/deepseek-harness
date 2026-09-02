@@ -28,6 +28,8 @@ export interface PetBrowserWindow {
   isDestroyed(): boolean
   close(): void
   show(): void
+  /** macOS: show without becoming the key window of the current Space. */
+  showInactive(): void
   hide(): void
   isVisible(): boolean
   getBounds(): PetRectangle
@@ -255,6 +257,17 @@ function pinPetAcrossWorkspaces(window: PetBrowserWindow): void {
   window.setVisibleOnAllWorkspaces(true, PET_ALL_WORKSPACES)
 }
 
+/**
+ * Reveal the overlay and re-apply workspace pinning.
+ * macOS assigns a Space at `show()`; `showInactive()` plus a post-show pin
+ * keeps four-finger Space swipes from leaving the pet on the creation desktop.
+ */
+function presentPetWindow(window: PetBrowserWindow): void {
+  if (process.platform === 'darwin') window.showInactive()
+  else window.show()
+  pinPetAcrossWorkspaces(window)
+}
+
 function defaultBounds(character: PetCharacterDocument, workArea: PetRectangle | undefined): PetRectangle {
   const { width, height } = petLayoutSize(character, 1)
   if (workArea === undefined) return { x: 0, y: 0, width, height }
@@ -332,7 +345,7 @@ export class PetWindowController {
     if (this.disposed) return
     const existing = this.window
     if (existing !== undefined && !existing.isDestroyed()) {
-      if (!existing.isVisible()) existing.show()
+      if (!existing.isVisible()) presentPetWindow(existing)
       return
     }
     const live2dDir = this.options.live2dDir?.()
@@ -400,10 +413,7 @@ export class PetWindowController {
     })
     window.once('ready-to-show', () => {
       if (!this.disposed && this.window === window && !window.isDestroyed()) {
-        window.show()
-        // macOS assigns a Space at show time; re-pin so Mission Control
-        // switches keep the pet instead of leaving it on the creation Space.
-        pinPetAcrossWorkspaces(window)
+        presentPetWindow(window)
         this.startCursorTracking()
       }
     })

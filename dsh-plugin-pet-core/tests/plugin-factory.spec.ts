@@ -63,6 +63,7 @@ function petElectron(): PetElectron {
       isDestroyed(): boolean { return this.destroyed }
       close(): void { this.destroyed = true }
       show(): void {}
+      showInactive(): void {}
       hide(): void {}
       isVisible(): boolean { return true }
       getBounds(): { x: number, y: number, width: number, height: number } {
