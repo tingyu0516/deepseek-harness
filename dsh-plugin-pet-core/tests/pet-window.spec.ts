@@ -57,7 +57,14 @@ class FakeWindow {
   private visible = false
   private bounds: PetRectangle
   alwaysOnTop: { flag: boolean, level?: string } | undefined
-  visibleOnAllWorkspaces: { visible: boolean, options?: { visibleOnFullScreen?: boolean } } | undefined
+  visibleOnAllWorkspaces: {
+    visible: boolean
+    options?: { visibleOnFullScreen?: boolean, skipTransformProcessType?: boolean }
+  } | undefined
+  readonly visibleOnAllWorkspacesCalls: Array<{
+    visible: boolean
+    options?: { visibleOnFullScreen?: boolean, skipTransformProcessType?: boolean }
+  }> = []
 
   constructor(options: Record<string, unknown>) {
     this.options = options
@@ -105,9 +112,11 @@ class FakeWindow {
   }
   setVisibleOnAllWorkspaces(
     visible: boolean,
-    options?: { visibleOnFullScreen?: boolean },
+    options?: { visibleOnFullScreen?: boolean, skipTransformProcessType?: boolean },
   ): void {
-    this.visibleOnAllWorkspaces = { visible, ...(options === undefined ? {} : { options }) }
+    const call = { visible, ...(options === undefined ? {} : { options }) }
+    this.visibleOnAllWorkspaces = call
+    this.visibleOnAllWorkspacesCalls.push(call)
   }
 }
 
@@ -192,7 +201,10 @@ describe('PetWindowController', () => {
     const window = FakeWindow.created[0] as unknown as {
       options: Record<string, unknown>
       alwaysOnTop: { flag: boolean, level?: string }
-      visibleOnAllWorkspaces: { visible: boolean, options?: { visibleOnFullScreen?: boolean } }
+      visibleOnAllWorkspaces: {
+        visible: boolean
+        options?: { visibleOnFullScreen?: boolean, skipTransformProcessType?: boolean }
+      }
     }
     expect(window.options.transparent).toBe(true)
     expect(window.options.frame).toBe(false)
@@ -204,8 +216,33 @@ describe('PetWindowController', () => {
     expect(window.alwaysOnTop).toEqual({ flag: true, level: 'screen-saver' })
     expect(window.visibleOnAllWorkspaces).toEqual({
       visible: true,
-      options: { visibleOnFullScreen: true },
+      options: { visibleOnFullScreen: true, skipTransformProcessType: true },
     })
+  })
+
+  it('re-pins the overlay after show so macOS Spaces keep the pet', () => {
+    const windowController = controller()
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    expect(window.visibleOnAllWorkspacesCalls).toHaveLength(1)
+    window.emit('ready-to-show')
+    expect(window.isVisible()).toBe(true)
+    expect(window.visibleOnAllWorkspacesCalls).toHaveLength(2)
+    expect(window.visibleOnAllWorkspacesCalls[1]).toEqual({
+      visible: true,
+      options: { visibleOnFullScreen: true, skipTransformProcessType: true },
+    })
+  })
+
+  it('creates a macOS panel window that can join every Space', () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
+    try {
+      const windowController = controller()
+      windowController.open()
+      expect(FakeWindow.created[0]!.options.type).toBe('panel')
+    } finally {
+      platform.mockRestore()
+    }
   })
 
   it('refuses to open a window when Live2D assets are missing', () => {
@@ -383,25 +420,70 @@ describe('PetWindowController', () => {
     const windowController = controller()
     windowController.open()
     const window = FakeWindow.created[0]!
+    // Default placement is the bottom-right corner. Move inward so a
+    // MANUAL_MOVE_MAX_PX clamp is observable without hitting the work-area edge.
+    window.setBounds({ ...window.getBounds(), x: 400, y: 200 })
     const before = window.getBounds()
-    // The default spot sits at the bottom-right corner; these deltas have
-    // headroom inside the work-area clamp.
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=10&dy=-4')
     expect(window.getBounds().x).toBe(before.x + 10)
     expect(window.getBounds().y).toBe(before.y - 4)
-    // Per-message deltas beyond the cap are rejected outright...
+    // Per-message deltas beyond the cap are clamped, not dropped.
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=999&dy=0')
-    expect(window.getBounds().x).toBe(before.x + 10)
-    // ...as are malformed or missing values.
+    expect(window.getBounds().x).toBe(before.x + 10 + 64)
+    // Malformed or missing values are ignored.
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=abc&dy=zz')
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move')
-    expect(window.getBounds()).toEqual({ x: before.x + 10, y: before.y - 4, width: before.width, height: before.height })
+    expect(window.getBounds()).toEqual({
+      x: before.x + 10 + 64,
+      y: before.y - 4,
+      width: before.width,
+      height: before.height,
+    })
     // A stale larger getBounds (Windows DPI drift) must not stick: the next
     // drag tick re-pins the designed layout size.
-    window.setBounds({ x: before.x + 10, y: before.y - 4, width: 480, height: 640 })
+    window.setBounds({ x: before.x + 10 + 64, y: before.y - 4, width: 480, height: 640 })
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=2&dy=0')
     expect(window.getBounds().width).toBe(before.width)
     expect(window.getBounds().height).toBe(before.height)
+  })
+
+  it('follows the OS cursor for the duration of a renderer drag', () => {
+    let cursor = { x: 900, y: 400 }
+    const electron = fakeElectron()
+    Object.assign(electron.screen!, { getCursorScreenPoint: () => cursor })
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    const { width, height } = window.getBounds()
+    window.webContents.emit(
+      'will-navigate',
+      { preventDefault: () => {} },
+      'dsh-pet-hutao://dragstart?ox=40&oy=80',
+    )
+    expect(window.getBounds()).toEqual({ x: 860, y: 320, width, height })
+    cursor = { x: 1000, y: 450 }
+    vi.advanceTimersByTime(16)
+    expect(window.getBounds()).toEqual({ x: 960, y: 370, width, height })
+    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://dragend')
+    cursor = { x: 50, y: 50 }
+    vi.advanceTimersByTime(32)
+    expect(window.getBounds()).toEqual({ x: 960, y: 370, width, height })
+  })
+
+  it('rejects an oversized drag grab offset', () => {
+    const electron = fakeElectron()
+    Object.assign(electron.screen!, { getCursorScreenPoint: () => ({ x: 100, y: 100 }) })
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    const before = window.getBounds()
+    window.webContents.emit(
+      'will-navigate',
+      { preventDefault: () => {} },
+      'dsh-pet-hutao://dragstart?ox=99999&oy=0',
+    )
+    vi.advanceTimersByTime(16)
+    expect(window.getBounds()).toEqual(before)
   })
 
   it('surfaces renderer Live2D failures through the plugin log', () => {

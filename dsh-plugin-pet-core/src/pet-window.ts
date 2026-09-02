@@ -34,7 +34,10 @@ export interface PetBrowserWindow {
   setBounds(bounds: PetRectangle): void
   setPosition(x: number, y: number): void
   setAlwaysOnTop(flag: boolean, level?: string): void
-  setVisibleOnAllWorkspaces(visible: boolean, options?: { visibleOnFullScreen?: boolean }): void
+  setVisibleOnAllWorkspaces(visible: boolean, options?: {
+    visibleOnFullScreen?: boolean
+    skipTransformProcessType?: boolean
+  }): void
   webContents: {
     on(event: string, listener: (...args: never[]) => void): void
     setWindowOpenHandler(handler: () => { action: string }): void
@@ -191,8 +194,10 @@ const WORK_AREA_MARGIN_PX = 8
 export const PET_SPEECH_SLOT_PX = 80
 /** Per-message cap for renderer-driven drag deltas. */
 const MANUAL_MOVE_MAX_PX = 64
+/** Reject grab offsets outside the pet window (plus a small margin). */
+const DRAG_GRAB_MAX_PX = 4096
 const POSITION_SAVE_DEBOUNCE_MS = 600
-/** OS cursor polling cadence for screen-wide look-at tracking. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
 const CURSOR_TRACK_MS = 16
 
 interface PetPositionFile {
@@ -236,6 +241,18 @@ function petLayoutSize(character: PetCharacterDocument, scale: number): { width:
     width: Math.round(character.baseSize.width * scale),
     height: Math.round(character.baseSize.height * scale) + PET_SPEECH_SLOT_PX,
   }
+}
+
+/** Overlay flags that keep the pet on every Space, including fullscreen. */
+const PET_ALL_WORKSPACES = Object.freeze({
+  visibleOnFullScreen: true,
+  skipTransformProcessType: true,
+})
+
+/** Pin the pet above other windows and onto every macOS Space / Linux workspace. */
+function pinPetAcrossWorkspaces(window: PetBrowserWindow): void {
+  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setVisibleOnAllWorkspaces(true, PET_ALL_WORKSPACES)
 }
 
 function defaultBounds(character: PetCharacterDocument, workArea: PetRectangle | undefined): PetRectangle {
@@ -291,6 +308,9 @@ export class PetWindowController {
   private saveTimer: ReturnType<typeof setTimeout> | undefined
   private cursorTimer: ReturnType<typeof setInterval> | undefined
   private lastCursor: { x: number, y: number } | undefined
+  /** Grab offset while the Host follows the OS cursor during a drag. */
+  private dragGrab: { ox: number, oy: number } | undefined
+  private dragTimer: ReturnType<typeof setInterval> | undefined
   /** Designed content size; never re-read from getBounds during drag (DPI drift). */
   private layoutWidth = 0
   private layoutHeight = 0
@@ -357,6 +377,7 @@ export class PetWindowController {
       focusable: false,
       acceptFirstMouse: true,
       alwaysOnTop: true,
+      ...(process.platform === 'darwin' ? { type: 'panel' } : {}),
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
@@ -369,10 +390,7 @@ export class PetWindowController {
     })
     this.window = window
     this.pageReady = false
-    window.setAlwaysOnTop(true, 'screen-saver')
-    // macOS pins a window to the Space it was created on until it joins all
-    // workspaces; visibleOnFullScreen keeps the pet over fullscreen Spaces too.
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    pinPetAcrossWorkspaces(window)
     const lockZoom = window.webContents.setVisualZoomLevelLimits
     if (typeof lockZoom === 'function') void lockZoom.call(window.webContents, 1, 1)
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -383,12 +401,16 @@ export class PetWindowController {
     window.once('ready-to-show', () => {
       if (!this.disposed && this.window === window && !window.isDestroyed()) {
         window.show()
+        // macOS assigns a Space at show time; re-pin so Mission Control
+        // switches keep the pet instead of leaving it on the creation Space.
+        pinPetAcrossWorkspaces(window)
         this.startCursorTracking()
       }
     })
     window.on('closed', () => {
       if (this.window === window) this.window = undefined
       this.pageReady = false
+      this.stopManualDrag(false)
       this.stopCursorTracking()
     })
     window.on('moved', () => { this.schedulePositionSave() })
@@ -402,6 +424,7 @@ export class PetWindowController {
 
   /** Close the current window, if any. */
   close(): void {
+    this.stopManualDrag(false)
     this.flushPositionSave()
     this.stopCursorTracking()
     const window = this.window
@@ -601,6 +624,14 @@ export class PetWindowController {
       this.options.onCommand('hide')
       return
     }
+    if (command === 'dragstart') {
+      this.startManualDrag(url.searchParams.get('ox'), url.searchParams.get('oy'))
+      return
+    }
+    if (command === 'dragend' && url.search === '') {
+      this.stopManualDrag(true)
+      return
+    }
     if (command === 'move') {
       this.handleManualMove(url.searchParams.get('dx'), url.searchParams.get('dy'))
       return
@@ -618,10 +649,12 @@ export class PetWindowController {
    * persists the resulting position.
    */
   private handleManualMove(rawDx: string | null, rawDy: string | null): void {
-    const dx = Number.parseInt(rawDx ?? '', 10)
-    const dy = Number.parseInt(rawDy ?? '', 10)
-    if (Number.isNaN(dx) || Number.isNaN(dy)) return
-    if (Math.abs(dx) > MANUAL_MOVE_MAX_PX || Math.abs(dy) > MANUAL_MOVE_MAX_PX) return
+    const parsedDx = Number.parseInt(rawDx ?? '', 10)
+    const parsedDy = Number.parseInt(rawDy ?? '', 10)
+    if (Number.isNaN(parsedDx) || Number.isNaN(parsedDy)) return
+    const dx = clamp(parsedDx, -MANUAL_MOVE_MAX_PX, MANUAL_MOVE_MAX_PX)
+    const dy = clamp(parsedDy, -MANUAL_MOVE_MAX_PX, MANUAL_MOVE_MAX_PX)
+    if (dx === 0 && dy === 0) return
     const window = this.window
     if (window === undefined || window.isDestroyed()) return
     const bounds = window.getBounds()
@@ -637,6 +670,56 @@ export class PetWindowController {
     // Pin the designed size every tick. Reading getBounds().width on Windows
     // HiDPI and writing it back makes the frameless window grow, which the
     // 100%-wide canvas then paints as the pet zooming while you drag.
+    window.setBounds({ x: next.x, y: next.y, width, height })
+  }
+
+  /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
+  private startManualDrag(rawOx: string | null, rawOy: string | null): void {
+    const ox = Number.parseInt(rawOx ?? '', 10)
+    const oy = Number.parseInt(rawOy ?? '', 10)
+    if (Number.isNaN(ox) || Number.isNaN(oy)) return
+    if (Math.abs(ox) > DRAG_GRAB_MAX_PX || Math.abs(oy) > DRAG_GRAB_MAX_PX) return
+    if (!this.isOpen()) return
+    this.dragGrab = { ox, oy }
+    this.stopCursorTracking()
+    if (this.dragTimer === undefined) {
+      this.dragTimer = setInterval(() => { this.tickManualDrag() }, CURSOR_TRACK_MS)
+    }
+    this.tickManualDrag()
+  }
+
+  /**
+   * @param resumeLookAt - restore screen-wide look-at after a user drag ends.
+   *   Closing the window passes false so a disposed controller does not restart
+   *   the cursor poller.
+   */
+  private stopManualDrag(resumeLookAt: boolean): void {
+    if (this.dragTimer !== undefined) {
+      clearInterval(this.dragTimer)
+      this.dragTimer = undefined
+    }
+    this.dragGrab = undefined
+    if (resumeLookAt && this.isVisible()) this.startCursorTracking()
+  }
+
+  private tickManualDrag(): void {
+    const grab = this.dragGrab
+    const window = this.window
+    if (grab === undefined || window === undefined || window.isDestroyed()) {
+      this.stopManualDrag(false)
+      return
+    }
+    const point = this.options.electron.screen?.getCursorScreenPoint?.()
+    if (point === undefined) return
+    const width = this.layoutWidth
+    const height = this.layoutHeight
+    const next = this.clampToWorkArea(
+      point.x - grab.ox,
+      point.y - grab.oy,
+      width,
+      height,
+      this.options.electron.screen,
+    )
     window.setBounds({ x: next.x, y: next.y, width, height })
   }
 

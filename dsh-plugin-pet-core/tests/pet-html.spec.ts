@@ -48,6 +48,7 @@ describe('pet.html renderer contract', () => {
 
   it('renders transparently for the WebGL canvas', () => {
     expect(page).toContain('background: transparent')
+    expect(page).toContain('touch-action: none')
     expect(page).toContain('.pet-wrap canvas')
     expect(page).toContain('max-width: 100%')
     expect(page).toContain('align-items: flex-end')
@@ -59,13 +60,17 @@ describe('pet.html renderer contract', () => {
 
   it('drags via the private scheme instead of app-region', () => {
     expect(page).not.toContain('-webkit-app-region')
-    expect(page).toContain("'://move?dx='")
+    expect(page).toContain("'://' + path")
+    expect(page).toContain('dragstart?ox=')
+    expect(page).toContain('dragend')
+    expect(page).toContain('setPointerCapture')
     expect(page).toContain('DRAG_THRESHOLD_PX')
-    expect(page).toContain('MOVE_MAX_PER_MESSAGE')
     expect(page).toContain('DBLCLICK_MS')
     expect(page).toContain('wasDragging')
     expect(page).toContain('dragging')
-    expect(page).toContain('movementX')
+    expect(page).toContain('pointerdown')
+    expect(page).toContain('pointermove')
+    expect(page).toContain('pointerup')
     expect(page).toContain('tapFace')
     expect(page).toContain('playSpecial')
     expect(page).toContain('contextmenu')
@@ -77,6 +82,8 @@ describe('pet.html renderer contract', () => {
     expect(page).not.toContain('pickExpression')
     expect(page).not.toContain('CLICK_EXPRESSIONS')
     expect(page).not.toContain('STATE_EXPRESSIONS')
+    expect(page).not.toContain('MOVE_MAX_PER_MESSAGE')
+    expect(page).not.toContain('queueMoveDispatch')
   })
 
   it('honors reduced-motion preferences for the bubble', () => {
