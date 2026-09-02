@@ -13,7 +13,7 @@ import { installDesktopOwnedStyles } from './styles.ts'
 import { installExtendedStyles } from './extended-styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
 import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
-import { desktopDrawerInject, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
+import { desktopDrawerInject, injectDesktopComposerBranch, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -54,6 +54,7 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     }),
   }, DesktopFrameTitlebar))
   injectDesktopRightSidebarToggle(ctx)
+  injectDesktopComposerBranch(ctx)
   ctx.effect(() => ctx.slots.register({
     name: 'root',
     children: {

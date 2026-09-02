@@ -87,3 +87,19 @@ export async function requestDesktopWorkspaceChanges(query: DesktopChangesQuery)
     ...(body.truncated === true ? { truncated: true } : {}),
   }
 }
+
+/** Read the current git branch without listing files or patches.
+ * Uses the last-turn view with no paths so the Host only runs `rev-parse`.
+ * @param root - workspace directory already admitted by the Host route.
+ * @param signal - optional abort for unmount or workspace switch.
+ * @returns the branch name, or undefined when the directory is not a repository.
+ */
+export async function requestDesktopWorkspaceBranch(root: string, signal?: AbortSignal): Promise<string | undefined> {
+  const summary = await requestDesktopWorkspaceChanges({
+    root,
+    view: 'agent-turn',
+    ...(signal === undefined ? {} : { signal }),
+  })
+  if (summary.repository !== true || summary.branch === '') return undefined
+  return summary.branch
+}

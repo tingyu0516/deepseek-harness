@@ -19,7 +19,7 @@ import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
 import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
-import { desktopDrawerInject, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
+import { desktopDrawerInject, injectDesktopComposerBranch, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
 
 /** Own the extended root/sidebar surface without reusing enhanced-mode chrome. */
 function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -105,6 +105,7 @@ export function applyFramedShell(
     }),
   }, DesktopFrameTitlebar))
   injectDesktopRightSidebarToggle(ctx)
+  injectDesktopComposerBranch(ctx)
 }
 
 /** Compose the extended-owned layout beneath its independent Desktop frame. */

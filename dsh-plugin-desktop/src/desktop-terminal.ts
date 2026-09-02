@@ -12,6 +12,7 @@ import {
 } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, dirname, join, win32 } from 'node:path'
+import { resolveMacRunAsNodeExecutable } from './desktop-terminal-mac-node.ts'
 import { assertDesktopProfileName } from './profile-manager.ts'
 
 const RUN_AS_NODE = 'ELECTRON_RUN_AS_NODE'
@@ -480,9 +481,10 @@ function prepareDesktopTerminalFiles(options: DesktopTerminalProfileOptions): De
       welcomePath: join(options.stateDir, 'welcome.command'),
     }
     const bashRcPath = join(options.stateDir, 'bashrc')
-    replacePrivateFile(files.dshShimPath, macDshShim(options), EXECUTABLE_FILE_MODE)
-    replacePrivateFile(files.pnpmShimPath, macPnpmShim(options), EXECUTABLE_FILE_MODE)
-    replacePrivateFile(files.nodeShimPath, macShim(options.appExecutable), EXECUTABLE_FILE_MODE)
+    const runAsNodeExecutable = resolveMacRunAsNodeExecutable(options.appExecutable)
+    replacePrivateFile(files.dshShimPath, macDshShim({ ...options, appExecutable: runAsNodeExecutable }), EXECUTABLE_FILE_MODE)
+    replacePrivateFile(files.pnpmShimPath, macPnpmShim({ ...options, appExecutable: runAsNodeExecutable }), EXECUTABLE_FILE_MODE)
+    replacePrivateFile(files.nodeShimPath, macShim(runAsNodeExecutable), EXECUTABLE_FILE_MODE)
     replacePrivateFile(join(options.stateDir, '.zshrc'), macZshRc(options, shimDir), PRIVATE_FILE_MODE)
     replacePrivateFile(bashRcPath, macBashRc(options, shimDir), PRIVATE_FILE_MODE)
     replacePrivateFile(files.welcomePath, macWelcome(options, shimDir, bashRcPath), EXECUTABLE_FILE_MODE)

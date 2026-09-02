@@ -1,9 +1,10 @@
 import { Terminal } from '@xterm/xterm'
-import { ChevronRight, FileDiff, FileText, Folder, FolderOpen, FolderTree, Plus, SquareTerminal, X } from 'lucide-react'
+import { FileDiff, FolderTree, Plus, SquareTerminal, X } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { DesktopChangesPanel } from './ChangesPanel.tsx'
+import { DesktopFileManager } from './FileManager.tsx'
 import {
   BASE_DRAWER_TABS,
   INITIAL_DRAWER_TAB_KEY,
@@ -20,7 +21,6 @@ import {
 export const DESKTOP_TERMINAL_CHANNEL_PROTOCOL = 'dsh-desktop-terminal-v1'
 const DESKTOP_TERMINAL_CHANNEL_PATH = '/api/desktop/terminal/channel'
 const DESKTOP_WORKSPACE_TREE_PATH = '/api/desktop/workspace-tree'
-const DESKTOP_WORKSPACE_FILE_PATH = '/api/desktop/workspace-file'
 
 export interface TerminalWebSocketResizeMessage {
   readonly type: 'resize'
@@ -130,135 +130,6 @@ function snapshot(): boolean { return open }
 
 export function useDesktopTerminalDrawerOpen(): boolean {
   return useSyncExternalStore(subscribe, snapshot, () => false)
-}
-
-function FileManager({ listDirectory }: { readonly listDirectory?: DesktopTerminalDrawerProps['listDirectory'] }) {
-  const [directories, setDirectories] = useState<Record<string, DesktopWorkspaceListing>>({})
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
-  const [loading, setLoading] = useState<Set<string>>(() => new Set())
-  const [directoryErrors, setDirectoryErrors] = useState<Record<string, string>>({})
-  const [rootPath, setRootPath] = useState<string>()
-  const [selected, setSelected] = useState<DesktopFileEntry>()
-  const [content, setContent] = useState<string>()
-  const [fileError, setFileError] = useState<string>()
-
-  const loadDirectory = useCallback(async (path?: string): Promise<void> => {
-    if (listDirectory === undefined) {
-      setDirectoryErrors(previous => ({ ...previous, root: 'Workspace directory is unavailable' }))
-      return
-    }
-    const key = path ?? 'root'
-    setLoading(previous => new Set(previous).add(key))
-    setDirectoryErrors(previous => {
-      const next = { ...previous }
-      delete next[key]
-      return next
-    })
-    try {
-      const listing = await listDirectory(path)
-      setDirectories(previous => ({ ...previous, [listing.path]: listing }))
-      if (path === undefined) setRootPath(listing.path)
-    } catch (cause: unknown) {
-      if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
-        setDirectoryErrors(previous => ({ ...previous, [key]: cause instanceof Error ? cause.message : String(cause) }))
-      }
-    } finally {
-      setLoading(previous => {
-        const next = new Set(previous)
-        next.delete(key)
-        return next
-      })
-    }
-  }, [listDirectory])
-
-  useEffect(() => { void loadDirectory() }, [loadDirectory])
-
-  useEffect(() => {
-    if (selected === undefined) return
-    const controller = new AbortController()
-    setContent(undefined)
-    setFileError(undefined)
-    fetch(`${DESKTOP_WORKSPACE_FILE_PATH}?path=${encodeURIComponent(selected.path)}`, { signal: controller.signal })
-      .then(async response => {
-        const value: unknown = await response.json()
-        if (!response.ok || typeof value !== 'object' || value === null || !('content' in value) || typeof value.content !== 'string') {
-          const message = typeof value === 'object' && value !== null && 'error' in value && typeof value.error === 'string'
-            ? value.error
-            : 'Unable to read file'
-          throw new Error(message)
-        }
-        return value.content
-      })
-      .then(setContent)
-      .catch((cause: unknown) => {
-        if (!(cause instanceof DOMException && cause.name === 'AbortError')) setFileError(cause instanceof Error ? cause.message : String(cause))
-      })
-    return () => controller.abort()
-  }, [selected])
-
-  const toggleDirectory = (entry: DesktopFileEntry): void => {
-    if (entry.kind !== 'directory') return
-    setExpanded(previous => {
-      const next = new Set(previous)
-      if (next.has(entry.path)) next.delete(entry.path)
-      else next.add(entry.path)
-      return next
-    })
-    if (directories[entry.path] === undefined) void loadDirectory(entry.path)
-  }
-
-  const renderEntries = (entries: readonly DesktopFileEntry[], depth: number): JSX.Element[] => entries.map(entry => {
-    const isExpanded = expanded.has(entry.path)
-    const childListing = directories[entry.path]
-    const pending = loading.has(entry.path)
-    return (
-      <div key={entry.path} className="dshDesktopFileTreeNode">
-        <button
-          type="button"
-          className="dshDesktopFileTreeEntry"
-          data-kind={entry.kind}
-          data-hidden={entry.hidden || undefined}
-          style={{ paddingLeft: `${8 + depth * 16}px` }}
-          onClick={() => entry.kind === 'directory' ? toggleDirectory(entry) : setSelected(entry)}
-        >
-          {entry.kind === 'directory'
-            ? (isExpanded ? <ChevronRight className="is-expanded" size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />)
-            : <span className="dshDesktopFileTreeIndent" aria-hidden="true" />}
-          {entry.kind === 'directory'
-            ? (isExpanded ? <FolderOpen size={15} aria-hidden="true" /> : <Folder size={15} aria-hidden="true" />)
-            : <FileText size={14} aria-hidden="true" />}
-          <span>{entry.name}</span>
-        </button>
-        {entry.kind === 'directory' && isExpanded && (
-          <>
-            {pending && <div className="dshDesktopFileTreeStatus" style={{ paddingLeft: `${24 + depth * 16}px` }}>Loading...</div>}
-            {directoryErrors[entry.path] !== undefined && <div className="dshDesktopFileTreeStatus is-error" style={{ paddingLeft: `${24 + depth * 16}px` }}>{directoryErrors[entry.path]}</div>}
-            {childListing !== undefined && renderEntries(childListing.entries, depth + 1)}
-          </>
-        )}
-      </div>
-    )
-  })
-
-  const rootListing = rootPath === undefined ? undefined : directories[rootPath]
-  return (
-    <div className="dshDesktopFileManager">
-      <main className="dshDesktopFileManagerContent">
-        {selected !== undefined && <>
-          <div className="dshDesktopFileManagerPath">{selected.path}</div>
-          {fileError !== undefined && <div className="dshDesktopFileManagerError" role="alert">{fileError}</div>}
-          {fileError === undefined && content === undefined && <div className="dshDesktopFileManagerStatus">Loading...</div>}
-          {fileError === undefined && content !== undefined && <pre>{content}</pre>}
-        </>}
-      </main>
-      <aside className="dshDesktopFileManagerTree" aria-label="Workspace files">
-        <div className="dshDesktopFileManagerTreeHeader"><FolderTree size={15} aria-hidden="true" /><strong>{rootPath ?? 'Workspace'}</strong></div>
-        {directoryErrors.root !== undefined && <div className="dshDesktopFileTreeStatus is-error" role="alert">{directoryErrors.root}</div>}
-        {rootListing !== undefined && renderEntries(rootListing.entries, 0)}
-        {rootListing?.truncated === true && <div className="dshDesktopFileTreeStatus">Some entries are hidden</div>}
-      </aside>
-    </div>
-  )
 }
 
 interface TerminalSessionProps {
@@ -475,7 +346,7 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
         const key = drawerTabKey(tab)
         return (
           <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
-            <FileManager listDirectory={listDirectory} />
+            <DesktopFileManager listDirectory={listDirectory} />
           </div>
         )
       })}
