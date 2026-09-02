@@ -102,6 +102,7 @@ interface PetTrayCopy {
   readonly wave: string
   readonly eventReactions: string
   readonly idleChatter: string
+  readonly scale: string
 }
 
 const TRAY_COPY: Readonly<Record<'zh' | 'en', PetTrayCopy>> = Object.freeze({
@@ -111,6 +112,7 @@ const TRAY_COPY: Readonly<Record<'zh' | 'en', PetTrayCopy>> = Object.freeze({
     wave: '打个招呼',
     eventReactions: '响应会话与任务',
     idleChatter: '闲聊台词',
+    scale: '大小',
   }),
   en: Object.freeze({
     pet: 'Pet',
@@ -118,8 +120,13 @@ const TRAY_COPY: Readonly<Record<'zh' | 'en', PetTrayCopy>> = Object.freeze({
     wave: 'Say hello',
     eventReactions: 'React to sessions and jobs',
     idleChatter: 'Idle chatter',
+    scale: 'Size',
   }),
 })
+
+function scaleMenuLabel(copy: PetTrayCopy, scale: (typeof PET_SCALES)[number]): string {
+  return `${copy.scale} ${String(Math.round(scale * 100))}%`
+}
 
 type ReactionState = 'work' | 'cheer' | 'sad' | 'idle'
 const REACTION_CATEGORIES: Readonly<Record<Exclude<ReactionState, 'idle'>, PetLineCategory>> = Object.freeze({
@@ -294,6 +301,13 @@ export function createPetPlugin(options: PetPluginOptions): {
             checked: () => settings.idleChatter,
             invoke: () => { applySetting({ idleChatter: !settings.idleChatter }) },
           },
+          ...PET_SCALES.map(scale => ({
+            type: 'radio' as const,
+            label: () => scaleMenuLabel(trayCopy(), scale),
+            checked: () => settings.scale === scale,
+            enabled: () => settings.enabled,
+            invoke: () => { applySetting({ scale }) },
+          })),
         ],
       })
       ctx.effect(() => () => { trayRegistration?.dispose() }, `${options.pluginName}: tray item`)

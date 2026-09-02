@@ -202,6 +202,15 @@
     if (next === 'idle') scheduleChatter();
     else clearChatter();
   }
+  function overPet(clientX, clientY) {
+    var hide = hideButton;
+    if (hide) {
+      var r = hide.getBoundingClientRect();
+      if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return true;
+    }
+    var rt = runtime();
+    return !!(rt && typeof rt.coversPoint === 'function' && rt.coversPoint(clientX, clientY));
+  }
   function tapFace(clientX, clientY) {
     var rt = runtime();
     if (rt && typeof rt.tap === 'function') {
@@ -287,6 +296,7 @@
   document.addEventListener('pointerdown', function (e) {
     if (!character || e.button !== 0) return;
     if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    if (!overPet(e.clientX, e.clientY)) return;
     downX = e.clientX;
     downY = e.clientY;
     armed = true;
@@ -316,6 +326,7 @@
     resetDrag();
     if (!character || wasDragging) return;
     if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    if (!overPet(e.clientX, e.clientY)) return;
     var now = Date.now();
     var dxu = e.clientX - lastUpX;
     var dyu = e.clientY - lastUpY;
@@ -342,6 +353,7 @@
     e.preventDefault();
     if (!character) return;
     if (e.target === hideButton || (hideButton.contains && hideButton.contains(e.target))) return;
+    if (!overPet(e.clientX, e.clientY)) return;
     enter('pat', pick('pat'), 3200);
   });
   function dispatch(payload) {

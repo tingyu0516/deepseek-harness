@@ -1,6 +1,6 @@
 import { spawnSync, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { lstatSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import {
   type DesktopTerminalOptions,
   type DesktopTerminalSpawn,
 } from '../src/desktop-terminal.ts'
+import { macPluginHelperExecutable, resolveMacRunAsNodeExecutable } from '../src/desktop-terminal-mac-node.ts'
 
 const temporaryDirectories: string[] = []
 
@@ -215,6 +216,31 @@ describe('desktop terminal environment', () => {
       electron_run_as_node: 'inherited-node-mode',
       KEEP: 'value',
     })
+  })
+
+  it('runs macOS Node-mode shims through the LSUIElement Plugin helper', () => {
+    const root = temporaryDirectory()
+    const appExecutable = join(root, 'DSH Desktop.app', 'Contents', 'MacOS', 'DSH Desktop')
+    const helper = macPluginHelperExecutable(appExecutable)
+    mkdirSync(dirname(appExecutable), { recursive: true })
+    mkdirSync(dirname(helper), { recursive: true })
+    writeFileSync(appExecutable, '')
+    writeFileSync(helper, '')
+
+    expect(resolveMacRunAsNodeExecutable(appExecutable)).toBe(helper)
+
+    const stateDir = join(root, 'terminal-state')
+    const harness = spawnHarness()
+    const options = macOptions(stateDir, harness.spawn)
+    options.appExecutable = appExecutable
+    const launch = openDesktopTerminal(options)
+    const nodeShim = readFileSync(launch.nodeShimPath, 'utf8')
+    const dshShim = readFileSync(launch.dshShimPath, 'utf8')
+    const pnpmShim = readFileSync(launch.pnpmShimPath, 'utf8')
+    expect(nodeShim).toContain(`ELECTRON_RUN_AS_NODE=1 exec '${helper}'`)
+    expect(nodeShim).not.toContain(`exec '${appExecutable}'`)
+    expect(dshShim).toContain(`exec '${helper}' --expose-internals`)
+    expect(pnpmShim).toContain(`exec '${helper}' '`)
   })
 
   it('generates Windows batch shims and opens PowerShell through a visible-console broker', () => {

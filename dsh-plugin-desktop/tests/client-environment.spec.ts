@@ -7,6 +7,7 @@ import { applyAdvancedShell } from '../src/client/advanced-shell.ts'
 import { provideDesktopLayout } from '../src/client/layout-service.ts'
 import { parseDesktopClientEnvironment } from '../src/client/environment.ts'
 import { ExtendedFrame } from '../src/client/ExtendedFrame.tsx'
+import { DesktopComposerBranch } from '../src/client/ComposerBranch.tsx'
 import { DesktopSessionTerminalAction } from '../src/client/DesktopSessionTerminalAction.tsx'
 import { applyExtendedShell, applyFramedShell } from '../src/client/extended-shell.ts'
 import { installExtendedStyles } from '../src/client/extended-styles.ts'
@@ -93,6 +94,8 @@ describe('advanced desktop layout', () => {
     const drawerInject = readFileSync(new URL('../src/client/desktop-drawer-inject.ts', import.meta.url), 'utf8')
     expect(drawerInject).toContain("name: 'conversation.session.header.utilities'")
     expect(drawerInject).toContain("id: 'desktop-right-sidebar'")
+    expect(drawerInject).toContain("name: 'conversation.input.dock'")
+    expect(drawerInject).toContain("id: 'desktop-composer-branch'")
     const action = readFileSync(new URL('../src/client/DesktopSessionTerminalAction.tsx', import.meta.url), 'utf8')
     expect(action).toContain('PanelRight')
     expect(action).toContain('Toggle right sidebar')
@@ -134,6 +137,7 @@ describe('advanced desktop layout', () => {
       expect(css).toMatch(/\.dshDesktopTerminalDrawer \{[^}]*isolation: isolate;[^}]*background: var\(--dsw-alias-bg-base\);/)
       expect(css).toContain('.dshDesktopChangesToolbar')
       expect(css).toContain('.dshDesktopChangesMenu')
+      expect(css).toContain('.dshDesktopComposerBranch')
       expect(css).toMatch(/\.dshDesktopTerminalSurface \{[^}]*grid-column: 4;[^}]*background: var\(--dsw-alias-bg-base\);/)
       expect(css).not.toContain('.dshDesktopFrame .dshDesktopTerminalDrawer { background: transparent; border-left: none; }')
       expect(css).not.toMatch(/\.dshDesktopTerminalDrawer \{[^}]*background: var\(--dsw-alias-bg-layer-1\)/)
@@ -269,7 +273,7 @@ describe('advanced desktop layout', () => {
       expect(rootInject).toMatchObject({ platform: 'darwin' })
       expect(rootInject).not.toHaveProperty('mode')
       expect(registrations.map(row => row.id)).toEqual([
-        'desktop-terminal-drawer', 'desktop-advanced-titlebar', 'desktop-right-sidebar', undefined,
+        'desktop-terminal-drawer', 'desktop-advanced-titlebar', 'desktop-right-sidebar', 'desktop-composer-branch', undefined,
       ])
       expect(registrations.find(row => row.id === 'desktop-right-sidebar')).toMatchObject({
         name: 'conversation.session.header.utilities',
@@ -550,7 +554,7 @@ describe('independent Desktop frame', () => {
       expect(rootInject).not.toHaveProperty('mode')
       expect(occupants[0]).toBe(ExtendedFrame)
       expect(registrations.map(row => row.id)).toEqual([
-        undefined, 'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar',
+        undefined, 'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar', 'desktop-composer-branch',
       ])
       expect(registrations[2]).toMatchObject({
         name: 'shell.overlay',
@@ -573,7 +577,13 @@ describe('independent Desktop frame', () => {
         getCwd: expect.any(Function),
       })
       expect(occupants[3]).toBe(DesktopSessionTerminalAction)
-      expect(registrations).toHaveLength(4)
+      expect(registrations[4]).toMatchObject({
+        name: 'conversation.input.dock',
+        id: 'desktop-composer-branch',
+        order: 30,
+      })
+      expect(occupants[4]).toBe(DesktopComposerBranch)
+      expect(registrations).toHaveLength(5)
       expect(dataset).toMatchObject({
         dshDesktopMode: 'extended',
         dshDesktopPlatform: 'win32',
@@ -629,9 +639,10 @@ describe('independent Desktop frame', () => {
         'shell.overlay',
         'shell.overlay',
         'conversation.session.header.utilities',
+        'conversation.input.dock',
       ])
       expect(registrations.map(row => row.id)).toEqual([
-        'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar',
+        'desktop-terminal-drawer', 'desktop-frame-titlebar', 'desktop-right-sidebar', 'desktop-composer-branch',
       ])
       expect(registrations[1]).toMatchObject({
         name: 'shell.overlay',

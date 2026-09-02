@@ -73,6 +73,7 @@ function petElectron(): PetElectron {
       setPosition(): void {}
       setAlwaysOnTop(): void {}
       setVisibleOnAllWorkspaces(): void {}
+      setIgnoreMouseEvents(): void {}
       webContents = {
         on(): void {},
         setWindowOpenHandler(): void {},
@@ -223,12 +224,17 @@ describe('createPetPlugin', () => {
     expect(trayItems).toHaveLength(1)
     expect(trayItems[0]!.label()).toBe('桌宠 · 芙宁娜')
     const submenu = trayItems[0]!.submenu!()
-    expect(submenu).toHaveLength(4)
+    expect(submenu).toHaveLength(8)
     expect(submenu[0]!.type).toBe('checkbox')
     expect(submenu[0]!.label()).toBe('显示桌宠')
     expect(submenu[0]!.checked!()).toBe(true)
     expect(submenu[1]!.label()).toBe('打个招呼')
     expect(submenu[1]!.enabled!()).toBe(true)
+    expect(submenu[4]!.type).toBe('radio')
+    expect(submenu[4]!.label()).toBe('大小 75%')
+    expect(submenu[5]!.label()).toBe('大小 100%')
+    expect(submenu[5]!.checked!()).toBe(true)
+    expect(submenu[5]!.enabled!()).toBe(true)
   })
 
   it('shows the companion checkbox unchecked for a persisted disabled pet', () => {
@@ -247,6 +253,7 @@ describe('createPetPlugin', () => {
     expect(submenu[0]!.label()).toBe('显示桌宠')
     expect(submenu[0]!.checked!()).toBe(false)
     expect(submenu[1]!.enabled!()).toBe(false)
+    expect(submenu[5]!.enabled!()).toBe(false)
   })
 
   it('localizes the tray label for English locales', () => {
@@ -265,6 +272,7 @@ describe('createPetPlugin', () => {
     const submenu = trayItems[0]!.submenu!()
     expect(submenu[0]!.label()).toBe('Show companion')
     expect(submenu[1]!.label()).toBe('Say hello')
+    expect(submenu[5]!.label()).toBe('Size 100%')
   })
 
   it('does not open the window when persisted settings disable the pet', () => {

@@ -62,15 +62,20 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopTerminalDrawerTabPane[hidden] { display: none; }
 .dshDesktopTerminalDrawerSession { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .dshDesktopFileManager { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 34%); flex: 1; min-height: 0; }
-.dshDesktopFileManagerContent { min-width: 0; min-height: 0; overflow: auto; border-right: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopFileManagerContent { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopFileManagerToolbar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopFileManagerToolbar .dshDesktopFileManagerPath { flex: 1; min-width: 0; padding: 0; border: 0; }
 .dshDesktopFileManagerPath { padding: 10px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dshDesktopFileManagerContent pre { margin: 0; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopFileManagerDirty { flex: none; color: var(--dsw-alias-label-secondary); font-size: 11px; }
+.dshDesktopFileManagerSave { flex: none; min-height: 24px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; cursor: pointer; }
+.dshDesktopFileManagerSave:disabled { opacity: 0.5; cursor: default; }
+.dshDesktopFileManagerEditor { flex: 1; min-height: 0; width: 100%; margin: 0; padding: 12px; border: 0; resize: none; color: inherit; background: transparent; outline: none; white-space: pre; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .dshDesktopFileManagerTree { min-width: 0; overflow: auto; padding: 8px; }
 .dshDesktopFileManagerTreeHeader { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px 8px; font-size: 12px; }
 .dshDesktopFileManagerTreeHeader strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshDesktopFileTreeNode { min-width: 0; }
 .dshDesktopFileTreeEntry { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding-top: 4px; padding-right: 6px; padding-bottom: 4px; border: 0; color: var(--dsw-alias-label-primary); background: transparent; text-align: left; cursor: pointer; }
-.dshDesktopFileTreeEntry:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dshDesktopFileTreeEntry:hover, .dshDesktopFileTreeEntry[aria-current="true"] { background: var(--dsw-alias-interactive-bg-hover); }
 .dshDesktopFileTreeEntry[data-hidden] { color: var(--dsw-alias-label-secondary); }
 .dshDesktopFileTreeEntry svg:first-child { flex: none; }
 .dshDesktopFileTreeEntry svg.is-expanded { transform: rotate(90deg); }
@@ -104,6 +109,8 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopChangesRow { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 0 8px; border: 0; color: var(--dsw-alias-label-primary); background: transparent; text-align: left; cursor: pointer; }
 .dshDesktopChangesRowName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshDesktopChangesRowMeta { margin-left: auto; flex: none; color: var(--dsw-alias-label-secondary); font: 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopComposerBranch { box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: calc(100% - var(--dsh-composer-side-clearance, 0px) * 2 - var(--dsh-composer-dock-inset, 0px) * 4); max-width: calc(var(--dsh-composer-card-max-width, 800px) - 4 * var(--dsh-composer-dock-inset, 0px)); min-height: 24px; margin: 0 auto; padding: 0 12px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.2; }
+.dshDesktopComposerBranch span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .dshDesktopResizeHandle { position: absolute; z-index: 50; top: 0; bottom: 0; width: 8px; margin-left: -4px; cursor: col-resize; touch-action: none; -webkit-app-region: no-drag; }
 .dshDesktopFrame[data-dragging] .dshDesktopResizeHandle { transition: none; }
 .dshDesktopNoDrag, button, input, textarea, select, label, summary, a, [contenteditable="true"], [role="button"], [role="checkbox"], [role="dialog"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"] { -webkit-app-region: no-drag !important; }

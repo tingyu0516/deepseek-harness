@@ -537,9 +537,14 @@ const PET_ALL_WORKSPACES = Object.freeze({
 	visibleOnFullScreen: true,
 	skipTransformProcessType: true
 });
+/**
+* Above ordinary windows, below the macOS Dock (NSDockWindowLevel ≈ 20).
+* `screen-saver` sits at 1000 and paints over the Dock.
+*/
+const PET_ALWAYS_ON_TOP_LEVEL = "floating";
 /** Pin the pet above other windows and onto every macOS Space / Linux workspace. */
 function pinPetAcrossWorkspaces(window) {
-	window.setAlwaysOnTop(true, "screen-saver");
+	window.setAlwaysOnTop(true, PET_ALWAYS_ON_TOP_LEVEL);
 	window.setVisibleOnAllWorkspaces(true, PET_ALL_WORKSPACES);
 }
 /**
@@ -602,6 +607,10 @@ var PetWindowController = class {
 	/** Designed content size; never re-read from getBounds during drag (DPI drift). */
 	layoutWidth = 0;
 	layoutHeight = 0;
+	/** Latest mesh/hide-button hit from the cursor poller. */
+	pointerOnPet = false;
+	/** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
+	ignoringMouse;
 	constructor(options) {
 		this.options = options;
 	}
@@ -638,7 +647,7 @@ var PetWindowController = class {
 		}).workArea;
 		const restored = readPosition(this.options.statePath);
 		const fallback = defaultBounds(this.options.character, primary);
-		const bounds = restored === void 0 ? fallback : this.clampToWorkArea(restored.x, restored.y, fallback.width, fallback.height, screen);
+		const bounds = restored === void 0 ? fallback : this.clampToDisplay(restored.x, restored.y, fallback.width, fallback.height, screen);
 		this.layoutWidth = bounds.width;
 		this.layoutHeight = bounds.height;
 		const window = new BrowserWindow({
@@ -686,6 +695,7 @@ var PetWindowController = class {
 		window.once("ready-to-show", () => {
 			if (!this.disposed && this.window === window && !window.isDestroyed()) {
 				presentPetWindow(window);
+				this.syncClickThrough();
 				this.startCursorTracking();
 			}
 		});
@@ -714,6 +724,8 @@ var PetWindowController = class {
 		this.pendingBoot = void 0;
 		this.live2dSpec = void 0;
 		this.bootGate = void 0;
+		this.pointerOnPet = false;
+		this.ignoringMouse = void 0;
 		if (window !== void 0 && !window.isDestroyed()) window.close();
 	}
 	/** Dispose permanently; the controller cannot be reopened afterwards. */
@@ -747,12 +759,7 @@ var PetWindowController = class {
 		const size = petLayoutSize(this.options.character, scale);
 		this.layoutWidth = size.width;
 		this.layoutHeight = size.height;
-		window.setBounds({
-			x: bounds.x,
-			y: bounds.y,
-			width: size.width,
-			height: size.height
-		});
+		window.setBounds(this.clampToDisplay(bounds.x, bounds.y, size.width, size.height, this.options.electron.screen));
 	}
 	/** Re-send the boot payload (for example after preference changes). */
 	reboot() {
@@ -872,8 +879,8 @@ var PetWindowController = class {
 	/**
 	* Renderer-driven drag: apply one incremental integer offset. The constant
 	* per-message cap keeps a rogue page from teleporting the window, and the
-	* work-area clamp keeps it reachable. The `moved` listener already debounce-
-	* persists the resulting position.
+	* display-bounds clamp keeps it on this screen (including over the Dock).
+	* The `moved` listener already debounce-persists the resulting position.
 	*/
 	handleManualMove(rawDx, rawDy) {
 		const parsedDx = Number.parseInt(rawDx ?? "", 10);
@@ -887,7 +894,7 @@ var PetWindowController = class {
 		const bounds = window.getBounds();
 		const width = this.layoutWidth || bounds.width;
 		const height = this.layoutHeight || bounds.height;
-		const next = this.clampToWorkArea(bounds.x + dx, bounds.y + dy, width, height, this.options.electron.screen);
+		const next = this.clampToDisplay(bounds.x + dx, bounds.y + dy, width, height, this.options.electron.screen);
 		window.setBounds({
 			x: next.x,
 			y: next.y,
@@ -907,6 +914,7 @@ var PetWindowController = class {
 			oy
 		};
 		this.stopCursorTracking();
+		this.syncClickThrough();
 		if (this.dragTimer === void 0) this.dragTimer = setInterval(() => {
 			this.tickManualDrag();
 		}, CURSOR_TRACK_MS);
@@ -923,6 +931,7 @@ var PetWindowController = class {
 			this.dragTimer = void 0;
 		}
 		this.dragGrab = void 0;
+		this.syncClickThrough();
 		if (resumeLookAt && this.isVisible()) this.startCursorTracking();
 	}
 	tickManualDrag() {
@@ -936,7 +945,7 @@ var PetWindowController = class {
 		if (point === void 0) return;
 		const width = this.layoutWidth;
 		const height = this.layoutHeight;
-		const next = this.clampToWorkArea(point.x - grab.ox, point.y - grab.oy, width, height, this.options.electron.screen);
+		const next = this.clampToDisplay(point.x - grab.ox, point.y - grab.oy, width, height, this.options.electron.screen);
 		window.setBounds({
 			x: next.x,
 			y: next.y,
@@ -985,24 +994,40 @@ var PetWindowController = class {
 			x,
 			y
 		};
-		this.run(`var rt = window.__dshPetLive2DRuntime; rt && rt.setPointer(${x}, ${y});`);
+		const code = `(function(){var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});var hide=document.getElementById('hide');if(hide){var r=hide.getBoundingClientRect();if(${x}>=r.left&&${x}<r.right&&${y}>=r.top&&${y}<r.bottom)return true;}return !!(rt&&rt.coversPoint&&rt.coversPoint(${x}, ${y}));})()`;
+		window.webContents.executeJavaScript(code, true).then((hit) => {
+			if (this.window !== window || window.isDestroyed()) return;
+			this.pointerOnPet = hit === true;
+			this.syncClickThrough();
+		}).catch(() => {});
 	}
-	clampToWorkArea(x, y, width, height, screen) {
-		const workArea = screen?.getDisplayMatching({
+	/** Capture clicks only on the model (or while dragging); empty pixels click through. */
+	syncClickThrough() {
+		const window = this.window;
+		if (window === void 0 || window.isDestroyed()) return;
+		const ignore = this.dragGrab === void 0 && !this.pointerOnPet;
+		if (this.ignoringMouse === ignore) return;
+		this.ignoringMouse = ignore;
+		if (ignore) window.setIgnoreMouseEvents(true, { forward: true });
+		else window.setIgnoreMouseEvents(false);
+	}
+	/** Keep the window on the matching display's full pixel bounds, not the Dock-excluding work area. */
+	clampToDisplay(x, y, width, height, screen) {
+		const area = screen?.getDisplayMatching({
 			x,
 			y,
 			width,
 			height
-		}).workArea;
-		if (workArea === void 0) return {
+		})?.bounds;
+		if (area === void 0) return {
 			x,
 			y,
 			width,
 			height
 		};
 		return {
-			x: clamp(x, workArea.x, Math.max(workArea.x, workArea.x + workArea.width - width - WORK_AREA_MARGIN_PX)),
-			y: clamp(y, workArea.y, Math.max(workArea.y, workArea.y + workArea.height - height - WORK_AREA_MARGIN_PX)),
+			x: clamp(x, area.x, Math.max(area.x, area.x + area.width - width - WORK_AREA_MARGIN_PX)),
+			y: clamp(y, area.y, Math.max(area.y, area.y + area.height - height - WORK_AREA_MARGIN_PX)),
 			width,
 			height
 		};
@@ -1059,16 +1084,21 @@ const TRAY_COPY = Object.freeze({
 		show: "显示桌宠",
 		wave: "打个招呼",
 		eventReactions: "响应会话与任务",
-		idleChatter: "闲聊台词"
+		idleChatter: "闲聊台词",
+		scale: "大小"
 	}),
 	en: Object.freeze({
 		pet: "Pet",
 		show: "Show companion",
 		wave: "Say hello",
 		eventReactions: "React to sessions and jobs",
-		idleChatter: "Idle chatter"
+		idleChatter: "Idle chatter",
+		scale: "Size"
 	})
 });
+function scaleMenuLabel(copy, scale) {
+	return `${copy.scale} ${String(Math.round(scale * 100))}%`;
+}
 const REACTION_CATEGORIES = Object.freeze({
 	work: "work",
 	cheer: "cheer",
@@ -1225,7 +1255,16 @@ function createPetPlugin(options) {
 						invoke: () => {
 							applySetting({ idleChatter: !settings.idleChatter });
 						}
-					}
+					},
+					...PET_SCALES.map((scale) => ({
+						type: "radio",
+						label: () => scaleMenuLabel(trayCopy(), scale),
+						checked: () => settings.scale === scale,
+						enabled: () => settings.enabled,
+						invoke: () => {
+							applySetting({ scale });
+						}
+					}))
 				]
 			});
 			ctx.effect(() => () => {

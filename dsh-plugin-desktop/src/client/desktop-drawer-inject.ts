@@ -1,6 +1,7 @@
 /** Shared overlay inject for the terminal / file / Changes drawer. */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { DesktopComposerBranch } from './ComposerBranch.tsx'
 import { DesktopSessionTerminalAction } from './DesktopSessionTerminalAction.tsx'
 import { collectLastAgentTurnPaths, relativizeWorkspaceFile } from './last-agent-turn.ts'
 import { resolveDesktopTerminalCwd, resolveDesktopWorkspaceRoot } from './desktop-terminal-cwd.ts'
@@ -62,4 +63,13 @@ export function injectDesktopRightSidebarToggle(ctx: ClientContext): void {
       ),
     }),
   }, DesktopSessionTerminalAction))
+}
+
+/** Place the current git branch in the input dock, immediately above the composer card. */
+export function injectDesktopComposerBranch(ctx: ClientContext): void {
+  ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'desktop-composer-branch',
+    order: 30,
+  }, DesktopComposerBranch))
 }

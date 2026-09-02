@@ -1,5 +1,5 @@
-/** Read-only Desktop workspace tree and file routes. */
-import { readdir, readFile, realpath, stat } from 'node:fs/promises'
+/** Desktop workspace tree and UTF-8 file routes. */
+import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isSameOriginLoopbackRequest } from './desktop-settings-route.ts'
@@ -7,6 +7,7 @@ import { isSameOriginLoopbackRequest } from './desktop-settings-route.ts'
 export const DESKTOP_WORKSPACE_FILE_PATH = '/api/desktop/workspace-file'
 export const DESKTOP_WORKSPACE_TREE_PATH = '/api/desktop/workspace-tree'
 const MAX_FILE_BYTES = 2 * 1024 * 1024
+const MAX_WRITE_BODY_BYTES = MAX_FILE_BYTES + 64 * 1024
 const MAX_DIRECTORY_ENTRIES = 1000
 
 export interface DesktopWorkspaceTreeEntry {
@@ -65,7 +66,7 @@ function isInside(root: string, target: string): boolean {
 /**
  * Resolve a workspace path that stays inside the allowed roots after realpath.
  * @param path - absolute path already passed through {@link validateWorkspaceFilePath}.
- * @param allowedRoots - workspace directories that may be read, or a live registry snapshot.
+ * @param allowedRoots - workspace directories that may be read or overwritten, or a live registry snapshot.
  * @returns the confined path, or undefined when the path is outside every root.
  */
 export async function resolveAllowedWorkspacePath(
@@ -146,9 +147,13 @@ async function handleFile(
   rendererOrigin: string,
   allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
 ): Promise<void> {
+  if (req.method === 'PUT') {
+    await handleFileWrite(req, res, allowedRoots)
+    return
+  }
   if (req.method !== 'GET') {
     res.statusCode = 405
-    res.setHeader('allow', 'GET')
+    res.setHeader('allow', 'GET, PUT')
     res.end()
     return
   }
@@ -168,14 +173,76 @@ async function handleFile(
   }
 }
 
-/** Serve one read-only workspace tree or file request from the loopback renderer. */
+class BodyTooLargeError extends Error {}
+
+async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  const declaredLength = req.headers['content-length']
+  if (declaredLength !== undefined) {
+    if (!/^\d+$/.test(declaredLength)) throw new SyntaxError('invalid content length')
+    if (Number(declaredLength) > maxBytes) throw new BodyTooLargeError()
+  }
+  if (req.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
+    throw new SyntaxError('invalid content type')
+  }
+  let size = 0
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
+    size += buffer.byteLength
+    if (size > maxBytes) throw new BodyTooLargeError()
+    chunks.push(buffer)
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+}
+
+function parseWriteBody(value: unknown): { path: string, content: string } | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const keys = Object.keys(value)
+  if (keys.length !== 2 || !keys.includes('path') || !keys.includes('content')) return undefined
+  const record = value as { path: unknown, content: unknown }
+  if (typeof record.path !== 'string' || typeof record.content !== 'string') return undefined
+  return { path: record.path, content: record.content }
+}
+
+async function handleFileWrite(
+  req: IncomingMessage,
+  res: ServerResponse,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
+): Promise<void> {
+  let value: unknown
+  try {
+    value = await readJsonBody(req, MAX_WRITE_BODY_BYTES)
+  } catch (cause) {
+    if (cause instanceof BodyTooLargeError) return finish(res, 413, { error: 'file is too large' })
+    return finish(res, 400, { error: 'invalid body' })
+  }
+  const body = parseWriteBody(value)
+  if (body === undefined) return finish(res, 400, { error: 'invalid body' })
+  if (Buffer.byteLength(body.content, 'utf8') > MAX_FILE_BYTES) {
+    return finish(res, 413, { error: 'file is too large' })
+  }
+  const requested = validateWorkspaceFilePath(body.path)
+  if (requested === undefined) return finish(res, 400, { error: 'invalid path' })
+  const filePath = await resolveAllowedWorkspacePath(requested, allowedRoots)
+  if (filePath === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
+  try {
+    const metadata = await stat(filePath)
+    if (!metadata.isFile()) return finish(res, 400, { error: 'path is not a file' })
+    await writeFile(filePath, body.content, 'utf8')
+    return finish(res, 200, { path: filePath, saved: true })
+  } catch {
+    return finish(res, 404, { error: 'file unavailable' })
+  }
+}
+
+/** Serve one workspace tree, file read, or file write request from the loopback renderer. */
 export async function handleDesktopWorkspaceFileRequest(
   req: IncomingMessage,
   res: ServerResponse,
   rendererOrigin: string,
   allowedRoots?: DesktopWorkspaceAllowedRoots,
 ): Promise<void> {
-  if (!isSameOriginLoopbackRequest(req, rendererOrigin, false)) {
+  if (!isSameOriginLoopbackRequest(req, rendererOrigin, req.method !== 'GET')) {
     finish(res, 403, { error: 'forbidden' })
     return
   }

@@ -66,6 +66,8 @@ interface PetLive2DRuntime {
   setState(state: string): number, setExpression(name: string | null): void, expressionNames(): string[]
   playMotionGroup(group: string): number, hitTest(nx: number, ny: number): string
   tap(clientX: number, clientY: number): string, setPointer(clientX?: number, clientY?: number): void
+  /** True when the cursor is over a visible Live2D mesh, not empty canvas. */
+  coversPoint(clientX: number, clientY: number): boolean
 }
 
 declare global {
@@ -721,6 +723,12 @@ const runtime: PetLive2DRuntime = {
   },
   hitTest(_nx: number, _ny: number): string {
     return ''
+  },
+  coversPoint(clientX: number, clientY: number): boolean {
+    if (model === undefined || !ready) return false
+    const point = clientToView(clientX, clientY)
+    if (point === undefined) return false
+    return isOnModel(point.x, point.y)
   },
   tap(clientX: number, clientY: number): string {
     if (model === undefined || !ready) return ''

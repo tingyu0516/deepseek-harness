@@ -32,6 +32,8 @@ class FakeWebContents {
     this.windowOpenHandler = handler
   }
 
+  hitResult: unknown = false
+
   executeJavaScript(code: string): Promise<unknown> {
     this.executed.push(code)
     // A real sandboxed page answers the wrapper-class probe with 'ok' once
@@ -39,6 +41,7 @@ class FakeWebContents {
     if (code.includes('window.Live2DCubismCore') && code.includes('ns.Model')) {
       return Promise.resolve('ok')
     }
+    if (code.includes('coversPoint')) return Promise.resolve(this.hitResult)
     return Promise.resolve(undefined)
   }
 
@@ -126,12 +129,19 @@ class FakeWindow {
     this.visibleOnAllWorkspaces = call
     this.visibleOnAllWorkspacesCalls.push(call)
   }
+  ignoreMouseEvents: { ignore: boolean, forward?: boolean } | undefined
+  setIgnoreMouseEvents(ignore: boolean, options?: { readonly forward?: boolean }): void {
+    this.ignoreMouseEvents = options?.forward === true ? { ignore, forward: true } : { ignore }
+  }
 }
 
-function fakeElectron(workArea: PetRectangle = { x: 0, y: 0, width: 1920, height: 1040 }): PetElectron {
+function fakeElectron(
+  workArea: PetRectangle = { x: 0, y: 0, width: 1920, height: 1040 },
+  bounds: PetRectangle = { x: 0, y: 0, width: 1920, height: 1080 },
+): PetElectron {
   return {
     BrowserWindow: FakeWindow as unknown as PetElectron['BrowserWindow'],
-    screen: { getDisplayMatching: () => ({ workArea }) },
+    screen: { getDisplayMatching: () => ({ bounds, workArea }) },
   }
 }
 
@@ -221,7 +231,7 @@ describe('PetWindowController', () => {
     expect(window.options.acceptFirstMouse).toBe(true)
     expect(window.options.height).toBe(300 + PET_SPEECH_SLOT_PX)
     expect((window.options.webPreferences as Record<string, unknown>).sandbox).toBe(true)
-    expect(window.alwaysOnTop).toEqual({ flag: true, level: 'screen-saver' })
+    expect(window.alwaysOnTop).toEqual({ flag: true, level: 'floating' })
     expect(window.visibleOnAllWorkspaces).toEqual({
       visible: true,
       options: { visibleOnFullScreen: true, skipTransformProcessType: true },
@@ -252,6 +262,7 @@ describe('PetWindowController', () => {
       window.emit('ready-to-show')
       expect(window.showMode).toBe('showInactive')
       expect(window.visibleOnAllWorkspacesCalls).toHaveLength(2)
+      expect(window.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
     } finally {
       platform.mockRestore()
     }
@@ -432,8 +443,8 @@ describe('PetWindowController', () => {
     const windowController = controller()
     windowController.open()
     const window = FakeWindow.created[0]!
-    // Default placement is the bottom-right corner. Move inward so a
-    // MANUAL_MOVE_MAX_PX clamp is observable without hitting the work-area edge.
+    // Default placement is the bottom-right of the work area. Move inward so a
+    // MANUAL_MOVE_MAX_PX clamp is observable without hitting the display edge.
     window.setBounds({ ...window.getBounds(), x: 400, y: 200 })
     const before = window.getBounds()
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=10&dy=-4')
@@ -480,6 +491,24 @@ describe('PetWindowController', () => {
     cursor = { x: 50, y: 50 }
     vi.advanceTimersByTime(32)
     expect(window.getBounds()).toEqual({ x: 960, y: 370, width, height })
+  })
+
+  it('lets a drag cover the dock strip instead of stopping at the work area', () => {
+    const electron = fakeElectron()
+    Object.assign(electron.screen!, { getCursorScreenPoint: () => ({ x: 400, y: 2000 }) })
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    const { width, height } = window.getBounds()
+    const workAreaFloor = 1040 - height - 8
+    const displayFloor = 1080 - height - 8
+    window.webContents.emit(
+      'will-navigate',
+      { preventDefault: () => {} },
+      'dsh-pet-hutao://dragstart?ox=0&oy=0',
+    )
+    expect(window.getBounds()).toEqual({ x: 400, y: displayFloor, width, height })
+    expect(window.getBounds().y).toBeGreaterThan(workAreaFloor)
   })
 
   it('rejects an oversized drag grab offset', () => {
@@ -531,7 +560,7 @@ describe('PetWindowController', () => {
     expect(saved).toEqual({ version: 1, x: 321, y: 222 })
   })
 
-  it('restores a persisted position clamped to the work area', () => {
+  it('restores a persisted position clamped to the display', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-pet-window-'))
     const statePath = petStatePath(dir, 'hutao')
     mkdirSync(dirname(statePath), { recursive: true })
@@ -549,7 +578,10 @@ describe('PetWindowController', () => {
     const electron: PetElectron = {
       BrowserWindow: FakeWindow as unknown as PetElectron['BrowserWindow'],
       screen: {
-        getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1040 } }),
+        getDisplayMatching: () => ({
+          bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+          workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+        }),
         getCursorScreenPoint: () => ({ ...cursor }),
       },
     }
@@ -576,6 +608,27 @@ describe('PetWindowController', () => {
     const after = window.webContents.executed.length
     vi.advanceTimersByTime(500)
     expect(window.webContents.executed.length).toBe(after)
+  })
+
+  it('lets empty pixels click through and captures the cursor on the model', async () => {
+    let cursor = { x: 610, y: 410 }
+    const electron = fakeElectron()
+    Object.assign(electron.screen!, { getCursorScreenPoint: () => ({ ...cursor }) })
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    window.emit('ready-to-show')
+    expect(window.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
+    window.webContents.hitResult = true
+    cursor = { x: 620, y: 420 }
+    vi.advanceTimersByTime(20)
+    await Promise.resolve()
+    expect(window.ignoreMouseEvents).toEqual({ ignore: false })
+    window.webContents.hitResult = false
+    cursor = { x: 10, y: 10 }
+    vi.advanceTimersByTime(20)
+    await Promise.resolve()
+    expect(window.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
   })
 
   it('applies scale changes while keeping position', () => {
