@@ -95,7 +95,15 @@ class FakeWindow {
     this.destroyed = true
     this.emit('closed')
   }
-  show(): void { this.visible = true }
+  showMode: 'show' | 'showInactive' | undefined
+  show(): void {
+    this.showMode = 'show'
+    this.visible = true
+  }
+  showInactive(): void {
+    this.showMode = 'showInactive'
+    this.visible = true
+  }
   isVisible(): boolean { return this.visible }
   getBounds(): PetRectangle { return { ...this.bounds } }
   setBounds(bounds: PetRectangle): void {
@@ -239,7 +247,11 @@ describe('PetWindowController', () => {
     try {
       const windowController = controller()
       windowController.open()
-      expect(FakeWindow.created[0]!.options.type).toBe('panel')
+      const window = FakeWindow.created[0]!
+      expect(window.options.type).toBe('panel')
+      window.emit('ready-to-show')
+      expect(window.showMode).toBe('showInactive')
+      expect(window.visibleOnAllWorkspacesCalls).toHaveLength(2)
     } finally {
       platform.mockRestore()
     }

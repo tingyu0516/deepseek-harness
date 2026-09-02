@@ -497,8 +497,10 @@ const WORK_AREA_MARGIN_PX = 8;
 const PET_SPEECH_SLOT_PX = 80;
 /** Per-message cap for renderer-driven drag deltas. */
 const MANUAL_MOVE_MAX_PX = 64;
+/** Reject grab offsets outside the pet window (plus a small margin). */
+const DRAG_GRAB_MAX_PX = 4096;
 const POSITION_SAVE_DEBOUNCE_MS = 600;
-/** OS cursor polling cadence for screen-wide look-at tracking. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
 const CURSOR_TRACK_MS = 16;
 function sanitizeElectronShape(loaded) {
 	if (typeof loaded !== "object" || loaded === null) return void 0;
@@ -529,6 +531,26 @@ function petLayoutSize(character, scale) {
 		width: Math.round(character.baseSize.width * scale),
 		height: Math.round(character.baseSize.height * scale) + 80
 	};
+}
+/** Overlay flags that keep the pet on every Space, including fullscreen. */
+const PET_ALL_WORKSPACES = Object.freeze({
+	visibleOnFullScreen: true,
+	skipTransformProcessType: true
+});
+/** Pin the pet above other windows and onto every macOS Space / Linux workspace. */
+function pinPetAcrossWorkspaces(window) {
+	window.setAlwaysOnTop(true, "screen-saver");
+	window.setVisibleOnAllWorkspaces(true, PET_ALL_WORKSPACES);
+}
+/**
+* Reveal the overlay and re-apply workspace pinning.
+* macOS assigns a Space at `show()`; `showInactive()` plus a post-show pin
+* keeps four-finger Space swipes from leaving the pet on the creation desktop.
+*/
+function presentPetWindow(window) {
+	if (process.platform === "darwin") window.showInactive();
+	else window.show();
+	pinPetAcrossWorkspaces(window);
 }
 function defaultBounds(character, workArea) {
 	const { width, height } = petLayoutSize(character, 1);
@@ -574,6 +596,9 @@ var PetWindowController = class {
 	saveTimer;
 	cursorTimer;
 	lastCursor;
+	/** Grab offset while the Host follows the OS cursor during a drag. */
+	dragGrab;
+	dragTimer;
 	/** Designed content size; never re-read from getBounds during drag (DPI drift). */
 	layoutWidth = 0;
 	layoutHeight = 0;
@@ -593,7 +618,7 @@ var PetWindowController = class {
 		if (this.disposed) return;
 		const existing = this.window;
 		if (existing !== void 0 && !existing.isDestroyed()) {
-			if (!existing.isVisible()) existing.show();
+			if (!existing.isVisible()) presentPetWindow(existing);
 			return;
 		}
 		const live2dDir = this.options.live2dDir?.();
@@ -635,6 +660,7 @@ var PetWindowController = class {
 			focusable: false,
 			acceptFirstMouse: true,
 			alwaysOnTop: true,
+			...process.platform === "darwin" ? { type: "panel" } : {},
 			webPreferences: {
 				contextIsolation: true,
 				nodeIntegration: false,
@@ -647,8 +673,7 @@ var PetWindowController = class {
 		});
 		this.window = window;
 		this.pageReady = false;
-		window.setAlwaysOnTop(true, "screen-saver");
-		window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+		pinPetAcrossWorkspaces(window);
 		const lockZoom = window.webContents.setVisualZoomLevelLimits;
 		if (typeof lockZoom === "function") lockZoom.call(window.webContents, 1, 1);
 		window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -660,13 +685,14 @@ var PetWindowController = class {
 		});
 		window.once("ready-to-show", () => {
 			if (!this.disposed && this.window === window && !window.isDestroyed()) {
-				window.show();
+				presentPetWindow(window);
 				this.startCursorTracking();
 			}
 		});
 		window.on("closed", () => {
 			if (this.window === window) this.window = void 0;
 			this.pageReady = false;
+			this.stopManualDrag(false);
 			this.stopCursorTracking();
 		});
 		window.on("moved", () => {
@@ -679,6 +705,7 @@ var PetWindowController = class {
 	}
 	/** Close the current window, if any. */
 	close() {
+		this.stopManualDrag(false);
 		this.flushPositionSave();
 		this.stopCursorTracking();
 		const window = this.window;
@@ -825,6 +852,14 @@ var PetWindowController = class {
 			this.options.onCommand("hide");
 			return;
 		}
+		if (command === "dragstart") {
+			this.startManualDrag(url.searchParams.get("ox"), url.searchParams.get("oy"));
+			return;
+		}
+		if (command === "dragend" && url.search === "") {
+			this.stopManualDrag(true);
+			return;
+		}
 		if (command === "move") {
 			this.handleManualMove(url.searchParams.get("dx"), url.searchParams.get("dy"));
 			return;
@@ -841,16 +876,67 @@ var PetWindowController = class {
 	* persists the resulting position.
 	*/
 	handleManualMove(rawDx, rawDy) {
-		const dx = Number.parseInt(rawDx ?? "", 10);
-		const dy = Number.parseInt(rawDy ?? "", 10);
-		if (Number.isNaN(dx) || Number.isNaN(dy)) return;
-		if (Math.abs(dx) > MANUAL_MOVE_MAX_PX || Math.abs(dy) > MANUAL_MOVE_MAX_PX) return;
+		const parsedDx = Number.parseInt(rawDx ?? "", 10);
+		const parsedDy = Number.parseInt(rawDy ?? "", 10);
+		if (Number.isNaN(parsedDx) || Number.isNaN(parsedDy)) return;
+		const dx = clamp(parsedDx, -64, MANUAL_MOVE_MAX_PX);
+		const dy = clamp(parsedDy, -64, MANUAL_MOVE_MAX_PX);
+		if (dx === 0 && dy === 0) return;
 		const window = this.window;
 		if (window === void 0 || window.isDestroyed()) return;
 		const bounds = window.getBounds();
 		const width = this.layoutWidth || bounds.width;
 		const height = this.layoutHeight || bounds.height;
 		const next = this.clampToWorkArea(bounds.x + dx, bounds.y + dy, width, height, this.options.electron.screen);
+		window.setBounds({
+			x: next.x,
+			y: next.y,
+			width,
+			height
+		});
+	}
+	/** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
+	startManualDrag(rawOx, rawOy) {
+		const ox = Number.parseInt(rawOx ?? "", 10);
+		const oy = Number.parseInt(rawOy ?? "", 10);
+		if (Number.isNaN(ox) || Number.isNaN(oy)) return;
+		if (Math.abs(ox) > DRAG_GRAB_MAX_PX || Math.abs(oy) > DRAG_GRAB_MAX_PX) return;
+		if (!this.isOpen()) return;
+		this.dragGrab = {
+			ox,
+			oy
+		};
+		this.stopCursorTracking();
+		if (this.dragTimer === void 0) this.dragTimer = setInterval(() => {
+			this.tickManualDrag();
+		}, CURSOR_TRACK_MS);
+		this.tickManualDrag();
+	}
+	/**
+	* @param resumeLookAt - restore screen-wide look-at after a user drag ends.
+	*   Closing the window passes false so a disposed controller does not restart
+	*   the cursor poller.
+	*/
+	stopManualDrag(resumeLookAt) {
+		if (this.dragTimer !== void 0) {
+			clearInterval(this.dragTimer);
+			this.dragTimer = void 0;
+		}
+		this.dragGrab = void 0;
+		if (resumeLookAt && this.isVisible()) this.startCursorTracking();
+	}
+	tickManualDrag() {
+		const grab = this.dragGrab;
+		const window = this.window;
+		if (grab === void 0 || window === void 0 || window.isDestroyed()) {
+			this.stopManualDrag(false);
+			return;
+		}
+		const point = this.options.electron.screen?.getCursorScreenPoint?.();
+		if (point === void 0) return;
+		const width = this.layoutWidth;
+		const height = this.layoutHeight;
+		const next = this.clampToWorkArea(point.x - grab.ox, point.y - grab.oy, width, height, this.options.electron.screen);
 		window.setBounds({
 			x: next.x,
 			y: next.y,
