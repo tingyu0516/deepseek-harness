@@ -34,9 +34,15 @@ export interface DesktopNotificationSettings {
   readonly notifyOnJobFailure: boolean
 }
 
-/** Browser view of one character pet plugin's `enabled` setting. */
+/** Proportional window scales owned by each character pet plugin. */
+export const DESKTOP_PET_SCALES = [0.75, 1, 1.25, 1.5] as const
+/** One allowed pet scale multiplier. */
+export type DesktopPetScale = (typeof DESKTOP_PET_SCALES)[number]
+
+/** Browser view of one character pet plugin's live settings. */
 export interface DesktopPetSettings {
   readonly enabled: boolean
+  readonly scale: DesktopPetScale
 }
 
 /** Registration-side business face for the Desktop settings section. */
@@ -162,6 +168,48 @@ function ToggleRow({
   )
 }
 
+function resolvePetScale(value: number | undefined): DesktopPetScale {
+  return DESKTOP_PET_SCALES.find(scale => scale === value) ?? 1
+}
+
+function petScaleLabel(scale: DesktopPetScale): string {
+  return `${String(Math.round(scale * 100))}%`
+}
+
+function PetScaleField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: DesktopPetScale
+  disabled: boolean
+  onChange: (scale: DesktopPetScale) => void
+}) {
+  const labelId = useId()
+  return (
+    <label className="dshDesktopSettingsMaterialField">
+      <span id={labelId} className="dshDesktopSettingsChoiceTitle">{label}</span>
+      <select
+        className="dshDesktopSettingsSelect"
+        aria-labelledby={labelId}
+        value={String(value)}
+        disabled={disabled}
+        onChange={event => {
+          const next = Number(event.currentTarget.value)
+          const scale = DESKTOP_PET_SCALES.find(candidate => candidate === next)
+          if (scale !== undefined) onChange(scale)
+        }}
+      >
+        {DESKTOP_PET_SCALES.map(scale => (
+          <option key={String(scale)} value={String(scale)}>{petScaleLabel(scale)}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function profileState(profile: DesktopProfileView, t: Translate): string {
   if (!profile.webCapable || !profile.selectable) return t('profileUnavailable')
   return profile.exists ? t('profileReady') : t('profileMissing')
@@ -283,6 +331,8 @@ export function DesktopSettingsSection({
   }
   const hutaoPetEnabled = hutaoPet.value?.enabled ?? false
   const furinaPetEnabled = furinaPet.value?.enabled ?? false
+  const hutaoPetScale = resolvePetScale(hutaoPet.value?.scale)
+  const furinaPetScale = resolvePetScale(furinaPet.value?.scale)
 
   const createProfile = (event: FormEvent): void => {
     event.preventDefault()
@@ -407,6 +457,14 @@ export function DesktopSettingsSection({
 
   const setFurinaPet = (checked: boolean): void => {
     void run('pet', async () => { await furinaPetSettings.set('enabled', checked) })
+  }
+
+  const setHutaoPetScale = (scale: DesktopPetScale): void => {
+    void run('pet', async () => { await hutaoPetSettings.set('scale', scale) })
+  }
+
+  const setFurinaPetScale = (scale: DesktopPetScale): void => {
+    void run('pet', async () => { await furinaPetSettings.set('scale', scale) })
   }
 
   return (
@@ -746,11 +804,23 @@ export function DesktopSettingsSection({
           disabled={!hutaoPetWritable || busy !== undefined}
           onChange={setHutaoPet}
         />
+        <PetScaleField
+          label={t('petScale')}
+          value={hutaoPetScale}
+          disabled={!hutaoPetEnabled || !hutaoPetWritable || busy !== undefined}
+          onChange={setHutaoPetScale}
+        />
         <ToggleRow
           label={t('petFurina')}
           checked={furinaPetEnabled}
           disabled={!furinaPetWritable || busy !== undefined}
           onChange={setFurinaPet}
+        />
+        <PetScaleField
+          label={t('petScale')}
+          value={furinaPetScale}
+          disabled={!furinaPetEnabled || !furinaPetWritable || busy !== undefined}
+          onChange={setFurinaPetScale}
         />
       </section>
 

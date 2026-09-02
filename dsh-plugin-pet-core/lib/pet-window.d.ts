@@ -26,6 +26,10 @@ export interface PetBrowserWindow {
         visibleOnFullScreen?: boolean;
         skipTransformProcessType?: boolean;
     }): void;
+    /** Transparent pixels click through when ignore is true; `{ forward: true }` still delivers cursor moves. */
+    setIgnoreMouseEvents(ignore: boolean, options?: {
+        readonly forward?: boolean;
+    }): void;
     webContents: {
         on(event: string, listener: (...args: never[]) => void): void;
         setWindowOpenHandler(handler: () => {
@@ -42,7 +46,8 @@ export interface PetBrowserWindow {
 export interface PetElectron {
     readonly BrowserWindow: new (options: Record<string, unknown>) => PetBrowserWindow;
     readonly screen?: {
-        getDisplayMatching(bounds: PetRectangle): {
+        getDisplayMatching(rect: PetRectangle): {
+            readonly bounds: PetRectangle;
             readonly workArea: PetRectangle;
         };
         /** Present in real Electron; lets the pet track the cursor screen-wide. */
@@ -178,6 +183,10 @@ export declare class PetWindowController {
     /** Designed content size; never re-read from getBounds during drag (DPI drift). */
     private layoutWidth;
     private layoutHeight;
+    /** Latest mesh/hide-button hit from the cursor poller. */
+    private pointerOnPet;
+    /** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
+    private ignoringMouse;
     constructor(options: PetWindowOptions);
     /** Whether the window currently exists and is not destroyed. */
     isOpen(): boolean;
@@ -209,8 +218,8 @@ export declare class PetWindowController {
     /**
      * Renderer-driven drag: apply one incremental integer offset. The constant
      * per-message cap keeps a rogue page from teleporting the window, and the
-     * work-area clamp keeps it reachable. The `moved` listener already debounce-
-     * persists the resulting position.
+     * display-bounds clamp keeps it on this screen (including over the Dock).
+     * The `moved` listener already debounce-persists the resulting position.
      */
     private handleManualMove;
     /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
@@ -233,7 +242,10 @@ export declare class PetWindowController {
     private startCursorTracking;
     private stopCursorTracking;
     private pollCursor;
-    private clampToWorkArea;
+    /** Capture clicks only on the model (or while dragging); empty pixels click through. */
+    private syncClickThrough;
+    /** Keep the window on the matching display's full pixel bounds, not the Dock-excluding work area. */
+    private clampToDisplay;
     private schedulePositionSave;
     private flushPositionSave;
 }

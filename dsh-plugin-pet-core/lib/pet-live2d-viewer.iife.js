@@ -15312,6 +15312,12 @@
 		hitTest(_nx, _ny) {
 			return "";
 		},
+		coversPoint(clientX, clientY) {
+			if (model === void 0 || !ready) return false;
+			const point = clientToView(clientX, clientY);
+			if (point === void 0) return false;
+			return isOnModel(point.x, point.y);
+		},
 		tap(clientX, clientY) {
 			if (model === void 0 || !ready) return "";
 			const point = clientToView(clientX, clientY);

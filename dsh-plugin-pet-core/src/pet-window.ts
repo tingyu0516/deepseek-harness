@@ -40,6 +40,8 @@ export interface PetBrowserWindow {
     visibleOnFullScreen?: boolean
     skipTransformProcessType?: boolean
   }): void
+  /** Transparent pixels click through when ignore is true; `{ forward: true }` still delivers cursor moves. */
+  setIgnoreMouseEvents(ignore: boolean, options?: { readonly forward?: boolean }): void
   webContents: {
     on(event: string, listener: (...args: never[]) => void): void
     setWindowOpenHandler(handler: () => { action: string }): void
@@ -53,7 +55,10 @@ export interface PetBrowserWindow {
 export interface PetElectron {
   readonly BrowserWindow: new (options: Record<string, unknown>) => PetBrowserWindow
   readonly screen?: {
-    getDisplayMatching(bounds: PetRectangle): { readonly workArea: PetRectangle }
+    getDisplayMatching(rect: PetRectangle): {
+      readonly bounds: PetRectangle
+      readonly workArea: PetRectangle
+    }
     /** Present in real Electron; lets the pet track the cursor screen-wide. */
     getCursorScreenPoint?(): { x: number, y: number }
   }
@@ -251,9 +256,15 @@ const PET_ALL_WORKSPACES = Object.freeze({
   skipTransformProcessType: true,
 })
 
+/**
+ * Above ordinary windows, below the macOS Dock (NSDockWindowLevel ≈ 20).
+ * `screen-saver` sits at 1000 and paints over the Dock.
+ */
+const PET_ALWAYS_ON_TOP_LEVEL = 'floating'
+
 /** Pin the pet above other windows and onto every macOS Space / Linux workspace. */
 function pinPetAcrossWorkspaces(window: PetBrowserWindow): void {
-  window.setAlwaysOnTop(true, 'screen-saver')
+  window.setAlwaysOnTop(true, PET_ALWAYS_ON_TOP_LEVEL)
   window.setVisibleOnAllWorkspaces(true, PET_ALL_WORKSPACES)
 }
 
@@ -327,6 +338,10 @@ export class PetWindowController {
   /** Designed content size; never re-read from getBounds during drag (DPI drift). */
   private layoutWidth = 0
   private layoutHeight = 0
+  /** Latest mesh/hide-button hit from the cursor poller. */
+  private pointerOnPet = false
+  /** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
+  private ignoringMouse: boolean | undefined
 
   constructor(private readonly options: PetWindowOptions) {}
 
@@ -368,7 +383,7 @@ export class PetWindowController {
     const fallback = defaultBounds(this.options.character, primary)
     const bounds = restored === undefined
       ? fallback
-      : this.clampToWorkArea(restored.x, restored.y, fallback.width, fallback.height, screen)
+      : this.clampToDisplay(restored.x, restored.y, fallback.width, fallback.height, screen)
     this.layoutWidth = bounds.width
     this.layoutHeight = bounds.height
     const window = new BrowserWindow({
@@ -414,6 +429,7 @@ export class PetWindowController {
     window.once('ready-to-show', () => {
       if (!this.disposed && this.window === window && !window.isDestroyed()) {
         presentPetWindow(window)
+        this.syncClickThrough()
         this.startCursorTracking()
       }
     })
@@ -443,6 +459,8 @@ export class PetWindowController {
     this.pendingBoot = undefined
     this.live2dSpec = undefined
     this.bootGate = undefined
+    this.pointerOnPet = false
+    this.ignoringMouse = undefined
     if (window !== undefined && !window.isDestroyed()) window.close()
   }
 
@@ -480,12 +498,13 @@ export class PetWindowController {
     const size = petLayoutSize(this.options.character, scale)
     this.layoutWidth = size.width
     this.layoutHeight = size.height
-    window.setBounds({
-      x: bounds.x,
-      y: bounds.y,
-      width: size.width,
-      height: size.height,
-    })
+    window.setBounds(this.clampToDisplay(
+      bounds.x,
+      bounds.y,
+      size.width,
+      size.height,
+      this.options.electron.screen,
+    ))
   }
 
   /** Re-send the boot payload (for example after preference changes). */
@@ -655,8 +674,8 @@ export class PetWindowController {
   /**
    * Renderer-driven drag: apply one incremental integer offset. The constant
    * per-message cap keeps a rogue page from teleporting the window, and the
-   * work-area clamp keeps it reachable. The `moved` listener already debounce-
-   * persists the resulting position.
+   * display-bounds clamp keeps it on this screen (including over the Dock).
+   * The `moved` listener already debounce-persists the resulting position.
    */
   private handleManualMove(rawDx: string | null, rawDy: string | null): void {
     const parsedDx = Number.parseInt(rawDx ?? '', 10)
@@ -670,7 +689,7 @@ export class PetWindowController {
     const bounds = window.getBounds()
     const width = this.layoutWidth || bounds.width
     const height = this.layoutHeight || bounds.height
-    const next = this.clampToWorkArea(
+    const next = this.clampToDisplay(
       bounds.x + dx,
       bounds.y + dy,
       width,
@@ -692,6 +711,7 @@ export class PetWindowController {
     if (!this.isOpen()) return
     this.dragGrab = { ox, oy }
     this.stopCursorTracking()
+    this.syncClickThrough()
     if (this.dragTimer === undefined) {
       this.dragTimer = setInterval(() => { this.tickManualDrag() }, CURSOR_TRACK_MS)
     }
@@ -709,6 +729,7 @@ export class PetWindowController {
       this.dragTimer = undefined
     }
     this.dragGrab = undefined
+    this.syncClickThrough()
     if (resumeLookAt && this.isVisible()) this.startCursorTracking()
   }
 
@@ -723,7 +744,7 @@ export class PetWindowController {
     if (point === undefined) return
     const width = this.layoutWidth
     const height = this.layoutHeight
-    const next = this.clampToWorkArea(
+    const next = this.clampToDisplay(
       point.x - grab.ox,
       point.y - grab.oy,
       width,
@@ -772,21 +793,45 @@ export class PetWindowController {
     const y = point.y - bounds.y
     if (this.lastCursor !== undefined && this.lastCursor.x === x && this.lastCursor.y === y) return
     this.lastCursor = { x, y }
-    this.run(`var rt = window.__dshPetLive2DRuntime; rt && rt.setPointer(${x}, ${y});`)
+    const code = `(function(){`
+      + `var rt=window.__dshPetLive2DRuntime;`
+      + `if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});`
+      + `var hide=document.getElementById('hide');`
+      + `if(hide){var r=hide.getBoundingClientRect();`
+      + `if(${x}>=r.left&&${x}<r.right&&${y}>=r.top&&${y}<r.bottom)return true;}`
+      + `return !!(rt&&rt.coversPoint&&rt.coversPoint(${x}, ${y}));`
+      + `})()`
+    void window.webContents.executeJavaScript(code, true).then((hit: unknown) => {
+      if (this.window !== window || window.isDestroyed()) return
+      this.pointerOnPet = hit === true
+      this.syncClickThrough()
+    }).catch(() => {})
   }
 
-  private clampToWorkArea(
+  /** Capture clicks only on the model (or while dragging); empty pixels click through. */
+  private syncClickThrough(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) return
+    const ignore = this.dragGrab === undefined && !this.pointerOnPet
+    if (this.ignoringMouse === ignore) return
+    this.ignoringMouse = ignore
+    if (ignore) window.setIgnoreMouseEvents(true, { forward: true })
+    else window.setIgnoreMouseEvents(false)
+  }
+
+  /** Keep the window on the matching display's full pixel bounds, not the Dock-excluding work area. */
+  private clampToDisplay(
     x: number,
     y: number,
     width: number,
     height: number,
     screen: PetElectron['screen'],
   ): PetRectangle {
-    const workArea = screen?.getDisplayMatching({ x, y, width, height }).workArea
-    if (workArea === undefined) return { x, y, width, height }
+    const area = screen?.getDisplayMatching({ x, y, width, height })?.bounds
+    if (area === undefined) return { x, y, width, height }
     return {
-      x: clamp(x, workArea.x, Math.max(workArea.x, workArea.x + workArea.width - width - WORK_AREA_MARGIN_PX)),
-      y: clamp(y, workArea.y, Math.max(workArea.y, workArea.y + workArea.height - height - WORK_AREA_MARGIN_PX)),
+      x: clamp(x, area.x, Math.max(area.x, area.x + area.width - width - WORK_AREA_MARGIN_PX)),
+      y: clamp(y, area.y, Math.max(area.y, area.y + area.height - height - WORK_AREA_MARGIN_PX)),
       width,
       height,
     }
