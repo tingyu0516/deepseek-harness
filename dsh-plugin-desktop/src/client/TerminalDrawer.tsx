@@ -1,10 +1,13 @@
 import { Terminal } from '@xterm/xterm'
-import { FileDiff, FolderTree, Plus, SquareTerminal, X } from 'lucide-react'
+import { FileDiff, FolderTree, Globe, Plus, SquareTerminal, X } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
+import { DesktopBrowserPanel } from './BrowserPanel.tsx'
 import { DesktopChangesPanel } from './ChangesPanel.tsx'
 import { DesktopFileManager } from './FileManager.tsx'
+import { applyTerminalCopy, shouldCopyTerminalSelection } from './terminal-clipboard.ts'
+import { measureTerminalFit } from './terminal-fit.ts'
 import {
   BASE_DRAWER_TABS,
   INITIAL_DRAWER_TAB_KEY,
@@ -145,6 +148,9 @@ interface TerminalSessionHandle {
   socket?: WebSocket
   sendSize?: () => void
   dispose?: () => void
+  spawned?: boolean
+  lastCols?: number
+  lastRows?: number
 }
 
 /**
@@ -172,30 +178,65 @@ function TerminalSession({ active, url, getCwd }: TerminalSessionProps) {
       return
     }
     setError(undefined)
+    const windowsPty = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
+      ? { backend: 'conpty' as const }
+      : undefined
     const terminal = new Terminal({
-      convertEol: true,
       cursorBlink: true,
       fontSize: 13,
       scrollback: 2000,
       theme: { background: 'rgba(0, 0, 0, 0)' },
+      ...(windowsPty === undefined ? {} : { windowsPty }),
     })
     terminal.open(element)
     const socket = new WebSocket(url ?? defaultTerminalWebSocketUrl(), DESKTOP_TERMINAL_CHANNEL_PROTOCOL)
-    socket.addEventListener('open', () => {
+    const sendSize = (): void => {
+      if (sessionRef.current.spawned !== true) {
+        spawnIfReady()
+        return
+      }
+      const current = viewportRef.current
+      if (current === null) return
+      const fitted = measureTerminalFit(terminal, current)
+      if (fitted === undefined) return
+      const message = createTerminalResizeMessage(fitted.cols, fitted.rows)
+      if (terminal.cols !== message.cols || terminal.rows !== message.rows) {
+        terminal.resize(message.cols, message.rows)
+      }
+      if (socket.readyState !== WebSocket.OPEN) return
+      const session = sessionRef.current
+      if (session.lastCols === message.cols && session.lastRows === message.rows) return
+      session.lastCols = message.cols
+      session.lastRows = message.rows
+      socket.send(JSON.stringify(message))
+    }
+    const spawnIfReady = (): void => {
+      if (socket.readyState !== WebSocket.OPEN || sessionRef.current.spawned === true) return
+      const current = viewportRef.current
+      if (current === null) return
+      const fitted = measureTerminalFit(terminal, current)
+      if (fitted === undefined) return
+      const message = createTerminalResizeMessage(fitted.cols, fitted.rows)
+      terminal.resize(message.cols, message.rows)
       const directory = currentCwd ?? getCwdRef.current?.()
+      sessionRef.current.spawned = true
+      sessionRef.current.lastCols = message.cols
+      sessionRef.current.lastRows = message.rows
       socket.send(JSON.stringify({
         type: 'spawn',
-        cols: 80,
-        rows: 24,
+        cols: message.cols,
+        rows: message.rows,
         ...(directory === undefined ? {} : { cwd: directory }),
       }))
       terminal.focus()
-    })
+    }
+    socket.addEventListener('open', () => { spawnIfReady() })
     socket.addEventListener('message', event => {
       if (typeof event.data !== 'string') return
       try {
         const message = JSON.parse(event.data) as { type?: string; data?: unknown; error?: unknown }
-        if (message.type === 'output' && typeof message.data === 'string') terminal.write(message.data)
+        if (message.type === 'ready') sendSize()
+        else if (message.type === 'output' && typeof message.data === 'string') terminal.write(message.data)
         else if (message.type === 'error' && typeof message.error === 'string') setError(message.error)
       } catch { setError('Invalid terminal message') }
     })
@@ -203,32 +244,37 @@ function TerminalSession({ active, url, getCwd }: TerminalSessionProps) {
     socket.addEventListener('close', event => {
       if (!event.wasClean) setError(`Terminal WebSocket closed (${String(event.code)})`)
     })
-    const sendSize = (): void => {
-      const current = viewportRef.current
-      if (current === null || current.clientWidth === 0) return
-      const message = createTerminalResizeMessage(current.clientWidth / 8, current.clientHeight / 18)
-      terminal.resize(message.cols, message.rows)
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
-    }
     const observer = new ResizeObserver(sendSize)
     observer.observe(element)
+    terminal.attachCustomKeyEventHandler(event => {
+      if (!shouldCopyTerminalSelection(event, terminal.hasSelection())) return true
+      const text = terminal.getSelection()
+      if (text !== '') void navigator.clipboard.writeText(text)
+      return false
+    })
+    const onCopy = (event: ClipboardEvent): void => {
+      applyTerminalCopy(event, terminal.getSelection())
+    }
+    element.addEventListener('copy', onCopy)
     terminal.onData(data => {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input', data }))
     })
-    sendSize()
+    requestAnimationFrame(spawnIfReady)
     sessionRef.current = {
       terminal,
       socket,
       sendSize,
+      spawned: false,
       dispose: () => {
         observer.disconnect()
+        element.removeEventListener('copy', onCopy)
         terminal.dispose()
         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close()
       },
     }
   }, [active, url])
 
-  // Unmount (drawer closed or tab removed) always ends this PTY channel.
+  // Unmount (tab removed or shell overlay gone) ends this PTY channel.
   useEffect(() => () => { sessionRef.current.dispose?.() }, [])
 
   return (
@@ -247,12 +293,12 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const addWrapRef = useRef<HTMLDivElement | null>(null)
   const [config] = useState(() => readTerminalWebSocketConfig(typeof window === 'undefined' ? '' : window.location.search))
+  const mounted = useRef(isOpen)
+  if (isOpen) mounted.current = true
 
-  // Closing the drawer ends every session, so the dynamic tabs reset with it.
+  // Collapse only hides the drawer. Tabs, PTY sessions, and preview state stay.
   useEffect(() => {
     if (isOpen) return
-    setExtraTabs([])
-    setActiveKey(INITIAL_DRAWER_TAB_KEY)
     setAddMenuOpen(false)
   }, [isOpen])
 
@@ -280,10 +326,10 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
     setActiveKey(previous => resolveDrawerTabAfterClose(previous, drawerTabKey(tab)))
   }
 
-  if (!isOpen) return null
+  if (!mounted.current) return null
   const tabs = [...BASE_DRAWER_TABS, ...extraTabs]
   return (
-    <section className="dshDesktopTerminalDrawer" role="dialog" aria-label="Terminal, File Manager, and Changes" aria-modal="false">
+    <section className="dshDesktopTerminalDrawer" hidden={!isOpen} role="dialog" aria-label="Terminal, File Manager, Browser, and Changes" aria-modal="false">
       <header className="dshDesktopTerminalDrawerHeader">
         <div className="dshDesktopTerminalDrawerTabs" role="tablist">
           {tabs.map(tab => {
@@ -300,7 +346,7 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
                   title={label}
                   onClick={() => setActiveKey(key)}
                 >
-                  {tab.kind === 'terminal' ? <SquareTerminal size={15} aria-hidden="true" /> : <FolderTree size={15} aria-hidden="true" />}
+                  {tab.kind === 'terminal' ? <SquareTerminal size={15} aria-hidden="true" /> : tab.kind === 'files' ? <FolderTree size={15} aria-hidden="true" /> : <Globe size={15} aria-hidden="true" />}
                   <span>{label}</span>
                 </button>
                 {tab.closable && (
@@ -319,7 +365,7 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
               aria-label="New drawer tab"
               aria-haspopup="menu"
               aria-expanded={addMenuOpen}
-              title="New terminal or file manager"
+              title="New terminal, file manager, or browser"
               onClick={() => setAddMenuOpen(current => !current)}
             >
               <Plus size={14} aria-hidden="true" />
@@ -328,17 +374,18 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
               <div className="dshDesktopTerminalDrawerAddMenu" role="menu">
                 <button type="button" role="menuitem" onClick={() => addTab('terminal')}><SquareTerminal size={14} aria-hidden="true" />New terminal</button>
                 <button type="button" role="menuitem" onClick={() => addTab('files')}><FolderTree size={14} aria-hidden="true" />New file manager</button>
+                <button type="button" role="menuitem" onClick={() => addTab('browser')}><Globe size={14} aria-hidden="true" />New browser</button>
               </div>
             )}
           </div>
         </div>
-        <button type="button" aria-label="Close terminal" title="Close terminal" onClick={closeDesktopTerminalDrawer}><X size={16} aria-hidden="true" /></button>
+        <button type="button" aria-label="Collapse right sidebar" title="Collapse right sidebar" onClick={closeDesktopTerminalDrawer}><X size={16} aria-hidden="true" /></button>
       </header>
       {tabs.filter(tab => tab.kind === 'terminal').map(tab => {
         const key = drawerTabKey(tab)
         return (
           <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
-            <TerminalSession active={activeKey === key} url={config.url} {...(getCwd === undefined ? {} : { getCwd })} />
+            <TerminalSession active={isOpen && activeKey === key} url={config.url} {...(getCwd === undefined ? {} : { getCwd })} />
           </div>
         )
       })}
@@ -347,6 +394,14 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
         return (
           <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
             <DesktopFileManager listDirectory={listDirectory} />
+          </div>
+        )
+      })}
+      {tabs.filter(tab => tab.kind === 'browser').map(tab => {
+        const key = drawerTabKey(tab)
+        return (
+          <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
+            <DesktopBrowserPanel />
           </div>
         )
       })}

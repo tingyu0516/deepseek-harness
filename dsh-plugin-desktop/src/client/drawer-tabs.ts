@@ -1,18 +1,25 @@
 /** Pure tab-list model behind the desktop terminal drawer's dynamic tabs. */
 
-export type DrawerTabKind = 'terminal' | 'files'
+export type DrawerTabKind = 'terminal' | 'files' | 'browser'
 
-/** One drawer tab. The base Terminal and File Manager tabs are never closable. */
+/** One drawer tab. The base Terminal, File Manager, and Browser tabs are never closable. */
 export interface DrawerTab {
   readonly id: number
   readonly kind: DrawerTabKind
   readonly closable: boolean
 }
 
-/** The two tabs every drawer starts with: one terminal and one file manager. */
+const TAB_NOUNS: Record<DrawerTabKind, string> = {
+  terminal: 'Terminal',
+  files: 'File Manager',
+  browser: 'Browser',
+}
+
+/** The three tabs every drawer starts with: terminal, file manager, and browser. */
 export const BASE_DRAWER_TABS: readonly DrawerTab[] = Object.freeze([
   { id: 0, kind: 'terminal', closable: false },
   { id: 1, kind: 'files', closable: false },
+  { id: 2, kind: 'browser', closable: false },
 ])
 
 /** Key of the base terminal tab — the drawer's default active tab. */
@@ -45,7 +52,7 @@ export function drawerTabOrdinal(tabs: readonly DrawerTab[], tab: DrawerTab): nu
 
 /** Human tab label; the first tab of a kind keeps the plain noun. */
 export function drawerTabLabel(tab: DrawerTab, ordinal: number): string {
-  const noun = tab.kind === 'terminal' ? 'Terminal' : 'File Manager'
+  const noun = TAB_NOUNS[tab.kind]
   return ordinal === 1 ? noun : `${noun} ${ordinal}`
 }
 
