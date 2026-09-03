@@ -6,38 +6,63 @@
       "lines": {
         "greet": [
           "嘿嘿，胡桃来啦！今天也要元气满满哦～",
-          "哇，被你发现了！本堂主闪亮登场～"
+          "哇，被你发现了！本堂主闪亮登场～",
+          "哟～活人检测通过，今日营业开始！",
+          "本堂主路过，专程确认你还跳得起来～",
+          "嘿！吓到没？没有也没关系，下一回更精彩。",
+          "太阳这么好，适合出门，也适合摸鱼！"
         ],
         "idle": [
           "嗯～要不要去晒晒太阳？",
           "工作久了，来块杏仁豆腐休息一下吧！",
           "嘿嘿，想听往生堂的传说吗？",
           "喂喂，别把我晾在这儿嘛～",
-          "一、二、三…嘿嘿，数到三就出现！"
+          "一、二、三…嘿嘿，数到三就出现！",
+          "蝴蝶往哪儿飞，本堂主就跟到哪儿～",
+          "打油诗一首：屏幕亮堂堂，人儿忙又忙～",
+          "活着的时候更要好好玩，这是堂规！",
+          "新诗写好了。不要听？那更要念给你听。",
+          "坐太久骨头要生锈啦，一起蹦一下！"
         ],
         "work": [
           "往生堂堂主亲自监工，放心啦！",
           "加油加油，一起用力！",
           "嗯…让我看看进展如何～",
-          "这单生意，势在必得！"
+          "这单生意，势在必得！",
+          "生要认真活，事要认真做——本堂主有经验！",
+          "盯梢完毕：很专心嘛，口头奖励一颗糖。",
+          "别皱眉，皱眉会累得更快哦。",
+          "进度不错！再加把火～"
         ],
         "cheer": [
           "搞定！这就是实力的证明！",
           "哇，太棒啦！庆典时间到～",
-          "本堂主就知道你能行！"
+          "本堂主就知道你能行！",
+          "成啦成啦！今晚可以笑到月亮回家！",
+          "本堂主盖章：优秀，合格，超级合格！",
+          "哈哈，赢的样子比烟花还好看！"
         ],
         "sad": [
           "呜…遇到麻烦了吗？歇口气再来！",
-          "哎呀，翻车了…没事没事，重来！"
+          "哎呀，翻车了…没事没事，重来！",
+          "阴天而已，晒一晒就散了。",
+          "摔一跤不算完，爬起来才是好戏。",
+          "本堂主在呢，怕什么～大不了重新开张。"
         ],
         "pat": [
           "嘿嘿，好痒呀！",
           "哇！干什么啦～",
-          "再摸摸，再摸摸！"
+          "再摸摸，再摸摸！",
+          "头发乱啦！你赔我发型！",
+          "嘿嘿嘿……再一下下就好。",
+          "摸堂主的头要收保护费哦？这次免单。"
         ],
         "special": [
           "看招——幽灵小伙伴，现身！",
-          "嘿！吓一跳吧？哈哈哈！"
+          "嘿！吓一跳吧？哈哈哈！",
+          "蝶引来——快乐！今天只办开心的那种。",
+          "火苗窜起来啦，小心被本堂主的热情烤到～",
+          "诗兴大发：敲敲键盘，烦恼让路～"
         ]
       }
     },
@@ -46,38 +71,63 @@
       "lines": {
         "greet": [
           "Hehe, Hu Tao's here! Let's make today a blast~",
-          "Whoa, you found me! The 77th Director makes her debut~"
+          "Whoa, you found me! The 77th Director makes her debut~",
+          "Yo~ pulse check passed. Wangsheng is open for business!",
+          "Just dropping by to make sure you can still bounce~",
+          "Boo! Didn't jump? Fine, the next scare will be better.",
+          "Nice sun today—perfect for going out, or slacking off!"
         ],
         "idle": [
           "Hmm~ how about a little sunbathing?",
           "You've earned an almond tofu break!",
           "Wanna hear a Wangsheng Funeral Parlor legend?",
           "Hey hey, don't leave me hanging here~",
-          "One, two, three... hehe, appear!"
+          "One, two, three... hehe, appear!",
+          "Wherever the butterflies go, this Director follows~",
+          "Ahem: screens so bright, humans so busy~",
+          "House rule: while you're alive, you'd better have fun!",
+          "New verse just dropped. Don't want it? Even more reason to hear it.",
+          "Sit too long and your bones rust. Bounce with me!"
         ],
         "work": [
           "With the Director supervising, what could go wrong?",
           "Go go, full power!",
           "Lemme see how it's going~",
-          "This deal is as good as done!"
+          "This deal is as good as done!",
+          "Live seriously, work seriously—I happen to be an expert!",
+          "Surveillance complete: very focused. Verbal candy awarded.",
+          "Don't frown. Frowns tire you out faster.",
+          "Nice pace! Stoke the fire a little more~"
         ],
         "cheer": [
           "Done! Proof of true skill!",
           "Woohoo! Time to celebrate~",
-          "I knew you had it in you!"
+          "I knew you had it in you!",
+          "Yes yes yes! Laugh until the moon clocks out!",
+          "Director's stamp: excellent, passing, super passing!",
+          "Haha, winning looks better than fireworks!"
         ],
         "sad": [
           "Aww... trouble? Take a breather and try again!",
-          "Oops, we slipped... no worries, one more time!"
+          "Oops, we slipped... no worries, one more time!",
+          "Just a cloudy spell. A little sun and it clears.",
+          "A fall isn't the end. Getting up is the good part.",
+          "The Director's here. Worst case, we reopen shop~"
         ],
         "pat": [
           "Hehe, that tickles!",
           "Waah! What was that for~",
-          "More pats, more pats!"
+          "More pats, more pats!",
+          "My hair! You owe me a restyle!",
+          "Hehehe... just one more tiny one.",
+          "Patting the Director usually costs extra. This one's free."
         ],
         "special": [
           "Behold—my ghostly little buddy!",
-          "Boo! ...Gotcha! Hahaha!"
+          "Boo! ...Gotcha! Hahaha!",
+          "Butterflies, this way—toward fun, not farewells!",
+          "Flames up! Don't get toasted by my enthusiasm~",
+          "Poetry strike: tap the keys, worries make way~"
         ]
       }
     }
