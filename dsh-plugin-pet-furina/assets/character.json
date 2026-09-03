@@ -6,38 +6,63 @@
       "lines": {
         "greet": [
           "哼哼——水之神最忠实的伙伴，芙宁娜，登场！",
-          "今天的舞台，也由我为你呈现！"
+          "今天的舞台，也由我为你呈现！",
+          "聚光灯已经亮了，快为今天的明星鼓掌！",
+          "来得正好。第一幕，由本座亲自揭开！",
+          "观众席可不能空着——你来，刚刚好。",
+          "欢迎莅临……咳，欢迎来看我演出。"
         ],
         "idle": [
           "嗯……要不要来块蛋糕？",
           "下一幕，会是怎样的剧情呢～",
           "请记住，我永远是最耀眼的主角！",
           "哪、哪怕是等待，也要等得优雅！",
-          "这顶帽子，和我很相称吧？"
+          "这顶帽子，和我很相称吧？",
+          "歌剧院的回声，好像还停在耳边。",
+          "再一小块甜点……这是主角的合法加餐！",
+          "偶尔也要给自己一段独白时间。",
+          "帽子要是歪了，那可是事故级别的事。",
+          "没有观众的时候，我也要自己把灯点亮。"
         ],
         "work": [
           "看好了，这就是完美的指挥！",
           "嗯哼，进展不错，继续保持！",
           "聚光灯下，可不许偷懒哦！",
-          "这出戏，正在走向高潮！"
+          "这出戏，正在走向高潮！",
+          "节拍不能乱，跟紧我的指挥。",
+          "这一幕的走位，必须分毫不差！",
+          "中场休息可以有，但不可太长。",
+          "把杂音请出舞台，只留真正的演奏。"
         ],
         "cheer": [
           "完美谢幕！把掌声送给这一刻！",
           "看到了吗？这便是吾辈的舞台！",
-          "太出色了，堪比歌剧的高潮！"
+          "太出色了，堪比歌剧的高潮！",
+          "Bravo！这才配得上谢幕的花束。",
+          "看见了吧，努力之后的灯光有多亮！",
+          "这一幕，写进回忆也不为过。"
         ],
         "sad": [
           "呜哇…这、这只是剧情需要的眼泪！",
-          "怎么会这样…不，主角是不会认输的！"
+          "怎么会这样…不，主角是不会认输的！",
+          "才、才不是害怕……只是灯光太亮了。",
+          "剧本突然改了，也要演下去才行。",
+          "等一下，让我把眼泪擦掉。下一句还在。"
         ],
         "pat": [
           "哼、哼哼，崇拜我也可以哦！",
           "做、做什么！突然这样…很失礼的！",
-          "……好吧，就允许你再摸一下。"
+          "……好吧，就允许你再摸一下。",
+          "帽子！你是故意的吧！",
+          "突然靠近……会、会被误会的！",
+          "再这样，就要把你请出贵宾席了……开玩笑的。"
         ],
         "special": [
           "水之旋律，此刻为你奏响～",
-          "这就是我隐藏的真正实力！"
+          "这就是我隐藏的真正实力！",
+          "荒与芒，此刻都听我号令！",
+          "请见证——这不是演技，这是真心。",
+          "水花绽开的这一秒，才是真正的高潮！"
         ]
       }
     },
@@ -46,38 +71,63 @@
       "lines": {
         "greet": [
           "Hmph hmph—Furina, the Hydro Archon's most devoted companion, takes the stage!",
-          "Today's stage is yours to enjoy—courtesy of me!"
+          "Today's stage is yours to enjoy—courtesy of me!",
+          "The lights are up! Applaud today's star, if you please!",
+          "Perfect timing. I shall open the first act myself!",
+          "An empty house? Unthinkable. You may take the best seat.",
+          "Welcome to my— ahem. Welcome to the show."
         ],
         "idle": [
           "Hmm... how about a slice of cake?",
           "What will the next scene bring, I wonder~",
           "Remember, I am always the most dazzling lead!",
           "E-even waiting must be done elegantly!",
-          "This hat suits me rather well, don't you think?"
+          "This hat suits me rather well, don't you think?",
+          "I can still hear the opera house echoing.",
+          "One more pastry. A lead is entitled to an encore snack!",
+          "Even a star needs a little soliloquy now and then.",
+          "A crooked hat would be a genuine incident.",
+          "Even without an audience, I shall light my own lamp."
         ],
         "work": [
           "Watch closely—this is what perfect conducting looks like!",
           "Mm-hm, splendid progress. Keep it up!",
           "Under the spotlight, no slacking allowed!",
-          "This play is heading toward its climax!"
+          "This play is heading toward its climax!",
+          "Keep my tempo. The beat must not falter!",
+          "Every step in this scene must land exactly.",
+          "An intermission is allowed. A long one is not.",
+          "Clear the noise from the stage—leave only the music."
         ],
         "cheer": [
           "A flawless curtain call! Applause, if you please!",
           "Behold—this is my stage!",
-          "Magnificent! Worthy of an opera's climax!"
+          "Magnificent! Worthy of an opera's climax!",
+          "Bravo! That deserves an armful of flowers.",
+          "See? How bright the lights become after hard work!",
+          "This scene is worth keeping."
         ],
         "sad": [
           "Waah... th-these are purely dramatic tears!",
-          "How could this be... no. A true lead never gives up!"
+          "How could this be... no. A true lead never gives up!",
+          "I-I'm not scared... the lights are simply too bright.",
+          "If the script changes, we still finish the act.",
+          "One moment—let me wipe this. The next line is waiting."
         ],
         "pat": [
           "H-hmph, admiring me is only natural!",
           "Wh-what! So suddenly... how rude!",
-          "...Fine. I shall permit one more pat."
+          "...Fine. I shall permit one more pat.",
+          "My hat! You did that on purpose!",
+          "If you lean in like that, people will talk!",
+          "Keep that up and I'll have you shown out of the box... kidding."
         ],
         "special": [
           "Let the melody of water play for you~",
-          "Behold, my true hidden talent!"
+          "Behold, my true hidden talent!",
+          "Pneuma and ousia—both answer to me!",
+          "Witness this: not a performance, but the truth.",
+          "When the spray bursts, that is the real climax!"
         ]
       }
     }

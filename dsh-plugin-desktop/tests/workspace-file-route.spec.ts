@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { Readable } from 'node:stream'
@@ -23,16 +23,20 @@ function request(path: string, endpoint = '/api/desktop/workspace-file', method 
 }
 
 function jsonPut(path: string, content: string, headers: Record<string, string> = {}): IncomingMessage {
-  const body = JSON.stringify({ path, content })
-  const req = Readable.from([body]) as IncomingMessage
-  req.method = 'PUT'
+  return jsonRequest('PUT', { path, content }, headers)
+}
+
+function jsonRequest(method: string, body: object, headers: Record<string, string> = {}): IncomingMessage {
+  const payload = JSON.stringify(body)
+  const req = Readable.from([payload]) as IncomingMessage
+  req.method = method
   req.url = '/api/desktop/workspace-file'
   req.headers = {
     host: '127.0.0.1:43120',
     origin,
     'sec-fetch-site': 'same-origin',
     'content-type': 'application/json',
-    'content-length': String(Buffer.byteLength(body)),
+    'content-length': String(Buffer.byteLength(payload)),
     ...headers,
   }
   Object.defineProperty(req, 'socket', { configurable: true, value: { remoteAddress: '127.0.0.1' } })
@@ -111,9 +115,104 @@ describe('desktop workspace file route', () => {
       expect(invalid.statusCode).toBe(400)
 
       const disallowed = response()
-      await handleDesktopWorkspaceFileRequest(request(file, '/api/desktop/workspace-file', 'POST'), disallowed, origin, [root])
+      await handleDesktopWorkspaceFileRequest(request(file, '/api/desktop/workspace-file', 'PATCH'), disallowed, origin, [root])
       expect(disallowed.statusCode).toBe(405)
-      expect(disallowed.headers.allow).toBe('GET, PUT')
+      expect(disallowed.headers.allow).toBe('GET, PUT, POST, DELETE')
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('creates a missing file or directory and refuses existing, nested-missing, and out-of-workspace paths', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-file-route-'))
+    const nested = join(root, 'src')
+    await mkdir(nested)
+    try {
+      const filePath = join(root, 'created.txt')
+      const createdFile = response()
+      await handleDesktopWorkspaceFileRequest(jsonRequest('POST', { path: filePath, kind: 'file' }), createdFile, origin, [root])
+      expect(createdFile.statusCode).toBe(200)
+      expect(JSON.parse(createdFile.body)).toEqual({ path: filePath, created: true, kind: 'file' })
+      expect(await readFile(filePath, 'utf8')).toBe('')
+
+      const duplicate = response()
+      await handleDesktopWorkspaceFileRequest(jsonRequest('POST', { path: filePath, kind: 'file' }), duplicate, origin, [root])
+      expect(duplicate.statusCode).toBe(409)
+      expect(JSON.parse(duplicate.body)).toEqual({ error: 'path already exists' })
+
+      const folderPath = join(nested, 'lib')
+      const createdDir = response()
+      await handleDesktopWorkspaceFileRequest(jsonRequest('POST', { path: folderPath, kind: 'directory' }), createdDir, origin, [root])
+      expect(createdDir.statusCode).toBe(200)
+      expect(JSON.parse(createdDir.body)).toEqual({ path: folderPath, created: true, kind: 'directory' })
+
+      const listed = response()
+      await handleDesktopWorkspaceFileRequest(request(nested, DESKTOP_WORKSPACE_TREE_PATH), listed, origin, [root])
+      expect(JSON.parse(listed.body).entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'lib', kind: 'directory' }),
+      ]))
+
+      const missingParent = response()
+      await handleDesktopWorkspaceFileRequest(
+        jsonRequest('POST', { path: join(root, 'gone', 'a.txt'), kind: 'file' }),
+        missingParent,
+        origin,
+        [root],
+      )
+      expect(missingParent.statusCode).toBe(404)
+      expect(JSON.parse(missingParent.body)).toEqual({ error: 'parent unavailable' })
+
+      const outside = response()
+      await handleDesktopWorkspaceFileRequest(
+        jsonRequest('POST', { path: join(tmpdir(), 'outside.txt'), kind: 'file' }),
+        outside,
+        origin,
+        [root],
+      )
+      expect(outside.statusCode).toBe(403)
+
+      const invalid = response()
+      await handleDesktopWorkspaceFileRequest(jsonRequest('POST', { path: filePath, kind: 'symlink' }), invalid, origin, [root])
+      expect(invalid.statusCode).toBe(400)
+
+      const mutatingWithoutOrigin = jsonRequest('POST', { path: join(root, 'blocked.txt'), kind: 'file' })
+      delete mutatingWithoutOrigin.headers.origin
+      const blocked = response()
+      await handleDesktopWorkspaceFileRequest(mutatingWithoutOrigin, blocked, origin, [root])
+      expect(blocked.statusCode).toBe(403)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  it('deletes an existing file and refuses missing, directory, and out-of-workspace paths', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-file-route-'))
+    const nested = join(root, 'src')
+    const file = join(root, 'note.txt')
+    await mkdir(nested)
+    await writeFile(file, 'hello desktop', 'utf8')
+    try {
+      const deleted = response()
+      await handleDesktopWorkspaceFileRequest(request(file, '/api/desktop/workspace-file', 'DELETE'), deleted, origin, [root])
+      expect(deleted.statusCode).toBe(200)
+      expect(JSON.parse(deleted.body)).toEqual({ path: file, deleted: true })
+      await expect(access(file)).rejects.toThrow()
+
+      const missing = response()
+      await handleDesktopWorkspaceFileRequest(request(file, '/api/desktop/workspace-file', 'DELETE'), missing, origin, [root])
+      expect(missing.statusCode).toBe(404)
+      expect(JSON.parse(missing.body)).toEqual({ error: 'file unavailable' })
+
+      const directory = response()
+      await handleDesktopWorkspaceFileRequest(request(nested, '/api/desktop/workspace-file', 'DELETE'), directory, origin, [root])
+      expect(directory.statusCode).toBe(400)
+      expect(JSON.parse(directory.body)).toEqual({ error: 'path is not a file' })
+
+      const outside = response()
+      await handleDesktopWorkspaceFileRequest(request(join(tmpdir(), 'outside.txt'), '/api/desktop/workspace-file', 'DELETE'), outside, origin, [root])
+      expect(outside.statusCode).toBe(403)
+
+      const mutatingWithoutOrigin = request(join(root, 'README.md'), '/api/desktop/workspace-file', 'DELETE')
+      delete mutatingWithoutOrigin.headers.origin
+      const blocked = response()
+      await handleDesktopWorkspaceFileRequest(mutatingWithoutOrigin, blocked, origin, [root])
+      expect(blocked.statusCode).toBe(403)
     } finally { await rm(root, { recursive: true, force: true }) }
   })
 

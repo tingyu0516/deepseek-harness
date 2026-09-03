@@ -1,6 +1,6 @@
 /** Desktop workspace tree and UTF-8 file routes. */
-import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
-import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { mkdir, readdir, readFile, realpath, stat, unlink, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { isSameOriginLoopbackRequest } from './desktop-settings-route.ts'
 
@@ -8,6 +8,7 @@ export const DESKTOP_WORKSPACE_FILE_PATH = '/api/desktop/workspace-file'
 export const DESKTOP_WORKSPACE_TREE_PATH = '/api/desktop/workspace-tree'
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const MAX_WRITE_BODY_BYTES = MAX_FILE_BYTES + 64 * 1024
+const MAX_CREATE_BODY_BYTES = 16 * 1024
 const MAX_DIRECTORY_ENTRIES = 1000
 
 export interface DesktopWorkspaceTreeEntry {
@@ -151,9 +152,17 @@ async function handleFile(
     await handleFileWrite(req, res, allowedRoots)
     return
   }
+  if (req.method === 'POST') {
+    await handleFileCreate(req, res, allowedRoots)
+    return
+  }
+  if (req.method === 'DELETE') {
+    await handleFileDelete(req, res, rendererOrigin, allowedRoots)
+    return
+  }
   if (req.method !== 'GET') {
     res.statusCode = 405
-    res.setHeader('allow', 'GET, PUT')
+    res.setHeader('allow', 'GET, PUT, POST, DELETE')
     res.end()
     return
   }
@@ -204,6 +213,21 @@ function parseWriteBody(value: unknown): { path: string, content: string } | und
   return { path: record.path, content: record.content }
 }
 
+function parseCreateBody(value: unknown): { path: string, kind: 'file' | 'directory' } | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const keys = Object.keys(value)
+  if (keys.length !== 2 || !keys.includes('path') || !keys.includes('kind')) return undefined
+  const record = value as { path: unknown, kind: unknown }
+  if (typeof record.path !== 'string' || (record.kind !== 'file' && record.kind !== 'directory')) return undefined
+  return { path: record.path, kind: record.kind }
+}
+
+function nodeErrorCode(cause: unknown): string | undefined {
+  return typeof cause === 'object' && cause !== null && 'code' in cause && typeof cause.code === 'string'
+    ? cause.code
+    : undefined
+}
+
 async function handleFileWrite(
   req: IncomingMessage,
   res: ServerResponse,
@@ -235,7 +259,72 @@ async function handleFileWrite(
   }
 }
 
-/** Serve one workspace tree, file read, or file write request from the loopback renderer. */
+async function handleFileCreate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
+): Promise<void> {
+  let value: unknown
+  try {
+    value = await readJsonBody(req, MAX_CREATE_BODY_BYTES)
+  } catch (cause) {
+    if (cause instanceof BodyTooLargeError) return finish(res, 413, { error: 'file is too large' })
+    return finish(res, 400, { error: 'invalid body' })
+  }
+  const body = parseCreateBody(value)
+  if (body === undefined) return finish(res, 400, { error: 'invalid body' })
+  const requested = validateWorkspaceFilePath(body.path)
+  if (requested === undefined) return finish(res, 400, { error: 'invalid path' })
+  const target = await resolveAllowedWorkspacePath(requested, allowedRoots)
+  if (target === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
+  const parentRequested = validateWorkspaceFilePath(dirname(target))
+  if (parentRequested === undefined) return finish(res, 400, { error: 'invalid path' })
+  const parent = await resolveAllowedWorkspacePath(parentRequested, allowedRoots)
+  if (parent === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
+  try {
+    const metadata = await stat(parent)
+    if (!metadata.isDirectory()) return finish(res, 400, { error: 'parent is not a directory' })
+  } catch {
+    return finish(res, 404, { error: 'parent unavailable' })
+  }
+  try {
+    await stat(target)
+    return finish(res, 409, { error: 'path already exists' })
+  } catch {
+    /* Create requires a missing path. */
+  }
+  try {
+    if (body.kind === 'directory') await mkdir(target)
+    else await writeFile(target, '', { encoding: 'utf8', flag: 'wx' })
+    return finish(res, 200, { path: target, created: true, kind: body.kind })
+  } catch (cause) {
+    if (nodeErrorCode(cause) === 'EEXIST') return finish(res, 409, { error: 'path already exists' })
+    return finish(res, 404, { error: 'file unavailable' })
+  }
+}
+
+async function handleFileDelete(
+  req: IncomingMessage,
+  res: ServerResponse,
+  rendererOrigin: string,
+  allowedRoots: DesktopWorkspaceAllowedRoots | undefined,
+): Promise<void> {
+  const url = new URL(req.url ?? '/', rendererOrigin)
+  const requested = validateWorkspaceFilePath(url.searchParams.get('path'))
+  if (requested === undefined) return finish(res, 400, { error: 'invalid path' })
+  const filePath = await resolveAllowedWorkspacePath(requested, allowedRoots)
+  if (filePath === undefined) return finish(res, 403, { error: 'path is outside the workspace' })
+  try {
+    const metadata = await stat(filePath)
+    if (!metadata.isFile()) return finish(res, 400, { error: 'path is not a file' })
+    await unlink(filePath)
+    return finish(res, 200, { path: filePath, deleted: true })
+  } catch {
+    return finish(res, 404, { error: 'file unavailable' })
+  }
+}
+
+/** Serve one workspace tree, file read, write, create, or delete request from the loopback renderer. */
 export async function handleDesktopWorkspaceFileRequest(
   req: IncomingMessage,
   res: ServerResponse,

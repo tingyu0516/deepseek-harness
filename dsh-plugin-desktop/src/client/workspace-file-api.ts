@@ -40,3 +40,53 @@ export async function saveDesktopWorkspaceFile(path: string, content: string, si
     throw new Error(errorMessage(value, 'Unable to save file'))
   }
 }
+
+/** Delete one existing workspace file through the Desktop Host route.
+ * @param path - absolute workspace file path.
+ * @param signal - optional abort.
+ */
+export async function deleteDesktopWorkspaceFile(path: string, signal?: AbortSignal): Promise<void> {
+  const requestInit: RequestInit = {
+    method: 'DELETE',
+    ...(signal === undefined ? {} : { signal }),
+  }
+  const response = await fetch(`${DESKTOP_WORKSPACE_FILE_PATH}?path=${encodeURIComponent(path)}`, requestInit)
+  const value: unknown = await response.json()
+  if (!response.ok || typeof value !== 'object' || value === null || !('deleted' in value) || value.deleted !== true) {
+    throw new Error(errorMessage(value, 'Unable to delete file'))
+  }
+}
+
+/** Create one missing workspace file or directory through the Desktop Host route.
+ * @param path - absolute workspace path that must not already exist.
+ * @param kind - file creates an empty UTF-8 file; directory creates one folder.
+ * @param signal - optional abort.
+ * @returns the confined path Host created.
+ */
+export async function createDesktopWorkspaceEntry(
+  path: string,
+  kind: 'file' | 'directory',
+  signal?: AbortSignal,
+): Promise<{ path: string, kind: 'file' | 'directory' }> {
+  const response = await fetch(DESKTOP_WORKSPACE_FILE_PATH, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path, kind }),
+    ...(signal === undefined ? {} : { signal }),
+  })
+  const value: unknown = await response.json()
+  if (
+    !response.ok
+    || typeof value !== 'object'
+    || value === null
+    || !('created' in value)
+    || value.created !== true
+    || !('path' in value)
+    || typeof value.path !== 'string'
+    || !('kind' in value)
+    || (value.kind !== 'file' && value.kind !== 'directory')
+  ) {
+    throw new Error(errorMessage(value, 'Unable to create path'))
+  }
+  return { path: value.path, kind: value.kind }
+}

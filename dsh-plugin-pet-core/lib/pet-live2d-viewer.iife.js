@@ -14904,13 +14904,42 @@
 		const area = Math.max((box[2] - box[0]) * (box[3] - box[1]), 1);
 		return Math.min(16, Math.max(6, Math.round(240 / Math.sqrt(area))));
 	}
+	/** Screen-space pad so thin art (hands, hair, feet) still captures the cursor. */
+	const COVER_PAD_PX = 28;
+	const COVER_PAD_SAMPLES = [
+		[0, 0],
+		[COVER_PAD_PX, 0],
+		[-28, 0],
+		[0, COVER_PAD_PX],
+		[0, -28],
+		[COVER_PAD_PX, COVER_PAD_PX],
+		[COVER_PAD_PX, -28],
+		[-28, COVER_PAD_PX],
+		[-28, -28]
+	];
 	function isOnModel(viewX, viewY) {
-		const cubism = model?.getModel();
+		if (model === void 0) return false;
+		const cubism = model.getModel();
 		if (cubism === void 0) return false;
+		const matrix = model.getModelMatrix();
+		const tx = matrix.invertTransformX(viewX);
+		const ty = matrix.invertTransformY(viewY);
 		const count = cubism.getDrawableCount();
 		for (let i = 0; i < count; i++) {
-			if (cubism.getDrawableOpacity(i) < .05) continue;
-			if (meshHit(cubism, i, viewX, viewY)) return true;
+			if (!cubism.getDrawableDynamicFlagIsVisible(i) || cubism.getDrawableOpacity(i) < .05) continue;
+			if (meshHit(cubism, i, tx, ty)) return true;
+			if (model.isHit(cubism.getDrawableId(i), viewX, viewY)) return true;
+		}
+		return false;
+	}
+	function coversExpandedHitAreas(clientX, clientY) {
+		if (Date.now() - hitAreaBoxesAt > 3e3) scanHitAreaBoxes();
+		const px = clientX + 12;
+		for (const box of hitAreaBoxes.values()) {
+			const margin = hitBoxMargin(box) + COVER_PAD_PX;
+			if (px < box[0] - margin || px > box[2] + margin) continue;
+			if (clientY < box[1] - margin || clientY > box[3] + margin) continue;
+			return true;
 		}
 		return false;
 	}
@@ -15314,9 +15343,12 @@
 		},
 		coversPoint(clientX, clientY) {
 			if (model === void 0 || !ready) return false;
-			const point = clientToView(clientX, clientY);
-			if (point === void 0) return false;
-			return isOnModel(point.x, point.y);
+			if (coversExpandedHitAreas(clientX, clientY)) return true;
+			for (const [dx, dy] of COVER_PAD_SAMPLES) {
+				const point = clientToView(clientX + dx, clientY + dy);
+				if (point !== void 0 && isOnModel(point.x, point.y)) return true;
+			}
+			return false;
 		},
 		tap(clientX, clientY) {
 			if (model === void 0 || !ready) return "";

@@ -43,10 +43,11 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopOverlay { position: absolute; z-index: 1000; grid-column: 1 / -1; grid-row: 1 / -1; inset: 0; pointer-events: none; }
 .dshDesktopOverlay > * { pointer-events: auto; }
 .dshDesktopTerminalDrawer { position: absolute; z-index: 20; top: 0; right: 0; left: auto; bottom: 0; display: flex; flex-direction: column; width: min(640px, 92vw); min-width: 280px; isolation: isolate; background: var(--dsw-alias-bg-base); border-left: 1px solid var(--dsw-alias-border-l1); -webkit-app-region: no-drag; }
+.dshDesktopTerminalDrawer[hidden] { display: none; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="win32"] .dshDesktopTerminalDrawer { top: ${ADVANCED_WINDOWS_TITLEBAR_HEIGHT}px; }
 .dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="darwin"] .dshDesktopTerminalDrawer { top: ${ADVANCED_MACOS_DRAG_REGION_HEIGHT}px; }
 .dshDesktopTerminalDrawerHeader { display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
-.dshDesktopTerminalDrawerTabs { display: flex; align-items: stretch; gap: 2px; min-width: 0; }
+.dshDesktopTerminalDrawerTabs { display: flex; align-items: stretch; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; }
 .dshDesktopTerminalDrawerTabs [role="tab"] { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; color: var(--dsw-alias-label-secondary); background: transparent; cursor: pointer; }
 .dshDesktopTerminalDrawerTabs [role="tab"].is-active { color: var(--dsw-alias-label-primary); border-bottom-color: var(--dsw-alias-label-primary); }
 .dshDesktopDrawerTab { display: inline-flex; align-items: center; min-width: 0; }
@@ -67,12 +68,19 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopFileManagerToolbar .dshDesktopFileManagerPath { flex: 1; min-width: 0; padding: 0; border: 0; }
 .dshDesktopFileManagerPath { padding: 10px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dshDesktopFileManagerDirty { flex: none; color: var(--dsw-alias-label-secondary); font-size: 11px; }
-.dshDesktopFileManagerSave { flex: none; min-height: 24px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; cursor: pointer; }
-.dshDesktopFileManagerSave:disabled { opacity: 0.5; cursor: default; }
+.dshDesktopFileManagerSave, .dshDesktopFileManagerDelete { flex: none; min-height: 24px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; cursor: pointer; }
+.dshDesktopFileManagerDelete { color: var(--dsw-alias-danger, #d14343); }
+.dshDesktopFileManagerSave:disabled, .dshDesktopFileManagerDelete:disabled { opacity: 0.5; cursor: default; }
 .dshDesktopFileManagerEditor { flex: 1; min-height: 0; width: 100%; margin: 0; padding: 12px; border: 0; resize: none; color: inherit; background: transparent; outline: none; white-space: pre; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.dshDesktopFileManagerTree { min-width: 0; overflow: auto; padding: 8px; }
-.dshDesktopFileManagerTreeHeader { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px 8px; font-size: 12px; }
-.dshDesktopFileManagerTreeHeader strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopFileManagerTree { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 8px; }
+.dshDesktopFileManagerTreeHeader { display: flex; align-items: center; gap: 6px; flex: none; min-width: 0; padding: 4px 6px 8px; font-size: 12px; }
+.dshDesktopFileManagerTreeHeader strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshDesktopFileManagerTreeActions { display: flex; flex: none; margin-left: auto; }
+.dshDesktopFileManagerTreeActions button { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 0; color: inherit; background: transparent; cursor: pointer; }
+.dshDesktopFileManagerTreeActions button:disabled { opacity: 0.5; cursor: default; }
+.dshDesktopFileManagerTreeActions button[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); border-radius: 4px; }
+.dshDesktopFileManagerSearch { flex: none; width: 100%; min-height: 28px; margin: 0 0 6px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; outline: none; font-size: 12px; }
+.dshDesktopFileManagerTreeBody { flex: 1; min-height: 0; overflow: auto; }
 .dshDesktopFileTreeNode { min-width: 0; }
 .dshDesktopFileTreeEntry { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 28px; padding-top: 4px; padding-right: 6px; padding-bottom: 4px; border: 0; color: var(--dsw-alias-label-primary); background: transparent; text-align: left; cursor: pointer; }
 .dshDesktopFileTreeEntry:hover, .dshDesktopFileTreeEntry[aria-current="true"] { background: var(--dsw-alias-interactive-bg-hover); }
@@ -89,6 +97,15 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopTerminalDrawerViewport .xterm { height: 100%; background: transparent; }
 .dshDesktopTerminalDrawerViewport .xterm .xterm-viewport { background: transparent; }
 .dshDesktopTerminalDrawerError { flex: none; padding: 8px 12px; color: var(--dsw-alias-danger, #d14343); font-size: 12px; }
+.dshDesktopBrowser { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.dshDesktopBrowserToolbar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.dshDesktopBrowserAddress { flex: 1; min-width: 0; min-height: 28px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; outline: none; font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopBrowserToolbar button { display: inline-flex; align-items: center; justify-content: center; flex: none; min-height: 24px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; cursor: pointer; }
+.dshDesktopBrowserToolbar button:disabled { opacity: 0.5; cursor: default; }
+.dshDesktopBrowserFrame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--dsw-alias-bg-base); }
+.dshDesktopBrowserEmpty, .dshDesktopBrowserError { padding: 12px; font-size: 12px; }
+.dshDesktopBrowserEmpty { color: var(--dsw-alias-label-secondary); }
+.dshDesktopBrowserError { color: var(--dsw-alias-danger, #d14343); }
 .dshDesktopChanges { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .dshDesktopChangesToolbar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 8px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
 .dshDesktopChangesView { position: relative; min-width: 0; }
