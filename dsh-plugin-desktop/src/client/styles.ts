@@ -71,7 +71,13 @@ body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) 
 .dshDesktopFileManagerSave, .dshDesktopFileManagerDelete { flex: none; min-height: 24px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 4px; color: inherit; background: transparent; cursor: pointer; }
 .dshDesktopFileManagerDelete { color: var(--dsw-alias-danger, #d14343); }
 .dshDesktopFileManagerSave:disabled, .dshDesktopFileManagerDelete:disabled { opacity: 0.5; cursor: default; }
-.dshDesktopFileManagerEditor { flex: 1; min-height: 0; width: 100%; margin: 0; padding: 12px; border: 0; resize: none; color: inherit; background: transparent; outline: none; white-space: pre; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopFileManagerEditorStack { position: relative; flex: 1; min-height: 0; display: flex; }
+.dshDesktopFileDiffBackdrop, .dshDesktopFileManagerEditor { flex: 1; min-height: 0; width: 100%; margin: 0; padding: 12px; border: 0; white-space: pre; overflow: auto; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.dshDesktopFileDiffBackdrop { position: absolute; inset: 0; pointer-events: none; color: transparent; background: transparent; }
+.dshDesktopFileDiffRow { display: block; min-height: 1.5em; }
+.dshDesktopFileDiffRow[data-diff="added"] { background: color-mix(in srgb, var(--dsw-alias-success, #3f9a5a) 22%, transparent); }
+.dshDesktopFileDiffRow[data-diff="removed"] { background: color-mix(in srgb, var(--dsw-alias-danger, #d14343) 18%, transparent); }
+.dshDesktopFileManagerEditor { resize: none; color: inherit; background: transparent; outline: none; }
 .dshDesktopFileManagerTree { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; padding: 8px; }
 .dshDesktopFileManagerTreeHeader { display: flex; align-items: center; gap: 6px; flex: none; min-width: 0; padding: 4px 6px 8px; font-size: 12px; }
 .dshDesktopFileManagerTreeHeader strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

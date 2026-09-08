@@ -1,9 +1,16 @@
 /** Editable workspace file tree for the right-sidebar drawer. */
 import { ChevronRight, FilePlus, FileText, Folder, FolderOpen, FolderPlus, FolderTree, FoldVertical, RefreshCw, Search } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { relativizeWorkspaceFile } from './last-agent-turn.ts'
 import type { DesktopFileEntry, DesktopTerminalDrawerProps, DesktopWorkspaceListing } from './TerminalDrawer.tsx'
 import { createDesktopWorkspaceEntry, deleteDesktopWorkspaceFile, requestDesktopWorkspaceFile, saveDesktopWorkspaceFile } from './workspace-file-api.ts'
+import {
+  addedEntireFile,
+  changedLinesFromUnifiedDiff,
+  diffRowKinds,
+  requestDesktopWorkspaceChanges,
+  type DiffRowKind,
+} from './workspace-changes-api.ts'
 
 function isAbort(cause: unknown): boolean {
   return cause instanceof DOMException && cause.name === 'AbortError'
@@ -55,7 +62,7 @@ function treeEntryVisible(
 }
 
 /** Right-sidebar workspace tree with an in-place UTF-8 editor for existing files. */
-export function DesktopFileManager({ listDirectory }: { readonly listDirectory?: DesktopTerminalDrawerProps['listDirectory'] }) {
+export function DesktopFileManager({ listDirectory, lastAgentFiles, workspaceRoot }: { readonly listDirectory?: DesktopTerminalDrawerProps['listDirectory'], readonly lastAgentFiles?: DesktopTerminalDrawerProps['lastAgentFiles'], readonly workspaceRoot?: DesktopTerminalDrawerProps['workspaceRoot'] }) {
   const [directories, setDirectories] = useState<Record<string, DesktopWorkspaceListing>>({})
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState<Set<string>>(() => new Set())
@@ -130,6 +137,64 @@ export function DesktopFileManager({ listDirectory }: { readonly listDirectory?:
       })
     return () => controller.abort()
   }, [selected])
+
+  // Last-turn change rows for the selected file: read-only diff positions from
+  // the same Host view the Changes panel uses. Hidden while the draft is dirty
+  // (row numbers no longer match) or when the file is not part of this turn.
+  const [rowKinds, setRowKinds] = useState<readonly DiffRowKind[]>([])
+  useEffect(() => {
+    if (selected === undefined || content === undefined || dirty || lastAgentFiles === undefined) {
+      setRowKinds([])
+      return
+    }
+    const root = workspaceRoot?.()
+    if (root === undefined) {
+      setRowKinds([])
+      return
+    }
+    const relative = relativizeWorkspaceFile(root, selected.path)
+    if (relative === undefined || !lastAgentFiles().includes(relative)) {
+      setRowKinds([])
+      return
+    }
+    const controller = new AbortController()
+    void requestDesktopWorkspaceChanges({
+      root,
+      view: 'agent-turn',
+      path: relative,
+      files: [relative],
+      signal: controller.signal,
+    }).then(summary => {
+      if (controller.signal.aborted) return
+      if (summary.repository !== true) {
+        setRowKinds([])
+        return
+      }
+      const status = summary.files.find(file => file.path === relative)?.status
+      const changed = status === 'untracked' || status === 'added'
+        ? addedEntireFile(content)
+        : changedLinesFromUnifiedDiff(summary.patch ?? '')
+      setRowKinds(diffRowKinds(content, changed))
+    }).catch((cause: unknown) => {
+      if (!isAbort(cause)) setRowKinds([])
+    })
+    return () => controller.abort()
+  }, [content, dirty, lastAgentFiles, selected, workspaceRoot])
+
+  const editorRef = useRef<HTMLTextAreaElement>(null)
+  const highlightRef = useRef<HTMLPreElement>(null)
+  const syncScroll = useCallback((): void => {
+    const editor = editorRef.current
+    const highlight = highlightRef.current
+    if (editor === null || highlight === null) return
+    highlight.scrollTop = editor.scrollTop
+    highlight.scrollLeft = editor.scrollLeft
+  }, [])
+  // Rows render inside a scroll-synced backdrop behind the textarea; the
+  // backdrop is transparent to selection and pointer events.
+  const highlightRows = useMemo(() => rowKinds.map((kind, index) => (
+    <span key={index} className="dshDesktopFileDiffRow" data-diff={kind === 'none' ? undefined : kind} />
+  )), [rowKinds])
 
   const selectFile = (entry: DesktopFileEntry): void => {
     if (selected?.path === entry.path) return
@@ -344,19 +409,29 @@ export function DesktopFileManager({ listDirectory }: { readonly listDirectory?:
           {fileError !== undefined && <div className="dshDesktopFileManagerError" role="alert">{fileError}</div>}
           {fileError === undefined && content === undefined && <div className="dshDesktopFileManagerStatus">Loading...</div>}
           {content !== undefined && (
-            <textarea
-              className="dshDesktopFileManagerEditor"
-              aria-label="File contents"
-              spellCheck={false}
-              value={draft}
-              onChange={event => setDraft(event.target.value)}
-              onKeyDown={event => {
-                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-                  event.preventDefault()
-                  void save()
-                }
-              }}
-            />
+            <div className="dshDesktopFileManagerEditorStack">
+              {highlightRows.length > 0 && (
+                <pre className="dshDesktopFileDiffBackdrop" ref={highlightRef} aria-hidden="true">
+                  {highlightRows}
+                  {'\n'}
+                </pre>
+              )}
+              <textarea
+                className="dshDesktopFileManagerEditor"
+                aria-label="File contents"
+                spellCheck={false}
+                value={draft}
+                ref={editorRef}
+                onChange={event => setDraft(event.target.value)}
+                onScroll={syncScroll}
+                onKeyDown={event => {
+                  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+                    event.preventDefault()
+                    void save()
+                  }
+                }}
+              />
+            </div>
           )}
         </>}
       </main>

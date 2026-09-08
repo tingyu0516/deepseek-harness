@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { collectLastAgentTurnPaths, relativizeWorkspaceFile } from '../src/client/last-agent-turn.ts'
+import {
+  collectLastAgentTurnPaths,
+  collectLastAgentTurnPathsFromEvents,
+  relativizeWorkspaceFile,
+} from '../src/client/last-agent-turn.ts'
 
 describe('last agent turn paths', () => {
   it('collects write and edit paths after the last user message', () => {
@@ -23,6 +27,22 @@ describe('last agent turn paths', () => {
         { kind: 'assistant', blocks: [{ kind: 'text', argsRaw: '' }] },
       ],
     })).toEqual([])
+  })
+
+  it('collects write and edit paths from a Session event window', () => {
+    expect(collectLastAgentTurnPathsFromEvents([
+      { type: 'event', event: { type: 'tool/call', data: { callId: 'old', name: 'write', arguments: '{"file_path":"old.ts"}' } } },
+      { type: 'event', event: { type: 'user/message' } },
+      { type: 'event', event: { type: 'assistant/message', data: { message: { content: [{ type: 'tool-call', name: 'write', arguments: '{"file_path":"src/a.ts"}' }] } } } },
+      { type: 'event', event: { type: 'tool/call', data: { callId: 'edit-1', name: 'edit', arguments: '{"file_path":"src/b.ts"}' } } },
+      {
+        type: 'chunks',
+        event: {
+          type: 'chunkrow/tool-call-chunks',
+          data: { id: 'live', name: 'write', args: ['{"file_path":', '"src/c.ts"}'] },
+        },
+      },
+    ])).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts'])
   })
 
   it('relativizes absolute tool paths to the workspace', () => {

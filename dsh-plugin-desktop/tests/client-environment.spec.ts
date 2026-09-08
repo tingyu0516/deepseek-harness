@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { apply } from '../src/client/index.ts'
 import { AdvancedFrame } from '../src/client/AdvancedFrame.tsx'
 import { applyAdvancedShell } from '../src/client/advanced-shell.ts'
@@ -91,6 +91,9 @@ describe('advanced desktop layout', () => {
     expect(drawer).toContain('Collapse right sidebar')
     expect(drawer).toContain('mounted.current')
     expect(drawer).not.toContain('setExtraTabs([])')
+    expect(drawer).toContain('resolveDesktopWorkspaceRoot')
+    expect(drawer).toContain('key={rootKey}')
+    expect(drawer).toContain('useSessions?.(snapshot => snapshot.current)')
     const browser = readFileSync(new URL('../src/client/BrowserPanel.tsx', import.meta.url), 'utf8')
     expect(browser).toContain('sandbox={BROWSER_IFRAME_SANDBOX}')
     const changes = readFileSync(new URL('../src/client/ChangesPanel.tsx', import.meta.url), 'utf8')

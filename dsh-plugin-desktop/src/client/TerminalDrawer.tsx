@@ -2,11 +2,13 @@ import { Terminal } from '@xterm/xterm'
 import { FileDiff, FolderTree, Globe, Plus, SquareTerminal, X } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 
 import { DesktopBrowserPanel } from './BrowserPanel.tsx'
 import { DesktopChangesPanel } from './ChangesPanel.tsx'
 import { DesktopFileManager } from './FileManager.tsx'
 import { applyTerminalCopy, shouldCopyTerminalSelection } from './terminal-clipboard.ts'
+import { resolveDesktopWorkspaceRoot, type DesktopTerminalCwdSessionList, type DesktopTerminalCwdWorkspaceList } from './desktop-terminal-cwd.ts'
 import { measureTerminalFit } from './terminal-fit.ts'
 import {
   BASE_DRAWER_TABS,
@@ -35,6 +37,11 @@ export interface TerminalWebSocketConfig {
   readonly url: string | undefined
 }
 
+/** Session-list snapshot shape the drawer's root subscription reads. */
+export type DesktopTerminalDrawerSessionList = DesktopTerminalCwdSessionList
+/** Workspace-list snapshot shape the drawer's root subscription reads. */
+export type DesktopTerminalDrawerWorkspaceList = DesktopTerminalCwdWorkspaceList
+
 export interface DesktopFileEntry {
   readonly name: string
   readonly path: string
@@ -53,6 +60,10 @@ export interface DesktopTerminalDrawerProps {
   readonly workspaceRoot?: () => string | undefined
   readonly lastAgentFiles?: () => readonly string[]
   readonly listDirectory?: (path?: string, signal?: AbortSignal) => Promise<DesktopWorkspaceListing>
+  /** Framework session-list seat; injected for root subscriptions on 'root'-scope slots. */
+  readonly useSessions?: SnapshotSelectorHook<DesktopTerminalDrawerSessionList>
+  /** Framework workspace-list seat; injected for root subscriptions on 'root'-scope slots. */
+  readonly useWorkspaces?: SnapshotSelectorHook<DesktopTerminalDrawerWorkspaceList>
 }
 
 /** Read the optional Host terminal WebSocket URL from the renderer query. */
@@ -286,8 +297,20 @@ function TerminalSession({ active, url, getCwd }: TerminalSessionProps) {
 }
 
 /** Root overlay occupant. It owns the tab list, xterm sessions, and sockets. */
-export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, listDirectory }: DesktopTerminalDrawerProps) {
+export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, listDirectory, useSessions, useWorkspaces }: DesktopTerminalDrawerProps) {
   const isOpen = useSyncExternalStore(subscribe, snapshot, () => false)
+  // The file tree must track the live workspace: subscribe to the same root
+  // projection the composer branch uses and force the tree to remount on a
+  // switch, resetting cached listings, expansion, selection, and the draft.
+  const current = useSessions?.(snapshot => snapshot.current)
+  const byId = useSessions?.(snapshot => snapshot.byId)
+  const workspaceItems = useWorkspaces?.(snapshot => snapshot.items)
+  const liveRoot = current === undefined && byId === undefined && workspaceItems === undefined
+    ? workspaceRoot?.()
+    : resolveDesktopWorkspaceRoot(
+      { current, byId: byId ?? {} },
+      { items: workspaceItems ?? [] },
+    )
   const [extraTabs, setExtraTabs] = useState<readonly DrawerTab[]>([])
   const [activeKey, setActiveKey] = useState<string>(INITIAL_DRAWER_TAB_KEY)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -301,6 +324,10 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
     if (isOpen) return
     setAddMenuOpen(false)
   }, [isOpen])
+
+  // Remount the file tree when the workspace root moves: the tree key resets
+  // its cached listings, expansion, selection, and unsaved draft in one step.
+  const rootKey = liveRoot ?? 'none'
 
   useEffect(() => {
     if (!addMenuOpen || typeof document === 'undefined') return
@@ -393,7 +420,12 @@ export function DesktopTerminalDrawer({ getCwd, workspaceRoot, lastAgentFiles, l
         const key = drawerTabKey(tab)
         return (
           <div key={key} className="dshDesktopTerminalDrawerTabPane" hidden={activeKey !== key}>
-            <DesktopFileManager listDirectory={listDirectory} />
+            <DesktopFileManager
+              key={rootKey}
+              listDirectory={listDirectory}
+              {...(lastAgentFiles === undefined ? {} : { lastAgentFiles })}
+              {...(workspaceRoot === undefined ? {} : { workspaceRoot })}
+            />
           </div>
         )
       })}

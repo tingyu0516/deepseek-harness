@@ -103,3 +103,71 @@ export async function requestDesktopWorkspaceBranch(root: string, signal?: Abort
   if (summary.repository !== true || summary.branch === '') return undefined
   return summary.branch
 }
+
+/** Changed-line positions of one unified diff, addressed on the new (current) side. */
+export interface ChangedLines {
+  /** 1-based current-content line numbers that contain added lines. */
+  readonly added: ReadonlySet<number>
+  /** 1-based current-content positions where removed lines sat; several removals share the following surviving line, which may sit one past the final line. */
+  readonly removed: ReadonlySet<number>
+}
+
+const HUNK_HEADER = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u
+
+/**
+ * Fold a unified diff into changed-line positions on the new side.
+ * @param patch - unified diff text as produced by `git diff`; '' yields empty sets.
+ * @returns added line numbers and removed-line positions.
+ */
+export function changedLinesFromUnifiedDiff(patch: string): ChangedLines {
+  const added = new Set<number>()
+  const removed = new Set<number>()
+  let line = 0
+  let inside = false
+  for (const raw of patch.split('\n')) {
+    if (!inside || raw.startsWith('@@')) {
+      const header = HUNK_HEADER.exec(raw)
+      if (header !== null) {
+        line = Number.parseInt(header[1] ?? '0', 10)
+        inside = true
+      }
+      continue
+    }
+    if (raw.startsWith('+')) {
+      added.add(line)
+      line += 1
+    } else if (raw.startsWith('-')) {
+      removed.add(line)
+    } else if (raw.startsWith(' ') || raw === '') {
+      line += 1
+    }
+    // '\ No newline at end of file' and anything else leaves the counter alone.
+  }
+  return { added, removed }
+}
+
+/** Changed-line positions marking every line of `content` as added (an untracked new file). */
+export function addedEntireFile(content: string): ChangedLines {
+  const rows = content === '' ? [] : content.split('\n')
+  return { added: new Set(rows.map((_, index) => index + 1)), removed: new Set() }
+}
+
+/** Highlight kind for one preview row. */
+export type DiffRowKind = 'added' | 'removed' | 'none'
+
+/**
+ * Map changed-line positions onto the current content rows.
+ * Removed positions clamp into the content (an end-of-file deletion marks the final line); added rows win over removed.
+ * @param content - current file text.
+ * @param changed - positions from {@link changedLinesFromUnifiedDiff} or {@link addedEntireFile}.
+ * @returns one kind per line, in order.
+ */
+export function diffRowKinds(content: string, changed: ChangedLines): readonly DiffRowKind[] {
+  const rows = content === '' ? [] : content.split('\n')
+  const removedRows = new Set([...changed.removed].map(position => Math.min(position, rows.length)))
+  return rows.map((_, index) => {
+    const position = index + 1
+    if (changed.added.has(position)) return 'added'
+    return removedRows.has(position) ? 'removed' : 'none'
+  })
+}

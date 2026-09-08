@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DESKTOP_WORKSPACE_FILE_PATH,
@@ -9,6 +10,25 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('desktop file manager workspace tracking', () => {
+  it('renders one manager per workspace root and gates diff rows on clean drafts', () => {
+    const source = readFileSync(new URL('../src/client/FileManager.tsx', import.meta.url), 'utf8')
+    // Last-turn highlight rows come from the same agent-turn view as Changes.
+    expect(source).toContain("view: 'agent-turn'")
+    expect(source).toContain('changedLinesFromUnifiedDiff')
+    expect(source).toContain('addedEntireFile')
+    // Rows reset when the draft diverges: line numbers would no longer match.
+    expect(source).toContain('|| dirty || lastAgentFiles === undefined')
+    // The backdrop scrolls with the editor instead of capturing input.
+    expect(source).toContain('onScroll={syncScroll}')
+    expect(source).toContain('aria-hidden="true"')
+    const styles = readFileSync(new URL('../src/client/styles.ts', import.meta.url), 'utf8')
+    expect(styles).toContain('.dshDesktopFileDiffBackdrop { position: absolute; inset: 0; pointer-events: none;')
+    expect(styles).toContain('[data-diff="added"]')
+    expect(styles).toContain('[data-diff="removed"]')
+  })
 })
 
 describe('desktop workspace file client', () => {
