@@ -1,21 +1,8 @@
-diff --git a/cordis.patch.yml b/cordis.patch.yml
-index 61151bd..d9d4a7e 100644
---- a/cordis.patch.yml
-+++ b/cordis.patch.yml
-@@ -138,7 +138,7 @@
-       name: '@deepseek-ai/dsh-web-app'
-       inject: [webStartup]
-       config:
--        openBrowser: !!js ctx.webStartup.openBrowser
-+        openBrowser: false
-         printUrl: true
-         surfaceContext: true
-         trustedHosts: !!js ctx.webStartup.trustedHosts
 diff --git a/lib/index.js b/lib/index.js
-index 2857270..b27f4df 100644
+index a9f2837415..566594bf7e 100644
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -49,6 +49,7 @@ function launchedThroughSsh(ctx) {
+@@ -51,6 +51,7 @@ function launchedThroughSsh(ctx) {
  }
  const BROWSER_OPENER_MODULE = import.meta.resolve("open");
  const BROWSER_OPENER_PROGRAM = `
@@ -23,7 +10,7 @@ index 2857270..b27f4df 100644
  try {
    const { default: open } = await import(${JSON.stringify(BROWSER_OPENER_MODULE)})
    const launcher = await open(process.argv[1])
-@@ -122,7 +123,10 @@ function spawnBrowserLauncher(url) {
+@@ -130,7 +131,10 @@ function spawnBrowserLauncher(url) {
  		"--",
  		url
  	], {
@@ -35,3 +22,16 @@ index 2857270..b27f4df 100644
  		stdio: [
  			"ignore",
  			"inherit",
+diff --git a/cordis.patch.yml b/cordis.patch.yml
+index 2c9bd25990..d5872d3c1e 100644
+--- a/cordis.patch.yml
++++ b/cordis.patch.yml
+@@ -136,7 +136,7 @@
+       name: '@deepseek-ai/dsh-web-app'
+       inject: [webStartup]
+       config:
+-        openBrowser: !!js ctx.webStartup.openBrowser
++        openBrowser: false
+         printUrl: true
+         surfaceContext: true
+         trustedHosts: !!js ctx.webStartup.trustedHosts

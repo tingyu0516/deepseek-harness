@@ -1,0 +1,22 @@
+diff --git a/lib/client.js b/lib/client.js
+index ee581769e0..1036f10ba2 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -1572,6 +1572,8 @@ window.__ModuleLoader__.load({
+ 			*/
+ 			const curatedFields = (family) => {
+ 				const ownsIdentity = family === "pi-ai" && props.declared === true;
++				const baseURLOverridden = schema.hasPath(draft, ["baseURL"]);
++				const canCustomizeApi = ownsIdentity || baseURLOverridden;
+ 				const customModels = schema.getPath(draft, ["models"]);
+ 				const modelsOverridden = schema.hasPath(draft, ["models"]);
+ 				const models = modelDrafts(modelsOverridden ? customModels : inheritedModels());
+@@ -1660,7 +1662,7 @@ window.__ModuleLoader__.load({
+ 									}
+ 								})]
+ 							}),
+-							ownsIdentity ? (0, react_jsx_runtime.jsxs)("div", {
++							canCustomizeApi ? (0, react_jsx_runtime.jsxs)("div", {
+ 								className: ModelsSection_module_css_default["field"],
+ 								children: [(0, react_jsx_runtime.jsx)("span", {
+ 									className: ModelsSection_module_css_default["fieldLabel"],
