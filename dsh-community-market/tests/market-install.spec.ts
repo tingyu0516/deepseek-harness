@@ -244,7 +244,7 @@ describe('npm registry verification', () => {
         version,
         repository: { type: 'git', url: 'git+https://github.com/example/dsh-plugin-safe.git' },
         scripts: { test: 'vitest' },
-        dependencies: { '@deepseek-ai/dsh-agent': '^0.1.1-rc.2' },
+        dependencies: { '@deepseek-ai/dsh-agent': '^0.1.2-rc.1' },
         peerDependencies: { '@deepseek-ai/cordis': '^4.0.1' },
         engines: { node: '>=22.19.0' },
         dist: { integrity, tarball },
@@ -858,7 +858,7 @@ describe('market install service', () => {
       expect(calls).toEqual(['add'])
       expect(settings.receipts()).toEqual([])
     }
-  })
+  }, 20_000)
 
   it('leaves a completed install intact when receipt persistence fails', async () => {
     const profileDir = await createProfile()

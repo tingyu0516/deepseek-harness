@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { BlockList, isIP } from 'node:net'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace, type SettingsScope } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace, SettingsScope } from '@deepseek-ai/dsh-settings'
 import type { CatalogSourceManifest } from '../contracts/index.js'
 import { parseCatalogSnapshot, parseCatalogSource, validateLocalSourceRecords } from '../contracts/validate.js'
 import type { CatalogHttpClient } from '../contracts/types.js'
@@ -40,7 +40,7 @@ import { createMarketMediaService } from '../media/service.js'
 import { MarketInstallError, type MarketInstallService } from '../install/service.js'
 import { manualInstallHints } from '../install/manual.js'
 
-export const MARKET_SETTINGS_NAMESPACE = settingsNamespace('dsh-community-market')
+export const MARKET_SETTINGS_NAMESPACE = 'dsh-community-market' as SettingsNamespace
 const SOURCE_SCHEMA = z.object({
   sourceRecordId: z.string().required(),
   registrationKind: z.union(['user-added', 'built-in'] as const).required(),

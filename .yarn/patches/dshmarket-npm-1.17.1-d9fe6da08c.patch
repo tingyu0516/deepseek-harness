@@ -1,5 +1,8 @@
+### dshmarket 1.17.1 — Desktop integration + dsh-0.1.2 settings inline
+### Part 1 (Desktop install boundary / selfName): pre-upgrade Desktop patch.
+### Part 2 (settings inline): adapted for dsh 0.1.2-rc.1 removal of
+### `installSettingsSection` / `settingsNamespace` exports.
 diff --git a/client/client.js b/client/client.js
-index 0ad55132e3198e5c5e39b616d7e881751effa0e1..7425ebce919c8ee2389b9d9971b3fb8a05d7f3cf 100644
 --- a/client/client.js
 +++ b/client/client.js
 @@ -4740,7 +4740,7 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
@@ -21,7 +24,6 @@ index 0ad55132e3198e5c5e39b616d7e881751effa0e1..7425ebce919c8ee2389b9d9971b3fb8a
  											variant: "primary",
  											size: "sm",
 diff --git a/lib/dsh-cli.js b/lib/dsh-cli.js
-index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..66fd882cbcdc74b626c0531baea52e2936e753b8 100644
 --- a/lib/dsh-cli.js
 +++ b/lib/dsh-cli.js
 @@ -14,6 +14,7 @@ import { logEvent } from './log.js';
@@ -82,7 +84,6 @@ index 2bdfb2a1acc678c3e995e4f70ccba8ce95bc24b8..66fd882cbcdc74b626c0531baea52e29
          catch (error) {
              const message = error instanceof Error ? error.message : String(error);
 diff --git a/lib/profile.js b/lib/profile.js
-index 2672901966a04e97701286234568a649014c4c2f..345d59a9113fb4d74bf94dda6667c87b43883f79 100644
 --- a/lib/profile.js
 +++ b/lib/profile.js
 @@ -436,6 +436,26 @@ export function readProfileBundles(profileDirectory) {
@@ -113,7 +114,6 @@ index 2672901966a04e97701286234568a649014c4c2f..345d59a9113fb4d74bf94dda6667c87b
   * Write the profile manifest atomically: a temp file in the same directory is
   * written first, then renamed over package.json, so a crash mid-toggle never
 diff --git a/lib/routes.js b/lib/routes.js
-index 6c461bdf34c2fa077de61ba1b3194cff73d9fa6c..53300b5d91797c55c95df850b9c64fbd6f9bff9f 100644
 --- a/lib/routes.js
 +++ b/lib/routes.js
 @@ -15,7 +15,7 @@ import { createGroup, deleteGroup, removeFromGroups, renameGroup, setGroupMember
@@ -342,8 +342,76 @@ index 6c461bdf34c2fa077de61ba1b3194cff73d9fa6c..53300b5d91797c55c95df850b9c64fbd
                              ok = result.ok;
                              detail = result.detail;
                          }
+diff --git a/lib/settings.js b/lib/settings.js
+--- a/lib/settings.js
++++ b/lib/settings.js
+@@ -27,14 +27,60 @@
+  * plugin configuration page, so a second door bought nothing and cost the
+  * setting its memory.
+  *
+- * installSettingsSection rides the scoped fiber, so a host with no settings
+- * service — every dsh before 0.1.0-rc.7 — simply never runs any of this and
+- * the entry configuration stands as composed. That is why this needs no
+- * version check of its own.
++ * The two helpers this module needs are inlined below instead of imported:
++ * dsh 0.1.2 removed `installSettingsSection` and `settingsNamespace` from
++ * `@deepseek-ai/dsh-settings`, and a missing NAMED EXPORT is not a missing
++ * service — an unresolved ESM named import is a SyntaxError at module
++ * evaluation, which cordis reports as a failed entry and the host exits 1.
++ * The service itself (`ctx.inject(['settings'], ...)`) never moved.
+  */
+-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings';
+ import z from '@deepseek-ai/schemastery';
+ import { restartAllowed } from './restart.js';
++/**
++ * The namespace pattern the deleted `settingsNamespace` enforced. Kept as a
++ * literal check so an invalid namespace still fails loudly at mount.
++ */
++const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
++/**
++ * Validate a settings namespace string (inline of the deleted
++ * `settingsNamespace` helper).
++ */
++function settingsNamespace(value) {
++    if (!NAMESPACE_PATTERN.test(value)) {
++        throw new TypeError(`settings namespace "${value}" must match ${String(NAMESPACE_PATTERN)}`);
++    }
++    return value;
++}
++/**
++ * Whether the consumer's own fiber is tearing down. Mirrors the fiber state
++ * values the framework does not export at runtime (`UNLOADING: 5`,
++ * `DISPOSED: 4`); a settings provider detaching leaves the consumer running,
++ * but unloading the consumer must not fire `onChange` into teardown.
++ */
++function isUnloading(ctx) {
++    const state = ctx.fiber.state;
++    return state === 5 || state === 4;
++}
++/**
++ * Register one settings namespace and mirror its active value into the
++ * routes (inline of the deleted `installSettingsSection` helper).
++ */
++function installSettingsSection(ctx, ns, schema, entry, hooks) {
++    ctx.inject(['settings'], (scopedCtx) => {
++        const scope = scopedCtx.settings.register(ns, schema, { base: entry });
++        hooks.setSource(() => scope.get());
++        scopedCtx.effect(() => () => {
++            if (isUnloading(ctx)) return;
++            hooks.setSource(() => entry);
++            hooks.onChange();
++        });
++        hooks.onChange();
++        scope.watch(() => {
++            if (isUnloading(ctx)) return;
++            hooks.onChange();
++        });
++    });
++}
+ /** Namespace the card on the browser side keys itself to. */
+ export const MARKET_SETTINGS_NS = settingsNamespace('dsh-market');
+ export const MarketSettings = z.object({
 diff --git a/lib/types/dsh-cli.d.ts b/lib/types/dsh-cli.d.ts
-index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..24b65b0351606464d583af54f2c27a2a2b18cebc 100644
 --- a/lib/types/dsh-cli.d.ts
 +++ b/lib/types/dsh-cli.d.ts
 @@ -131,6 +131,7 @@ export interface DesktopPnpmLike {
@@ -355,7 +423,6 @@ index 9e3ba5e405ec80f8efd5513e220d9ea9a9046ae5..24b65b0351606464d583af54f2c27a2a
  /** Desktop runtime also owns cleanup of any operation started by this fiber. */
  export interface DesktopPluginRuntime extends PluginCommandRuntime {
 diff --git a/lib/types/profile.d.ts b/lib/types/profile.d.ts
-index 1647c8c16a9872127a9059484892f8e4e4f3cd61..7c946b0929d4c1385e35893ed9dd8e3ff37c1bba 100644
 --- a/lib/types/profile.d.ts
 +++ b/lib/types/profile.d.ts
 @@ -120,6 +120,8 @@ export declare function parsePatchRows(text: string): {
@@ -368,7 +435,6 @@ index 1647c8c16a9872127a9059484892f8e4e4f3cd61..7c946b0929d4c1385e35893ed9dd8e3f
   * Drop one bundle from the profile manifest's `dsh.profile.bundles`, leaving
   * the package installed as a dependency. This is the carrier-bundle half of a
 diff --git a/lib/types/updates.d.ts b/lib/types/updates.d.ts
-index 626eed0c1008877b8b8880fb28abd755ac2990fd..1c7662e1fca395c6e735a47f6a3b472efc971512 100644
 --- a/lib/types/updates.d.ts
 +++ b/lib/types/updates.d.ts
 @@ -95,5 +95,12 @@ export declare function checkUpdates(profile: string, force?: boolean, explicitD
@@ -386,7 +452,6 @@ index 626eed0c1008877b8b8880fb28abd755ac2990fd..1c7662e1fca395c6e735a47f6a3b472e
 -channelFor?: ReadonlyMap<string, Channel>): Promise<Record<string, UpdateStatus>>;
 +hostProvidedNpmVersions?: ReadonlyMap<string, string>): Promise<Record<string, UpdateStatus>>;
 diff --git a/lib/updates.js b/lib/updates.js
-index 33dd1769c35e1465f30c9922d5f6a0b1feee5a21..077bcb373aecb912cfeb46fb95a6eea367a7d615 100644
 --- a/lib/updates.js
 +++ b/lib/updates.js
 @@ -173,22 +173,36 @@ export async function checkUpdates(profile, force = false, explicitDir,
@@ -430,7 +495,6 @@ index 33dd1769c35e1465f30c9922d5f6a0b1feee5a21..077bcb373aecb912cfeb46fb95a6eea3
              result[name] = { kind: 'linked', version, current: null, latest: null, updateAvailable: false };
              return;
 diff --git a/src/client/MarketSection.tsx b/src/client/MarketSection.tsx
-index 3d06fdadd16fbf78070f9f79ca51d7dc6683613e..8fb6d93237725af3039fa159374e816af3e006d6 100644
 --- a/src/client/MarketSection.tsx
 +++ b/src/client/MarketSection.tsx
 @@ -1862,7 +1862,9 @@ export function MarketSection(props: MarketSectionProps) {
@@ -454,7 +518,6 @@ index 3d06fdadd16fbf78070f9f79ca51d7dc6683613e..8fb6d93237725af3039fa159374e816a
                && (
                  <Button
 diff --git a/src/dsh-cli.ts b/src/dsh-cli.ts
-index 0cc2535e43e371e72700301e783694e0b7c2e4c7..adf1255db94bee340aa12e8f934ea87e91550e76 100644
 --- a/src/dsh-cli.ts
 +++ b/src/dsh-cli.ts
 @@ -16,6 +16,7 @@ import { logEvent } from './log.ts'
@@ -527,7 +590,6 @@ index 0cc2535e43e371e72700301e783694e0b7c2e4c7..adf1255db94bee340aa12e8f934ea87e
        const message = error instanceof Error ? error.message : String(error)
        const busy = /another desktop pnpm operation is already running/i.test(message)
 diff --git a/src/profile.ts b/src/profile.ts
-index 1726a84e0de1959f77be75d3d1df0fa917666e2b..90ca6e7a981a381e95753f28926569e6d1cac47e 100644
 --- a/src/profile.ts
 +++ b/src/profile.ts
 @@ -452,6 +452,27 @@ export function readProfileBundles(profileDirectory: string): string[] {
@@ -559,7 +621,6 @@ index 1726a84e0de1959f77be75d3d1df0fa917666e2b..90ca6e7a981a381e95753f28926569e6
   * Write the profile manifest atomically: a temp file in the same directory is
   * written first, then renamed over package.json, so a crash mid-toggle never
 diff --git a/src/routes.ts b/src/routes.ts
-index 5e5b0d517ddff8e5f634a3a890c9d2e12f7d42a0..e9f6c16c8a9fac58759e82c28d48d0a70b0fb189 100644
 --- a/src/routes.ts
 +++ b/src/routes.ts
 @@ -23,7 +23,7 @@ import {
@@ -806,8 +867,104 @@ index 5e5b0d517ddff8e5f634a3a890c9d2e12f7d42a0..e9f6c16c8a9fac58759e82c28d48d0a7
                ok = result.ok
                detail = result.detail
              } else {
+diff --git a/src/settings.ts b/src/settings.ts
+--- a/src/settings.ts
++++ b/src/settings.ts
+@@ -27,17 +27,88 @@
+  * plugin configuration page, so a second door bought nothing and cost the
+  * setting its memory.
+  *
+- * installSettingsSection rides the scoped fiber, so a host with no settings
+- * service — every dsh before 0.1.0-rc.7 — simply never runs any of this and
+- * the entry configuration stands as composed. That is why this needs no
+- * version check of its own.
++ * The two helpers this module needs are inlined below instead of imported:
++ * dsh 0.1.2 removed `installSettingsSection` and `settingsNamespace` from
++ * `@deepseek-ai/dsh-settings`, and a missing NAMED EXPORT is not a missing
++ * service — an unresolved ESM named import is a SyntaxError at module
++ * evaluation, which cordis reports as a failed entry and the host exits 1.
++ * The service itself (`ctx.inject(['settings'], ...)`) never moved.
+  */
+ 
+ import type { Context } from '@deepseek-ai/cordis'
+-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+ import z from '@deepseek-ai/schemastery'
+ import { restartAllowed } from './restart.ts'
+ 
++/**
++ * The namespace pattern the deleted `settingsNamespace` enforced. Kept as a
++ * literal check so an invalid namespace still fails loudly at mount.
++ */
++const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/
++
++/**
++ * Validate and brand a settings namespace string (inline of the deleted
++ * `settingsNamespace` helper).
++ */
++function settingsNamespace(value: string): string {
++  if (!NAMESPACE_PATTERN.test(value)) {
++    throw new TypeError(`settings namespace "${value}" must match ${String(NAMESPACE_PATTERN)}`)
++  }
++  return value
++}
++
++/**
++ * Whether the consumer's own fiber is tearing down. Mirrors the fiber state
++ * values the framework does not export at runtime (`UNLOADING: 5`,
++ * `DISPOSED: 4`); a settings provider detaching leaves the consumer running,
++ * but unloading the consumer must not fire `onChange` into teardown.
++ */
++function isUnloading(ctx: Context): boolean {
++  const state: number = (ctx as { fiber: { state: number } }).fiber.state
++  return state === 5 || state === 4
++}
++
++/** Hooks accepted by the inlined {@link installSettingsSection}. */
++interface SettingsSectionHooks<T> {
++  setSource(current: () => T): void
++  onChange(): void
++}
++
++/**
++ * Register one settings namespace and mirror its active value into the
++ * routes (inline of the deleted `installSettingsSection` helper).
++ */
++function installSettingsSection<T>(
++  ctx: Context,
++  ns: string,
++  schema: z<T>,
++  entry: T,
++  hooks: SettingsSectionHooks<T>,
++): void {
++  ctx.inject(['settings'], (scopedCtx) => {
++    const provider = scopedCtx as unknown as {
++      settings: {
++        register(ns: string, schema: z<T>, options?: { base?: T }): {
++          get(): T
++          watch(listener: () => void): void
++        }
++      }
++      effect(dispose: () => void): unknown
++    }
++    const scope = provider.settings.register(ns, schema, { base: entry })
++    hooks.setSource(() => scope.get())
++    provider.effect(() => () => {
++      if (isUnloading(ctx)) return
++      hooks.setSource(() => entry)
++      hooks.onChange()
++    })
++    hooks.onChange()
++    scope.watch(() => {
++      if (isUnloading(ctx)) return
++      hooks.onChange()
++    })
++  })
++}
++
+ /** Namespace the card on the browser side keys itself to. */
+ export const MARKET_SETTINGS_NS = settingsNamespace('dsh-market')
+ 
 diff --git a/src/updates.ts b/src/updates.ts
-index 99b500573d2e5c7fa9d4ab27555d4e507f7bb0c4..e67bfaf79ae0228e022f445bbe9be1d4ab0962ca 100644
 --- a/src/updates.ts
 +++ b/src/updates.ts
 @@ -211,23 +211,36 @@ export async function checkUpdates(

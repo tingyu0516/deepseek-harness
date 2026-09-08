@@ -1,4 +1,4 @@
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -10,6 +10,15 @@ import { MarketSettingsTab } from './MarketSettingsTab.js'
 import { createMarketViewStore } from './market-view-store.js'
 import { en, zh } from './locales.js'
 import { installMarketStyles } from './styles.js'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    slots: {
+      inject(name: string, factory: () => unknown): unknown
+      register(options: Record<string, unknown>, component: unknown): unknown
+    }
+  }
+}
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
