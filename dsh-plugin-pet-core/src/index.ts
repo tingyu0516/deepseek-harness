@@ -1,7 +1,7 @@
 /** Shared factory for DSH Desktop character pet plugins. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { pickPetLine, type PetCharacterDocument, type PetLineCategory } from './contracts.ts'
 import { PetActivityTracker, type PetSessionEventLike, type PetSessionLike } from './pet-events.ts'
@@ -144,7 +144,7 @@ export function createPetPlugin(options: PetPluginOptions): {
   readonly inject: readonly string[]
   readonly apply: (ctx: Context) => void
 } {
-  const namespace = settingsNamespace(`dsh-${options.pluginName}`)
+  const namespace = `dsh-${options.pluginName}` as SettingsNamespace
 
   return {
     name: options.pluginName,

@@ -109,9 +109,10 @@ class FakeWindow {
   }
   isVisible(): boolean { return this.visible }
   getBounds(): PetRectangle { return { ...this.bounds } }
-  setBounds(bounds: PetRectangle): void {
-    const moved = bounds.x !== this.bounds.x || bounds.y !== this.bounds.y
-    this.bounds = { ...bounds }
+  setBounds(bounds: Partial<PetRectangle>): void {
+    const moved = bounds.x !== undefined && bounds.x !== this.bounds.x
+      || bounds.y !== undefined && bounds.y !== this.bounds.y
+    this.bounds = { ...this.bounds, ...bounds }
     if (moved) this.emit('moved')
   }
   setPosition(x: number, y: number): void {
@@ -462,14 +463,16 @@ describe('PetWindowController', () => {
       width: before.width,
       height: before.height,
     })
-    // A stale larger getBounds (Windows DPI drift) must not stick: the next
-    // drag tick re-pins the designed layout size.
+    // A stale larger getBounds (Windows DPI drift) must not stick: a drag
+    // start re-pins the designed layout size, and the move ticks themselves
+    // are position-only so the drift growth loop has no fuel.
     window.setBounds({ x: before.x + 10 + 64, y: before.y - 4, width: 480, height: 640 })
     window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=2&dy=0')
+    expect(window.getBounds().width).toBe(480)
+    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://dragstart?ox=10&oy=10')
     expect(window.getBounds().width).toBe(before.width)
     expect(window.getBounds().height).toBe(before.height)
   })
-
   it('follows the OS cursor for the duration of a renderer drag', () => {
     let cursor = { x: 900, y: 400 }
     const electron = fakeElectron()
@@ -491,6 +494,11 @@ describe('PetWindowController', () => {
     cursor = { x: 50, y: 50 }
     vi.advanceTimersByTime(32)
     expect(window.getBounds()).toEqual({ x: 960, y: 370, width, height })
+    // Drag lifecycle freezes the Live2D render loop so its GPU frames stop
+    // racing the transparent window's compositor updates while moving.
+    const suspendCalls = window.webContents.executed.filter(code => code.includes('setSuspended'))
+    expect(suspendCalls.some(code => code.includes('(true)'))).toBe(true)
+    expect(suspendCalls.some(code => code.includes('(false)'))).toBe(true)
   })
 
   it('lets a drag cover the dock strip instead of stopping at the work area', () => {

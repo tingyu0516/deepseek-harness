@@ -68,6 +68,10 @@ interface PetLive2DRuntime {
   tap(clientX: number, clientY: number): string, setPointer(clientX?: number, clientY?: number): void
   /** True when the cursor is over the model or a short pad around thin meshes. */
   coversPoint(clientX: number, clientY: number): boolean
+  /** Freeze or resume the render loop: while the host drags the window every
+   *  frame would race the compositor for the GPU and the window lags the
+   *  cursor; a frozen rig keeps its last drawn frame. */
+  setSuspended?(suspended: boolean): void
 }
 
 declare global {
@@ -233,42 +237,60 @@ function hitBoxMargin(box: [number, number, number, number]): number {
   return Math.min(16, Math.max(6, Math.round(240 / Math.sqrt(area))))
 }
 
-/** Screen-space pad so thin art (hands, hair, feet) still captures the cursor. */
-const COVER_PAD_PX = 28
-const COVER_PAD_SAMPLES: ReadonlyArray<readonly [number, number]> = [
-  [0, 0],
-  [COVER_PAD_PX, 0], [-COVER_PAD_PX, 0],
-  [0, COVER_PAD_PX], [0, -COVER_PAD_PX],
-  [COVER_PAD_PX, COVER_PAD_PX], [COVER_PAD_PX, -COVER_PAD_PX],
-  [-COVER_PAD_PX, COVER_PAD_PX], [-COVER_PAD_PX, -COVER_PAD_PX],
-]
+/**
+ * Coverage mask: the drawn canvas alpha, downsampled to at most ~128 cells
+ * across the larger axis and refreshed from the render loop at a slow cadence
+ * (and only while the model is animating), so `coversPoint` is an O(1) lookup
+ * instead of a per-drawable mesh sweep. Motion moves a rig's silhouette only
+ * a few pixels per second, far slower than the refresh cadence.
+ */
+const MASK_MAX_CELLS = 128
+const MASK_REFRESH_MS = 2000
+let maskCanvas: HTMLCanvasElement | undefined
+let maskCtx: CanvasRenderingContext2D | undefined
+let maskW = 0
+let maskH = 0
+let maskData: Uint8ClampedArray | undefined
+let maskDataAt = 0
 
-function isOnModel(viewX: number, viewY: number): boolean {
-  if (model === undefined) return false
-  const cubism = model.getModel()
-  if (cubism === undefined) return false
-  const matrix = model.getModelMatrix()
-  const tx = matrix.invertTransformX(viewX)
-  const ty = matrix.invertTransformY(viewY)
-  const count = cubism.getDrawableCount()
-  for (let i = 0; i < count; i++) {
-    if (!cubism.getDrawableDynamicFlagIsVisible(i) || cubism.getDrawableOpacity(i) < 0.05) continue
-    if (meshHit(cubism, i, tx, ty)) return true
-    if (model.isHit(cubism.getDrawableId(i), viewX, viewY)) return true
+function refreshCoverageMask(): void {
+  const now = Date.now()
+  if (now - maskDataAt < MASK_REFRESH_MS) return
+  maskDataAt = now
+  if (canvasEl === undefined) return
+  const box = canvasEl.getBoundingClientRect()
+  if (box.width < 2 || box.height < 2) return
+  const dpr = window.devicePixelRatio || 1
+  const cell = Math.max(box.width, box.height) / MASK_MAX_CELLS
+  const w = Math.max(1, Math.min(MASK_MAX_CELLS, Math.round(box.width / cell)))
+  const h = Math.max(1, Math.min(MASK_MAX_CELLS, Math.round(box.height / cell)))
+  if (maskCanvas === undefined) {
+    maskCanvas = document.createElement('canvas')
+    maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
   }
-  return false
+  const ctx = maskCtx
+  if (ctx === undefined || maskCanvas === undefined) return
+  if (maskCanvas.width !== w || maskCanvas.height !== h) {
+    maskCanvas.width = w
+    maskCanvas.height = h
+    maskW = w
+    maskH = h
+  }
+  // drawImage reads the WebGL canvas without needing preserveDrawingBuffer:
+  // both share the same composited frame within this task.
+  ctx.clearRect(0, 0, w, h)
+  ctx.drawImage(canvasEl, 0, 0, w, h)
+  maskData = ctx.getImageData(0, 0, w, h).data
 }
 
-function coversExpandedHitAreas(clientX: number, clientY: number): boolean {
-  if (Date.now() - hitAreaBoxesAt > 3000) scanHitAreaBoxes()
-  const px = clientX + 12
-  for (const box of hitAreaBoxes.values()) {
-    const margin = hitBoxMargin(box) + COVER_PAD_PX
-    if (px < box[0] - margin || px > box[2] + margin) continue
-    if (clientY < box[1] - margin || clientY > box[3] + margin) continue
-    return true
-  }
-  return false
+function coversMasked(clientX: number, clientY: number): boolean {
+  if (canvasEl === undefined || maskData === undefined || maskW < 1 || maskH < 1) return false
+  const box = canvasEl.getBoundingClientRect()
+  if (box.width < 2 || box.height < 2) return false
+  const cx = Math.floor((clientX - box.left) / box.width * maskW)
+  const cy = Math.floor((clientY - box.top) / box.height * maskH)
+  if (cx < 0 || cx >= maskW || cy < 0 || cy >= maskH) return false
+  return maskData[(cy * maskW + cx) * 4 + 3] > 0
 }
 
 function motionMap(): Map<string, { setLoop(value: boolean): void }> | undefined {
@@ -599,6 +621,12 @@ function drawFrame(): void {
   model.draw(projection)
   CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl)
   CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl)
+  // Refresh the coverage mask from a freshly drawn frame on the same slow
+  // cadence; drawImage inside the draw task reads this frame's composited
+  // output, so no preserveDrawingBuffer is needed. This is the mask's only
+  // sampler — a poll-side drawImage outside the task would read the cleared
+  // buffer and zero the mask.
+  refreshCoverageMask()
 }
 
 function loop(): void {
@@ -607,6 +635,17 @@ function loop(): void {
   variantTick()
   drawFrame()
   raf = requestAnimationFrame(loop)
+}
+/** Freeze the render loop while the host drags the window: a transparent
+ *  window's every move needs a compositor pass, and racing the Live2D frame
+ *  for the GPU made the window trail the cursor. The canvas keeps its last
+ *  drawn frame, so the pet rides along as a still image. */
+function setSuspended(suspended: boolean): void {
+  if (suspended) {
+    stopLoop()
+    return
+  }
+  if (raf === 0 && model !== undefined && ready) loop()
 }
 function stopLoop(): void { if (raf !== 0) cancelAnimationFrame(raf); raf = 0 }
 
@@ -618,6 +657,10 @@ function releaseModel(): void {
   releaseTapExpression()
   expressionWeight = 0
   expressionProgress = 0
+  maskData = undefined
+  maskDataAt = 0
+  maskW = 0
+  maskH = 0
   model?.release()
   model = undefined
   subdelegate?.release()
@@ -753,12 +796,19 @@ const runtime: PetLive2DRuntime = {
   },
   coversPoint(clientX: number, clientY: number): boolean {
     if (model === undefined || !ready) return false
-    if (coversExpandedHitAreas(clientX, clientY)) return true
-    for (const [dx, dy] of COVER_PAD_SAMPLES) {
-      const point = clientToView(clientX + dx, clientY + dy)
-      if (point !== undefined && isOnModel(point.x, point.y)) return true
-    }
-    return false
+    // O(1) alpha-mask lookup: the render loop refreshes the downsampled
+    // coverage inside the draw task, so polls never pay the per-drawable mesh
+    // sweep that once saturated the renderer's main thread (~70 ms per poll
+    // on Furina). The poll side never samples: drawImage outside the draw
+    // task would read a cleared buffer and zero the mask. Off-canvas and
+    // out-of-silhouette coordinates fall out of coversMasked's own bounds
+    // and alpha checks; the mask is undefined only during the first frame
+    // after attach, where one more 16ms poll round-trip is harmless.
+    return maskData !== undefined && coversMasked(clientX, clientY)
+  },
+  setSuspended(suspended: boolean): void {
+    if (model === undefined || !ready) return
+    setSuspended(suspended)
   },
   tap(clientX: number, clientY: number): string {
     if (model === undefined || !ready) return ''
@@ -810,15 +860,17 @@ const runtime: PetLive2DRuntime = {
       return best.name
     }
     // Character-declared fallback: anywhere else on the model plays one of
-    // the listed motion groups at random instead of ignoring the tap.
-    if (attachedSpec.tapFallbackGroups?.length && isOnModel(point.x, point.y)) {
+    // the listed motion groups at random instead of ignoring the tap. The
+    // per-drawable region scan doubles as the on-model check here — a tap
+    // is one event, so the scan cost is fine on this cold path.
+    const region = hitRegion(point.x, point.y)
+    if (attachedSpec.tapFallbackGroups?.length && region !== '') {
       const groups = attachedSpec.tapFallbackGroups.filter(
         group => (setting?.getMotionCount(group) ?? 0) > 0,
       )
       if (groups.length > 0) playGroup(groups[Math.floor(Math.random() * groups.length)]!)
       return 'fallback'
     }
-    const region = hitRegion(point.x, point.y)
     const y = point.y.toFixed(2)
     if (!region) return `none::${y}`
     const name = pickTapExpression(region)

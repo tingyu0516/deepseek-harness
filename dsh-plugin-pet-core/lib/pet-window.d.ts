@@ -19,7 +19,9 @@ export interface PetBrowserWindow {
     hide(): void;
     isVisible(): boolean;
     getBounds(): PetRectangle;
-    setBounds(bounds: PetRectangle): void;
+    /** Electron accepts partial rectangles: position-only writes skip the
+     *  expensive resize path a full bounds write takes on Windows. */
+    setBounds(bounds: Pick<PetRectangle, 'x' | 'y'> | PetRectangle): void;
     setPosition(x: number, y: number): void;
     setAlwaysOnTop(flag: boolean, level?: string): void;
     setVisibleOnAllWorkspaces(visible: boolean, options?: {
@@ -224,6 +226,14 @@ export declare class PetWindowController {
     private handleManualMove;
     /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
     private startManualDrag;
+    /**
+     * One cold-path size pin per drag: re-asserts the designed layout size so
+     * Windows DPI drift cannot persist, while the 16ms drag ticks stay
+     * position-only (see tickManualDrag — a size write there takes the resize
+     * path and made the window trail the cursor). Reads the designed size, not
+     * getBounds, so the legacy HiDPI growth feedback loop cannot fire.
+     */
+    private pinDesignedSize;
     /**
      * @param resumeLookAt - restore screen-wide look-at after a user drag ends.
      *   Closing the window passes false so a disposed controller does not restart

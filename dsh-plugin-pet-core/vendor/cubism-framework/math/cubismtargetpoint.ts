@@ -9,6 +9,14 @@ import { CubismMath } from './cubismmath';
 
 const FrameRate = 30;
 const Epsilon = 0.01;
+/**
+ * DSH local modification (see ../README.md): frame-weight (design-frame units,
+ * 1 = 1/30s) beyond which a single update is treated as a resumption gap rather
+ * than a frame — velocity history is meaningless across a drag suspension or a
+ * stalled frame, so the point snaps to its target instead of integrating one
+ * oversized step.
+ */
+const SNAP_FRAME_WEIGHT = 6;
 
 /**
  * 顔の向きの制御機能
@@ -32,6 +40,15 @@ export class CubismTargetPoint {
 
   /**
    * 更新処理
+   *
+   * DSH fix (upstream bug): the position integration below is frame-count
+   * based — `_faceVX` is a per-frame displacement, so the real sweep speed
+   * scales with the frame rate (8.0/s at 60fps but only 2.0/s at 15fps). A
+   * heavy rig that renders below the design cadence therefore looks half a
+   * beat late. Weight every rate by the real elapsed time so the sweep speed
+   * matches the design 4.0/s at any frame rate; a single long gap (drag
+   * suspension, throttling) snaps to the target instead of integrating one
+   * oversized step.
    */
   public update(deltaTimeSeconds: number): void {
     // デルタ時間を加算する
@@ -50,6 +67,10 @@ export class CubismTargetPoint {
     const deltaTimeWeight: number =
       (this._userTimeSeconds - this._lastTimeSeconds) * FrameRate;
     this._lastTimeSeconds = this._userTimeSeconds;
+    // Real elapsed time in design-frame units. Every per-frame rate below is
+    // scaled by this so the motion is identical at any frame rate.
+    if (deltaTimeWeight <= 0.0) return;
+    const snap = deltaTimeWeight >= SNAP_FRAME_WEIGHT;
 
     // 最高速度になるまでの時間を
     const timeToMaxSpeed = 0.15;
@@ -62,6 +83,17 @@ export class CubismTargetPoint {
 
     if (CubismMath.abs(dx) <= Epsilon && CubismMath.abs(dy) <= Epsilon) {
       return; // 変化なし
+    }
+
+    // A long frame gap has no usable velocity history: land on the target
+    // instead of integrating one oversized step (which overshoots and then
+    // rings for several frames at low frame rates).
+    if (snap) {
+      this._faceX = this._faceTargetX;
+      this._faceY = this._faceTargetY;
+      this._faceVX = 0.0;
+      this._faceVY = 0.0;
+      return;
     }
 
     // 速度の最大よりも大きい場合は、速度を落とす
@@ -101,11 +133,21 @@ export class CubismTargetPoint {
       // (t=1)
       // 	時刻tは、あらかじめ加速度、速度を1/60(フレームレート、単位なし)で
       // 	考えているので、t＝１として消してよい（※未検証）
+      //
+      // DSH fix: maxA above already scales with deltaTimeWeight, so the brake
+      // cap here grows quadratically with frame time. Normalize the distance
+      // term by deltaTimeWeight so braking stays per-frame at any frame rate;
+      // without this, short frames trigger a cap long frames would not, and
+      // the glide wobbles at low frame rates.
 
       const maxV: number =
         0.5 *
-        (CubismMath.sqrt(maxA * maxA + 16.0 * maxA * d - 8.0 * maxA * d) -
-          maxA);
+        (CubismMath.sqrt(
+            maxA * maxA
+            + 16.0 * maxA * (d / deltaTimeWeight)
+            - 8.0 * maxA * (d / deltaTimeWeight)
+          )
+          - maxA);
       const curV: number = CubismMath.sqrt(
         this._faceVX * this._faceVX + this._faceVY * this._faceVY
       );
@@ -117,8 +159,8 @@ export class CubismTargetPoint {
       }
     }
 
-    this._faceX += this._faceVX;
-    this._faceY += this._faceVY;
+    this._faceX += this._faceVX * deltaTimeWeight;
+    this._faceY += this._faceVY * deltaTimeWeight;
   }
 
   /**

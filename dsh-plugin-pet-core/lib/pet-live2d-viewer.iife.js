@@ -4465,6 +4465,14 @@
 	const FrameRate = 30;
 	const Epsilon = .01;
 	/**
+	* DSH local modification (see ../README.md): frame-weight (design-frame units,
+	* 1 = 1/30s) beyond which a single update is treated as a resumption gap rather
+	* than a frame — velocity history is meaningless across a drag suspension or a
+	* stalled frame, so the point snaps to its target instead of integrating one
+	* oversized step.
+	*/
+	const SNAP_FRAME_WEIGHT = 6;
+	/**
 	* 顔の向きの制御機能
 	*
 	* 顔の向きの制御機能を提供するクラス。
@@ -4485,6 +4493,15 @@
 		}
 		/**
 		* 更新処理
+		*
+		* DSH fix (upstream bug): the position integration below is frame-count
+		* based — `_faceVX` is a per-frame displacement, so the real sweep speed
+		* scales with the frame rate (8.0/s at 60fps but only 2.0/s at 15fps). A
+		* heavy rig that renders below the design cadence therefore looks half a
+		* beat late. Weight every rate by the real elapsed time so the sweep speed
+		* matches the design 4.0/s at any frame rate; a single long gap (drag
+		* suspension, throttling) snaps to the target instead of integrating one
+		* oversized step.
 		*/
 		update(deltaTimeSeconds) {
 			this._userTimeSeconds += deltaTimeSeconds;
@@ -4495,11 +4512,20 @@
 			}
 			const deltaTimeWeight = (this._userTimeSeconds - this._lastTimeSeconds) * FrameRate;
 			this._lastTimeSeconds = this._userTimeSeconds;
+			if (deltaTimeWeight <= 0) return;
+			const snap = deltaTimeWeight >= SNAP_FRAME_WEIGHT;
 			const frameToMaxSpeed = .15 * FrameRate;
 			const maxA = deltaTimeWeight * maxV / frameToMaxSpeed;
 			const dx = this._faceTargetX - this._faceX;
 			const dy = this._faceTargetY - this._faceY;
 			if (CubismMath.abs(dx) <= Epsilon && CubismMath.abs(dy) <= Epsilon) return;
+			if (snap) {
+				this._faceX = this._faceTargetX;
+				this._faceY = this._faceTargetY;
+				this._faceVX = 0;
+				this._faceVY = 0;
+				return;
+			}
 			const d = CubismMath.sqrt(dx * dx + dy * dy);
 			const vx = maxV * dx / d;
 			const vy = maxV * dy / d;
@@ -4513,15 +4539,15 @@
 			this._faceVX += ax;
 			this._faceVY += ay;
 			{
-				const maxV = .5 * (CubismMath.sqrt(maxA * maxA + 16 * maxA * d - 8 * maxA * d) - maxA);
+				const maxV = .5 * (CubismMath.sqrt(maxA * maxA + 16 * maxA * (d / deltaTimeWeight) - 8 * maxA * (d / deltaTimeWeight)) - maxA);
 				const curV = CubismMath.sqrt(this._faceVX * this._faceVX + this._faceVY * this._faceVY);
 				if (curV > maxV) {
 					this._faceVX *= maxV / curV;
 					this._faceVY *= maxV / curV;
 				}
 			}
-			this._faceX += this._faceVX;
-			this._faceY += this._faceVY;
+			this._faceX += this._faceVX * deltaTimeWeight;
+			this._faceY += this._faceVY * deltaTimeWeight;
 		}
 		/**
 		* X軸の顔の向きの値を取得
@@ -14904,44 +14930,56 @@
 		const area = Math.max((box[2] - box[0]) * (box[3] - box[1]), 1);
 		return Math.min(16, Math.max(6, Math.round(240 / Math.sqrt(area))));
 	}
-	/** Screen-space pad so thin art (hands, hair, feet) still captures the cursor. */
-	const COVER_PAD_PX = 28;
-	const COVER_PAD_SAMPLES = [
-		[0, 0],
-		[COVER_PAD_PX, 0],
-		[-28, 0],
-		[0, COVER_PAD_PX],
-		[0, -28],
-		[COVER_PAD_PX, COVER_PAD_PX],
-		[COVER_PAD_PX, -28],
-		[-28, COVER_PAD_PX],
-		[-28, -28]
-	];
-	function isOnModel(viewX, viewY) {
-		if (model === void 0) return false;
-		const cubism = model.getModel();
-		if (cubism === void 0) return false;
-		const matrix = model.getModelMatrix();
-		const tx = matrix.invertTransformX(viewX);
-		const ty = matrix.invertTransformY(viewY);
-		const count = cubism.getDrawableCount();
-		for (let i = 0; i < count; i++) {
-			if (!cubism.getDrawableDynamicFlagIsVisible(i) || cubism.getDrawableOpacity(i) < .05) continue;
-			if (meshHit(cubism, i, tx, ty)) return true;
-			if (model.isHit(cubism.getDrawableId(i), viewX, viewY)) return true;
+	/**
+	* Coverage mask: the drawn canvas alpha, downsampled to at most ~128 cells
+	* across the larger axis and refreshed from the render loop at a slow cadence
+	* (and only while the model is animating), so `coversPoint` is an O(1) lookup
+	* instead of a per-drawable mesh sweep. Motion moves a rig's silhouette only
+	* a few pixels per second, far slower than the refresh cadence.
+	*/
+	const MASK_MAX_CELLS = 128;
+	const MASK_REFRESH_MS = 2e3;
+	let maskCanvas;
+	let maskCtx;
+	let maskW = 0;
+	let maskH = 0;
+	let maskData;
+	let maskDataAt = 0;
+	function refreshCoverageMask() {
+		const now = Date.now();
+		if (now - maskDataAt < MASK_REFRESH_MS) return;
+		maskDataAt = now;
+		if (canvasEl === void 0) return;
+		const box = canvasEl.getBoundingClientRect();
+		if (box.width < 2 || box.height < 2) return;
+		window.devicePixelRatio;
+		const cell = Math.max(box.width, box.height) / MASK_MAX_CELLS;
+		const w = Math.max(1, Math.min(MASK_MAX_CELLS, Math.round(box.width / cell)));
+		const h = Math.max(1, Math.min(MASK_MAX_CELLS, Math.round(box.height / cell)));
+		if (maskCanvas === void 0) {
+			maskCanvas = document.createElement("canvas");
+			maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
 		}
-		return false;
+		const ctx = maskCtx;
+		if (ctx === void 0 || maskCanvas === void 0) return;
+		if (maskCanvas.width !== w || maskCanvas.height !== h) {
+			maskCanvas.width = w;
+			maskCanvas.height = h;
+			maskW = w;
+			maskH = h;
+		}
+		ctx.clearRect(0, 0, w, h);
+		ctx.drawImage(canvasEl, 0, 0, w, h);
+		maskData = ctx.getImageData(0, 0, w, h).data;
 	}
-	function coversExpandedHitAreas(clientX, clientY) {
-		if (Date.now() - hitAreaBoxesAt > 3e3) scanHitAreaBoxes();
-		const px = clientX + 12;
-		for (const box of hitAreaBoxes.values()) {
-			const margin = hitBoxMargin(box) + COVER_PAD_PX;
-			if (px < box[0] - margin || px > box[2] + margin) continue;
-			if (clientY < box[1] - margin || clientY > box[3] + margin) continue;
-			return true;
-		}
-		return false;
+	function coversMasked(clientX, clientY) {
+		if (canvasEl === void 0 || maskData === void 0 || maskW < 1 || maskH < 1) return false;
+		const box = canvasEl.getBoundingClientRect();
+		if (box.width < 2 || box.height < 2) return false;
+		const cx = Math.floor((clientX - box.left) / box.width * maskW);
+		const cy = Math.floor((clientY - box.top) / box.height * maskH);
+		if (cx < 0 || cx >= maskW || cy < 0 || cy >= maskH) return false;
+		return maskData[(cy * maskW + cx) * 4 + 3] > 0;
 	}
 	function motionMap() {
 		return model?._motions;
@@ -15220,11 +15258,23 @@
 		model.draw(projection);
 		CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl);
 		CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl);
+		refreshCoverageMask();
 	}
 	function loop() {
 		variantTick();
 		drawFrame();
 		raf = requestAnimationFrame(loop);
+	}
+	/** Freeze the render loop while the host drags the window: a transparent
+	*  window's every move needs a compositor pass, and racing the Live2D frame
+	*  for the GPU made the window trail the cursor. The canvas keeps its last
+	*  drawn frame, so the pet rides along as a still image. */
+	function setSuspended(suspended) {
+		if (suspended) {
+			stopLoop();
+			return;
+		}
+		if (raf === 0 && model !== void 0 && ready) loop();
 	}
 	function stopLoop() {
 		if (raf !== 0) cancelAnimationFrame(raf);
@@ -15238,6 +15288,10 @@
 		releaseTapExpression();
 		expressionWeight = 0;
 		expressionProgress = 0;
+		maskData = void 0;
+		maskDataAt = 0;
+		maskW = 0;
+		maskH = 0;
 		model?.release();
 		model = void 0;
 		subdelegate?.release();
@@ -15343,12 +15397,11 @@
 		},
 		coversPoint(clientX, clientY) {
 			if (model === void 0 || !ready) return false;
-			if (coversExpandedHitAreas(clientX, clientY)) return true;
-			for (const [dx, dy] of COVER_PAD_SAMPLES) {
-				const point = clientToView(clientX + dx, clientY + dy);
-				if (point !== void 0 && isOnModel(point.x, point.y)) return true;
-			}
-			return false;
+			return maskData !== void 0 && coversMasked(clientX, clientY);
+		},
+		setSuspended(suspended) {
+			if (model === void 0 || !ready) return;
+			setSuspended(suspended);
 		},
 		tap(clientX, clientY) {
 			if (model === void 0 || !ready) return "";
@@ -15394,12 +15447,12 @@
 				]);
 				return best.name;
 			}
-			if (attachedSpec.tapFallbackGroups?.length && isOnModel(point.x, point.y)) {
+			const region = hitRegion(point.x, point.y);
+			if (attachedSpec.tapFallbackGroups?.length && region !== "") {
 				const groups = attachedSpec.tapFallbackGroups.filter((group) => (setting?.getMotionCount(group) ?? 0) > 0);
 				if (groups.length > 0) playGroup(groups[Math.floor(Math.random() * groups.length)]);
 				return "fallback";
 			}
-			const region = hitRegion(point.x, point.y);
 			const y = point.y.toFixed(2);
 			if (!region) return `none::${y}`;
 			const name = pickTapExpression(region);

@@ -5,6 +5,14 @@
 查看器；`character.json` 必须声明 `live2d` 模型，资产无法解析时桌宠窗口
 **不会打开**，并在插件日志中给出原因。
 
+## Vendor 本地修改
+
+`vendor/cubism-framework/` 是 Live2D Open Software License 下的官方源码副本，
+仅 `math/cubismtargetpoint.ts` 有一处 DSH 本地修改：`update()` 的位置积分按
+真实帧间隔（设计帧单位）加权，制动距离按帧权重归一，并新增 `SNAP_FRAME_WEIGHT`
+停滞钳制——上游按固定帧积分，帧率下降时视线扫速等比变慢（"慢半拍"）。
+同步上游时需重新套用该修改。
+
 ## 目录契约
 
 每个角色插件拥有自己的资源目录：

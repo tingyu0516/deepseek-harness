@@ -8,5 +8,6 @@ window.__dshPetLive2DRuntime = {
   hitTest: function () { return ''; },
   tap: function () { return 'body'; },
   setPointer: function () {},
-  coversPoint: function () { return false; }
+  coversPoint: function () { return false; },
+  setSuspended: function () {}
 };

@@ -33,7 +33,9 @@ export interface PetBrowserWindow {
   hide(): void
   isVisible(): boolean
   getBounds(): PetRectangle
-  setBounds(bounds: PetRectangle): void
+  /** Electron accepts partial rectangles: position-only writes skip the
+   *  expensive resize path a full bounds write takes on Windows. */
+  setBounds(bounds: Pick<PetRectangle, 'x' | 'y'> | PetRectangle): void
   setPosition(x: number, y: number): void
   setAlwaysOnTop(flag: boolean, level?: string): void
   setVisibleOnAllWorkspaces(visible: boolean, options?: {
@@ -204,7 +206,10 @@ const MANUAL_MOVE_MAX_PX = 64
 /** Reject grab offsets outside the pet window (plus a small margin). */
 const DRAG_GRAB_MAX_PX = 4096
 const POSITION_SAVE_DEBOUNCE_MS = 600
-/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow.
+ *  16ms keeps drag follow at display cadence; the renderer's canvas-rect fast
+ *  path keeps each poll's coversPoint cost near zero, so poll cadence is no
+ *  longer the click-through or drag-follow latency bottleneck. */
 const CURSOR_TRACK_MS = 16
 
 interface PetPositionFile {
@@ -696,10 +701,8 @@ export class PetWindowController {
       height,
       this.options.electron.screen,
     )
-    // Pin the designed size every tick. Reading getBounds().width on Windows
-    // HiDPI and writing it back makes the frameless window grow, which the
-    // 100%-wide canvas then paints as the pet zooming while you drag.
-    window.setBounds({ x: next.x, y: next.y, width, height })
+    // Position-only write, same resize-path rationale as tickManualDrag.
+    window.setBounds({ x: next.x, y: next.y })
   }
 
   /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
@@ -712,10 +715,30 @@ export class PetWindowController {
     this.dragGrab = { ox, oy }
     this.stopCursorTracking()
     this.syncClickThrough()
+    this.pinDesignedSize()
+    this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(true);`)
     if (this.dragTimer === undefined) {
       this.dragTimer = setInterval(() => { this.tickManualDrag() }, CURSOR_TRACK_MS)
     }
     this.tickManualDrag()
+  }
+
+  /**
+   * One cold-path size pin per drag: re-asserts the designed layout size so
+   * Windows DPI drift cannot persist, while the 16ms drag ticks stay
+   * position-only (see tickManualDrag — a size write there takes the resize
+   * path and made the window trail the cursor). Reads the designed size, not
+   * getBounds, so the legacy HiDPI growth feedback loop cannot fire.
+   */
+  private pinDesignedSize(): void {
+    const window = this.window
+    if (window === undefined || window.isDestroyed()) return
+    const width = this.layoutWidth
+    const height = this.layoutHeight
+    if (width <= 0 || height <= 0) return
+    const bounds = window.getBounds()
+    if (bounds.width === width && bounds.height === height) return
+    window.setBounds({ x: bounds.x, y: bounds.y, width, height })
   }
 
   /**
@@ -730,6 +753,7 @@ export class PetWindowController {
     }
     this.dragGrab = undefined
     this.syncClickThrough()
+    this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(false);`)
     if (resumeLookAt && this.isVisible()) this.startCursorTracking()
   }
 
@@ -751,7 +775,13 @@ export class PetWindowController {
       height,
       this.options.electron.screen,
     )
-    window.setBounds({ x: next.x, y: next.y, width, height })
+    // Pure move, never a size write: on Windows every setBounds carrying
+    // width/height takes the expensive resize path (surface re-allocation)
+    // for a transparent window, and at 16ms cadence that queue is what made
+    // the window trail the cursor. Position-only moves skip it, and the
+    // legacy HiDPI growth bug it pinned against cannot fire without a size
+    // write.
+    window.setBounds({ x: next.x, y: next.y })
   }
 
   private run(code: string, delayMs?: number): void {

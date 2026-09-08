@@ -1,5 +1,4 @@
 import { createRequire } from "node:module";
-import { settingsNamespace } from "@deepseek-ai/dsh-settings";
 import z from "@deepseek-ai/schemastery";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, posix, sep } from "node:path";
@@ -500,7 +499,10 @@ const MANUAL_MOVE_MAX_PX = 64;
 /** Reject grab offsets outside the pet window (plus a small margin). */
 const DRAG_GRAB_MAX_PX = 4096;
 const POSITION_SAVE_DEBOUNCE_MS = 600;
-/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow.
+*  16ms keeps drag follow at display cadence; the renderer's canvas-rect fast
+*  path keeps each poll's coversPoint cost near zero, so poll cadence is no
+*  longer the click-through or drag-follow latency bottleneck. */
 const CURSOR_TRACK_MS = 16;
 function sanitizeElectronShape(loaded) {
 	if (typeof loaded !== "object" || loaded === null) return void 0;
@@ -897,9 +899,7 @@ var PetWindowController = class {
 		const next = this.clampToDisplay(bounds.x + dx, bounds.y + dy, width, height, this.options.electron.screen);
 		window.setBounds({
 			x: next.x,
-			y: next.y,
-			width,
-			height
+			y: next.y
 		});
 	}
 	/** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
@@ -915,10 +915,34 @@ var PetWindowController = class {
 		};
 		this.stopCursorTracking();
 		this.syncClickThrough();
+		this.pinDesignedSize();
+		this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(true);`);
 		if (this.dragTimer === void 0) this.dragTimer = setInterval(() => {
 			this.tickManualDrag();
 		}, CURSOR_TRACK_MS);
 		this.tickManualDrag();
+	}
+	/**
+	* One cold-path size pin per drag: re-asserts the designed layout size so
+	* Windows DPI drift cannot persist, while the 16ms drag ticks stay
+	* position-only (see tickManualDrag — a size write there takes the resize
+	* path and made the window trail the cursor). Reads the designed size, not
+	* getBounds, so the legacy HiDPI growth feedback loop cannot fire.
+	*/
+	pinDesignedSize() {
+		const window = this.window;
+		if (window === void 0 || window.isDestroyed()) return;
+		const width = this.layoutWidth;
+		const height = this.layoutHeight;
+		if (width <= 0 || height <= 0) return;
+		const bounds = window.getBounds();
+		if (bounds.width === width && bounds.height === height) return;
+		window.setBounds({
+			x: bounds.x,
+			y: bounds.y,
+			width,
+			height
+		});
 	}
 	/**
 	* @param resumeLookAt - restore screen-wide look-at after a user drag ends.
@@ -932,6 +956,7 @@ var PetWindowController = class {
 		}
 		this.dragGrab = void 0;
 		this.syncClickThrough();
+		this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(false);`);
 		if (resumeLookAt && this.isVisible()) this.startCursorTracking();
 	}
 	tickManualDrag() {
@@ -948,9 +973,7 @@ var PetWindowController = class {
 		const next = this.clampToDisplay(point.x - grab.ox, point.y - grab.oy, width, height, this.options.electron.screen);
 		window.setBounds({
 			x: next.x,
-			y: next.y,
-			width,
-			height
+			y: next.y
 		});
 	}
 	run(code, delayMs) {
@@ -1109,7 +1132,7 @@ const REACTION_CATEGORIES = Object.freeze({
 * The plugin stays completely inert outside the DSH Desktop launcher.
 */
 function createPetPlugin(options) {
-	const namespace = settingsNamespace(`dsh-${options.pluginName}`);
+	const namespace = `dsh-${options.pluginName}`;
 	return {
 		name: options.pluginName,
 		inject: ["desktopRuntime"],
