@@ -49,7 +49,7 @@ Renderer 通过现有 loopback carrier 接收普通 Web Client module，无法�
 从受支持的 client export 导入 contract，并且只在浏览器侧代码中 inject `desktopWindow`：
 
 ```ts
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { DesktopWindowService } from 'dsh-plugin-desktop/client'
 
 export const inject = ['desktopWindow']

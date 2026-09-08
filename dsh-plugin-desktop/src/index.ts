@@ -1,6 +1,7 @@
 /** DSH Desktop Host plugin: owns the selected native shell generation. */
 
 import { fileURLToPath } from 'node:url'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-cmdline'
@@ -9,11 +10,19 @@ import {
   type LocaleSettings,
 } from '@deepseek-ai/dsh-client-locale'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import {
   THEME_SETTINGS_NAMESPACE,
   type ThemeSettings,
 } from '@deepseek-ai/dsh-client-ui-theme'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import {
+  desktopBrowserAccessAvailable,
+  desktopBrowserAccessEnabled,
+  desktopNetworkExposureForBrowserAccess,
+  type DesktopNetworkExposure,
+} from './desktop-network.ts'
+import { DESKTOP_LAN_HTTPS_CA_PATH } from './lan-https-runtime.ts'
 import {
   handleRendererBootRequest,
   RENDERER_BOOT_REPORT_PATH,
@@ -57,8 +66,9 @@ import {
 import { DESKTOP_TERMINAL_CHANNEL_PATH } from './desktop-terminal-channel.ts'
 import type {} from './desktop-settings-controller.ts'
 import { desktopBootRecoveryInjections } from './desktop-boot-recovery.ts'
-import type { DesktopShellMode } from './runtime.ts'
+import type { DesktopLocale, DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
+import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
 import {
   CHARACTER_THEME_ASSET_ROUTES,
   characterThemeAssetFile,
@@ -105,13 +115,31 @@ export const name = 'desktop-shell'
 
 /** Services required before the shell can register its renderer generation. */
 /** Services required by the desktop shell; `desktopRuntime` is probed, not required. */
-export const inject = ['webServer', 'webRuntime', 'appExit', 'settings']
+export const inject = ['webServer', 'webRuntime', 'appExit', 'settings', 'connection']
 
 /** Standard settings namespace shared by tray and configuration surfaces. */
-export const DESKTOP_SETTINGS_NAMESPACE = settingsNamespace('dsh-desktop')
+export const DESKTOP_SETTINGS_NAMESPACE = 'dsh-desktop' as SettingsNamespace
 
-const UI_THEME_SETTINGS_NAMESPACE = settingsNamespace(THEME_SETTINGS_NAMESPACE)
-const UI_LOCALE_SETTINGS_NAMESPACE = settingsNamespace(LOCALE_SETTINGS_NAMESPACE)
+const UI_THEME_SETTINGS_NAMESPACE = THEME_SETTINGS_NAMESPACE as SettingsNamespace
+const UI_LOCALE_SETTINGS_NAMESPACE = LOCALE_SETTINGS_NAMESPACE as SettingsNamespace
+
+/** Apply the official Connection trust and browser-auth fence before a private Desktop route. */
+function rejectDesktopRequest(
+  ctx: Context,
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  const rejection = ctx.connection.requestRejection(req)
+  if (rejection === undefined) return false
+  res.writeHead(rejection)
+  res.end(rejection === 401 ? 'unauthorized' : 'forbidden')
+  return true
+}
+
+function desktopLocaleFromPreference(preference: string | undefined): DesktopLocale | undefined {
+  if (preference === undefined) return undefined
+  return preference === 'zh' || preference === 'en' ? preference : desktopLocaleFromLanguageTag(preference)
+}
 
 /** Desktop-owned character theme overlay; `off` keeps the official Appearance row. */
 export type DesktopCharacterTheme = 'off' | 'hutao' | 'furina'
@@ -126,6 +154,10 @@ export interface DesktopSettings {
   windowsMaterial: WindowsWindowMaterial
   /** Loopback Web port selected for the next application generation; zero requests a random port. */
   port: number
+  /** Whether Desktop advertises its marker-free compatibility client for browser use. */
+  openBrowser: boolean
+  /** Whether the next generation's HTTPS edge serves loopback only or every LAN interface. */
+  networkExposure: DesktopNetworkExposure
   /** Log verbosity threshold applied to the file logger. */
   logLevel: 'debug' | 'info' | 'warn' | 'error'
   /** Client character theme; does not require a process restart. */
@@ -142,6 +174,8 @@ export const DesktopSettingsSchema: z<DesktopSettings> = z.object({
   macosMaterial: z.union(['off', 'transparent'] as const).default(DEFAULT_MACOS_WINDOW_MATERIAL),
   windowsMaterial: z.union(['off', 'acrylic', 'mica'] as const).default(DEFAULT_WINDOWS_WINDOW_MATERIAL),
   port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
+  openBrowser: z.boolean().default(false),
+  networkExposure: z.union(['loopback', 'lan'] as const).default('loopback'),
   logLevel: z.union(['debug', 'info', 'warn', 'error'] as const).default('info'),
   characterTheme: z.union(['off', 'hutao', 'furina'] as const).default('off'),
   hutaoWallpaper: z.string().min(1).max(32).default('default'),
@@ -173,6 +207,8 @@ export interface Config {
   windowsMaterial: WindowsWindowMaterial
   /** Configured loopback Web port used to detect restart-applied settings changes. */
   port: number
+  /** Configured listener exposure used to detect restart-applied settings changes. */
+  networkExposure: DesktopNetworkExposure
   /** Initial window width in CSS pixels. */
   width: number
   /** Initial window height in CSS pixels. */
@@ -189,6 +225,7 @@ export const Config: z<Config> = z.object({
   macosMaterial: z.union(['off', 'transparent'] as const).default(DEFAULT_MACOS_WINDOW_MATERIAL),
   windowsMaterial: z.union(['off', 'acrylic', 'mica'] as const).default(DEFAULT_WINDOWS_WINDOW_MATERIAL),
   port: z.number().step(1).min(0).max(65_535).default(DESKTOP_DEFAULT_WEB_PORT),
+  networkExposure: z.union(['loopback', 'lan'] as const).default('loopback'),
   width: z.number().step(1).min(800).default(1280),
   height: z.number().step(1).min(600).default(840),
   minWidth: z.number().step(1).min(640).default(900),
@@ -245,9 +282,18 @@ export function apply(ctx: Context, config: Config): void {
   if (appExit === undefined) {
     throw new Error('dsh-plugin-desktop: the launcher did not provide ctx.appExit')
   }
+  const browserAccess = ctx.get('desktopBrowserAccess')
+  if (browserAccess === undefined) {
+    throw new Error('dsh-plugin-desktop: the launcher did not provide ctx.desktopBrowserAccess')
+  }
+  const lanHttps = ctx.get('desktopLanHttps')
+  if (lanHttps === undefined) {
+    throw new Error('dsh-plugin-desktop: the launcher did not provide ctx.desktopLanHttps')
+  }
   if (ctx.webServer.host !== '127.0.0.1') {
     throw new Error('dsh-plugin-desktop: desktop shell requires a loopback Web server')
   }
+  lanHttps.attach(ctx.webServer.port)
   const iconFilename = runtime.platform === 'darwin'
     ? 'app-icon-mac.png'
     : 'app-icon.png'
@@ -262,6 +308,9 @@ export function apply(ctx: Context, config: Config): void {
     {
       applies: 'restart',
       validate: (value) => {
+        if (!desktopBrowserAccessAvailable(value.mode) && value.openBrowser) {
+          throw new Error('dsh-plugin-desktop: browser access requires compatibility mode')
+        }
         if (value.mode !== 'compatibility' && runtime.platform === 'linux') {
           throw new Error('dsh-plugin-desktop: custom desktop shell modes are supported on macOS and Windows')
         }
@@ -269,6 +318,32 @@ export function apply(ctx: Context, config: Config): void {
     },
   )
   const rendererOrigin = `http://127.0.0.1:${String(ctx.webServer.port)}`
+  if (lanHttps.caCertificate !== null) {
+    const caCertificate = lanHttps.caCertificate
+    ctx.effect(
+      () => ctx.webServer.register({
+        kind: 'exact',
+        path: DESKTOP_LAN_HTTPS_CA_PATH,
+        handler: (req, res) => {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.statusCode = 405
+            res.setHeader('allow', 'GET, HEAD')
+            res.setHeader('cache-control', 'no-store')
+            res.end('method not allowed')
+            return
+          }
+          res.statusCode = 200
+          res.setHeader('cache-control', 'no-store')
+          res.setHeader('content-type', 'application/x-x509-ca-cert')
+          res.setHeader('content-disposition', 'attachment; filename="dsh-desktop-local-ca.crt"')
+          res.setHeader('content-length', String(Buffer.byteLength(caCertificate)))
+          res.setHeader('x-content-type-options', 'nosniff')
+          res.end(req.method === 'HEAD' ? undefined : caCertificate)
+        },
+      }),
+      'dsh-plugin-desktop: public LAN HTTPS CA route',
+    )
+  }
   ctx.on('webserver/index-inject', table => {
     table.push(...desktopBootRecoveryInjections())
   })
@@ -310,13 +385,16 @@ export function apply(ctx: Context, config: Config): void {
         () => ctx.webServer.register({
           kind: 'exact',
           path,
-          handler: (req, res) => handler(
-            req,
-            res,
-            rendererOrigin,
-            desktopSettings,
-            reportSettingsError,
-          ),
+          handler: (req, res) => {
+            if (rejectDesktopRequest(ctx, req, res)) return
+            return handler(
+              req,
+              res,
+              rendererOrigin,
+              desktopSettings,
+              reportSettingsError,
+            )
+          },
         }),
         `dsh-plugin-desktop: private settings route ${path}`,
       )
@@ -326,12 +404,15 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'exact',
       path: RENDERER_BOOT_REPORT_PATH,
-      handler: (req, res) => handleRendererBootRequest(
-        req,
-        res,
-        rendererOrigin,
-        report => { runtime.reportRendererBoot(report) },
-      ),
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        return handleRendererBootRequest(
+          req,
+          res,
+          rendererOrigin,
+          report => { runtime.reportRendererBoot(report) },
+        )
+      },
     }),
     'dsh-plugin-desktop: renderer boot report route',
   )
@@ -344,7 +425,10 @@ export function apply(ctx: Context, config: Config): void {
       () => ctx.webServer.register({
         kind: 'exact',
         path,
-        handler: (req, res) => { void handleDesktopWorkspaceFileRequest(req, res, rendererOrigin, workspaceRoots) },
+          handler: (req, res) => {
+            if (rejectDesktopRequest(ctx, req, res)) return
+            void handleDesktopWorkspaceFileRequest(req, res, rendererOrigin, workspaceRoots)
+          },
       }),
       `dsh-plugin-desktop: workspace route ${path}`,
     )
@@ -353,7 +437,10 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'exact',
       path: DESKTOP_WORKSPACE_CHANGES_PATH,
-      handler: (req, res) => { void handleDesktopWorkspaceChangesRequest(req, res, rendererOrigin, workspaceRoots) },
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        void handleDesktopWorkspaceChangesRequest(req, res, rendererOrigin, workspaceRoots)
+      },
     }),
     'dsh-plugin-desktop: workspace changes route',
   )
@@ -366,7 +453,10 @@ export function apply(ctx: Context, config: Config): void {
       () => ctx.webServer.register({
         kind: 'exact',
         path: asset.path,
-        handler: (req, res) => handleCharacterThemeAsset(req, res, filePath),
+        handler: (req, res) => {
+          if (rejectDesktopRequest(ctx, req, res)) return
+          handleCharacterThemeAsset(req, res, filePath)
+        },
       }),
       `dsh-plugin-desktop: character theme asset ${asset.path}`,
     )
@@ -390,13 +480,16 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'exact',
       path: DESKTOP_CHARACTER_WALLPAPERS_PATH,
-      handler: (req, res) => handleCharacterWallpaperListRequest(
-        req,
-        res,
-        rendererOrigin,
-        wallpaperStore,
-        reportWallpaperError,
-      ),
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        return handleCharacterWallpaperListRequest(
+          req,
+          res,
+          rendererOrigin,
+          wallpaperStore,
+          reportWallpaperError,
+        )
+      },
     }),
     'dsh-plugin-desktop: character wallpaper list route',
   )
@@ -404,15 +497,18 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'exact',
       path: DESKTOP_CHARACTER_WALLPAPER_IMPORT_PATH,
-      handler: (req, res) => handleCharacterWallpaperImportRequest(
-        req,
-        res,
-        rendererOrigin,
-        wallpaperStore,
-        () => runtime.pickImageFile(),
-        wallpaperSelection,
-        reportWallpaperError,
-      ),
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        return handleCharacterWallpaperImportRequest(
+          req,
+          res,
+          rendererOrigin,
+          wallpaperStore,
+          () => runtime.pickImageFile(),
+          wallpaperSelection,
+          reportWallpaperError,
+        )
+      },
     }),
     'dsh-plugin-desktop: character wallpaper import route',
   )
@@ -420,14 +516,17 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'exact',
       path: DESKTOP_CHARACTER_WALLPAPER_DELETE_PATH,
-      handler: (req, res) => handleCharacterWallpaperDeleteRequest(
-        req,
-        res,
-        rendererOrigin,
-        wallpaperStore,
-        wallpaperSelection,
-        reportWallpaperError,
-      ),
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        return handleCharacterWallpaperDeleteRequest(
+          req,
+          res,
+          rendererOrigin,
+          wallpaperStore,
+          wallpaperSelection,
+          reportWallpaperError,
+        )
+      },
     }),
     'dsh-plugin-desktop: character wallpaper delete route',
   )
@@ -435,7 +534,10 @@ export function apply(ctx: Context, config: Config): void {
     () => ctx.webServer.register({
       kind: 'prefix',
       path: CHARACTER_WALLPAPER_ASSET_PREFIX,
-      handler: (req, res) => { void handleCharacterWallpaperAssetRequest(req, res, wallpaperStore) },
+      handler: (req, res) => {
+        if (rejectDesktopRequest(ctx, req, res)) return
+        void handleCharacterWallpaperAssetRequest(req, res, wallpaperStore)
+      },
     }),
     'dsh-plugin-desktop: character wallpaper asset prefix',
   )
@@ -444,15 +546,18 @@ export function apply(ctx: Context, config: Config): void {
       () => ctx.webServer.register({
         kind: 'exact',
         path: DESKTOP_DIRECTORY_PICKER_PATH,
-        handler: (req, res) => handleDesktopDirectoryPickerRequest(
-          req,
-          res,
-          rendererOrigin,
-          () => runtime.pickDirectory(),
-          cause => {
-            ctx.logger.error(`dsh-plugin-desktop: native directory picker failed: ${cause instanceof Error ? cause.message : String(cause)}`)
-          },
-        ),
+        handler: (req, res) => {
+          if (rejectDesktopRequest(ctx, req, res)) return
+          return handleDesktopDirectoryPickerRequest(
+            req,
+            res,
+            rendererOrigin,
+            () => runtime.pickDirectory(),
+            cause => {
+              ctx.logger.error(`dsh-plugin-desktop: native directory picker failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+            },
+          )
+        },
       }),
       'dsh-plugin-desktop: native directory picker route',
     )
@@ -460,22 +565,53 @@ export function apply(ctx: Context, config: Config): void {
       () => ctx.webServer.register({
         kind: 'exact',
         path: DESKTOP_DIRECTORY_VALIDATOR_PATH,
-        handler: (req, res) => handleDesktopDirectoryValidationRequest(
-          req,
-          res,
-          rendererOrigin,
-          path => runtime.validateDirectory(path),
-          cause => {
-            ctx.logger.error(`dsh-plugin-desktop: workspace directory validation failed: ${cause instanceof Error ? cause.message : String(cause)}`)
-          },
-        ),
+        handler: (req, res) => {
+          if (rejectDesktopRequest(ctx, req, res)) return
+          return handleDesktopDirectoryValidationRequest(
+            req,
+            res,
+            rendererOrigin,
+            path => runtime.validateDirectory(path),
+            cause => {
+              ctx.logger.error(`dsh-plugin-desktop: workspace directory validation failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+            },
+          )
+        },
       }),
       'dsh-plugin-desktop: workspace directory validation route',
     )
   }
   ctx.effect(() => {
     let pending: ReturnType<typeof setImmediate> | undefined
+    const updateLiveWebAccess = (
+      browserEnabled: boolean,
+      exposure: DesktopNetworkExposure,
+    ): void => {
+      browserAccess.setOrdinaryBrowserEnabled(browserEnabled)
+      void lanHttps.setEnabled(browserEnabled && exposure === 'lan').then((snapshot) => {
+        if (snapshot.state === 'failed') {
+          ctx.logger.error(
+            `dsh-plugin-desktop: LAN HTTPS edge failed to start (${snapshot.errorCode ?? 'unknown'})`,
+          )
+        }
+      }).catch((cause: unknown) => {
+        ctx.logger.error(
+          `dsh-plugin-desktop: LAN HTTPS edge transition failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        )
+      })
+    }
+    updateLiveWebAccess(browserAccess.ordinaryBrowserEnabled, config.networkExposure)
     const stopWatching = settings.watch((next) => {
+      const nextBrowserAccess = desktopBrowserAccessEnabled(
+        next.mode,
+        next.openBrowser,
+        next.networkExposure,
+      )
+      const nextNetworkExposure = desktopNetworkExposureForBrowserAccess(
+        nextBrowserAccess,
+        next.networkExposure,
+      )
+      updateLiveWebAccess(nextBrowserAccess, nextNetworkExposure)
       if (next.mode === config.mode
         && next.port === config.port
         && next.macosMaterial === config.macosMaterial
@@ -495,8 +631,9 @@ export function apply(ctx: Context, config: Config): void {
     return () => {
       stopWatching()
       if (pending !== undefined) clearImmediate(pending)
+      void lanHttps.stop()
     }
-  }, 'dsh-plugin-desktop: restart after startup setting change')
+  }, 'dsh-plugin-desktop: live browser access and restart-applied native settings')
   if (runtime.platform !== 'linux') {
     ctx.on('settings/updated', (namespace, next) => {
       if (namespace === UI_THEME_SETTINGS_NAMESPACE) {
@@ -516,7 +653,7 @@ export function apply(ctx: Context, config: Config): void {
   }
   ctx.on('settings/updated', (namespace, next) => {
     if (namespace !== UI_LOCALE_SETTINGS_NAMESPACE) return
-    runtime.setLocalePreference((next as LocaleSettings).preference)
+    runtime.setLocalePreference(desktopLocaleFromPreference((next as LocaleSettings).preference))
   })
   ctx.effect(
     () => {
@@ -527,24 +664,29 @@ export function apply(ctx: Context, config: Config): void {
         config.windowsMaterial,
         runtime.windowsBuild,
       )
+      const url = desktopRendererUrl(
+        ctx.webServer.port,
+        config.mode,
+        runtime.platform,
+        runtime.updates.currentVersion,
+        material,
+        runtime.windowsBuild,
+      )
       return runtime.schedule({
         ...config,
         material,
         ...(runtime.windowsBuild === undefined ? {} : { windowsBuild: runtime.windowsBuild }),
-        url: desktopRendererUrl(
-          ctx.webServer.port,
-          config.mode,
-          runtime.platform,
-          runtime.updates.currentVersion,
-          material,
-          runtime.windowsBuild,
-        ),
+        url,
+        authenticationUrl: ctx.connection.authenticatedUrl(new URL(url).origin),
+        rendererAccessHeader: browserAccess.rendererHeader,
         productName: 'DSH Desktop',
         windowTitle: 'DeepSeek Harness Desktop',
         iconPath,
         trayIcons,
         readLocalePreference: () => {
-          return (ctx.settings.get(UI_LOCALE_SETTINGS_NAMESPACE) as LocaleSettings | undefined)?.preference
+          return desktopLocaleFromPreference(
+            (ctx.settings.get(UI_LOCALE_SETTINGS_NAMESPACE) as LocaleSettings | undefined)?.preference,
+          )
         },
         readThemeSource: () => {
           const theme = ctx.settings.get(UI_THEME_SETTINGS_NAMESPACE) as ThemeSettings | undefined
@@ -552,7 +694,13 @@ export function apply(ctx: Context, config: Config): void {
           return resolveDesktopNativeThemeSource(theme?.preference, desktop?.characterTheme)
         },
         requestQuit: appExit,
-        requestModeChange: async mode => settings.update({ mode }),
+        requestModeChange: async mode => {
+          const current = settings.get()
+          const storedBrowserCapability = current.openBrowser || current.networkExposure === 'lan'
+          await settings.update(mode !== 'compatibility' && storedBrowserCapability
+            ? { mode, openBrowser: false, networkExposure: 'loopback' }
+            : { mode })
+        },
       })
     },
     'dsh-plugin-desktop: native shell generation',

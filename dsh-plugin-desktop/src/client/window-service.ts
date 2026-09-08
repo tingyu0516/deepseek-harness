@@ -1,6 +1,6 @@
 /** Generation-stable Desktop native-window geometry service. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import {
   ADVANCED_MACOS_CONTENT_INSET,
   ADVANCED_MACOS_DRAG_REGION_HEIGHT,

@@ -49,7 +49,7 @@ The renderer receives ordinary Web Client modules over the existing loopback car
 Import the Client contract from the supported client export and inject `desktopWindow` only in browser-side code:
 
 ```ts
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { DesktopWindowService } from 'dsh-plugin-desktop/client'
 
 export const inject = ['desktopWindow']

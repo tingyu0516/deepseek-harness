@@ -1,6 +1,6 @@
 /** Independent Desktop frame shared by compatibility and extended modes. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from './contracts.ts'
 import { ExtendedFrame } from './ExtendedFrame.tsx'

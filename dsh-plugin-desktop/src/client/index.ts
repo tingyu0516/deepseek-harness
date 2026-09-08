@@ -1,10 +1,13 @@
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only service and SlotMap convergence for the Desktop settings section.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { applyAdvancedShell } from './advanced-shell.ts'
 import {
   installCharacterThemeBackgroundStyles,
@@ -91,6 +94,7 @@ export const inject = [
   'sessions',
   'theme',
   'workspaces',
+  'uiWorkspace',
   'uiRenderer',
 ]
 
@@ -118,7 +122,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => installWorkspaceFolderDrop({
       create: input => ctx.workspaces.create(input),
-      startSession: workspaceId => { ctx.workspaces.startSession(workspaceId) },
+      startSession: workspaceId => { ctx.uiWorkspace.startSession(workspaceId) },
       ...(environment.platform === 'win32'
         ? { validateDirectory: (path: string) => requestDesktopDirectoryValidation(path) }
         : {}),

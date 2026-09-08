@@ -27,7 +27,7 @@ export function AdvancedFrame(props: AdvancedFrameProps) {
 }
 
 /** Shared panel mechanics below the two mode-specific root boundaries. */
-export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessions }: AdvancedFrameProps & {
+export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessions, SessionProvider }: AdvancedFrameProps & {
   readonly mode: 'extended' | 'advanced'
 }) {
   const subscribeLayout = useCallback((listener: () => void) => layout.subscribe(listener), [layout])
@@ -129,7 +129,11 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
         </div>
       </aside>
       <main className="dshDesktopConversationSurface">{renderSlot('conversation', {})}</main>
-      <aside className="dshDesktopDetailsSurface">{renderSlot('details', {})}</aside>
+      <aside className="dshDesktopDetailsSurface">
+        {/* Strict session slot: the seat renders the empty branch while no
+            session is current, matching the upstream AppFrame contract. */}
+        <SessionProvider>{renderSlot('details', {})}</SessionProvider>
+      </aside>
       {terminalInset > 0 && <aside className="dshDesktopTerminalSurface" aria-hidden="true" />}
       {/* Electron resolves app regions in DOM order; Desktop overlays must remain later. */}
       {mode === 'advanced' && platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}

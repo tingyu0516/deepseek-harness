@@ -25,12 +25,9 @@ export function DesktopComposerBranchView({ branch }: { readonly branch: string 
 /** Resolve the workspace git branch and hide the chip when none is available. */
 export function DesktopComposerBranch({ useSessions, useWorkspaces }: DesktopComposerBranchProps) {
   const current = useSessions(snapshot => snapshot.current)
-  const recentWorkspaceId = useWorkspaces(snapshot => snapshot.recentWorkspaceId)
+  const byId = useSessions(snapshot => snapshot.byId)
   const items = useWorkspaces(snapshot => snapshot.items)
-  const root = resolveDesktopWorkspaceRoot(
-    { current, byId: {} },
-    { recentWorkspaceId, items },
-  )
+  const root = resolveDesktopWorkspaceRoot({ current, byId }, { items })
   const [branch, setBranch] = useState<string>()
 
   useEffect(() => {

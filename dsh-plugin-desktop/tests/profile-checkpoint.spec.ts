@@ -16,6 +16,7 @@ import {
   DesktopProfileCheckpoint,
   type ProfileCheckpointOptions,
 } from '../src/profile-checkpoint.ts'
+import { canCreateFileSymlinks } from './symlink-support.ts'
 
 const roots: string[] = []
 
@@ -167,11 +168,13 @@ describe('Desktop profile health checkpoints', () => {
     unlinkSync(join(missing.profile, 'package.json'))
     expect(() => missing.checkpoint.captureHealthy()).toThrow('package.json is unavailable')
 
-    const symlink = fixture()
-    unlinkSync(join(symlink.profile, 'cordis.patch.yml'))
-    writeFileSync(join(symlink.root, 'outside.yml'), 'outside\n')
-    symlinkSync(join(symlink.root, 'outside.yml'), join(symlink.profile, 'cordis.patch.yml'))
-    expect(() => symlink.checkpoint.captureHealthy()).toThrow('regular file')
+    if (canCreateFileSymlinks) {
+      const symlink = fixture()
+      unlinkSync(join(symlink.profile, 'cordis.patch.yml'))
+      writeFileSync(join(symlink.root, 'outside.yml'), 'outside\n')
+      symlinkSync(join(symlink.root, 'outside.yml'), join(symlink.profile, 'cordis.patch.yml'))
+      expect(() => symlink.checkpoint.captureHealthy()).toThrow('regular file')
+    }
 
     const oversized = fixture({ maxFileBytes: { 'package.json': 4 } })
     expect(() => oversized.checkpoint.captureHealthy()).toThrow('too large')

@@ -326,11 +326,14 @@ function installPathDirectory(
   const original = pathEntries(environment, platform)
   const current = original.find(entry => entry.value !== undefined)
   const currentValue = current?.value ?? ''
-  if (withoutPathDirectory(currentValue, directory, platform) !== currentValue) return () => {}
-
   const key = current?.key ?? PATH
   const delimiter = platform === 'win32' ? ';' : ':'
-  const installedValue = currentValue.length === 0 ? directory : `${directory}${delimiter}${currentValue}`
+  const inheritedValue = withoutPathDirectory(currentValue, directory, platform)
+  const firstComponent = currentValue.split(delimiter)[0] ?? ''
+  if (normalizedPathComponent(firstComponent, platform) === normalizedPathComponent(directory, platform)) {
+    return () => {}
+  }
+  const installedValue = inheritedValue.length === 0 ? directory : `${directory}${delimiter}${inheritedValue}`
   for (const entry of original) delete environment[entry.key]
   environment[key] = installedValue
 

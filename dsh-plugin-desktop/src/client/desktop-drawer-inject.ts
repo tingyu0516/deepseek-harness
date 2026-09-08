@@ -1,9 +1,11 @@
 /** Shared overlay inject for the terminal / file / Changes drawer. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { DesktopComposerBranch } from './ComposerBranch.tsx'
 import { DesktopSessionTerminalAction } from './DesktopSessionTerminalAction.tsx'
-import { collectLastAgentTurnPaths, relativizeWorkspaceFile } from './last-agent-turn.ts'
+import { collectLastAgentTurnPathsFromEvents, relativizeWorkspaceFile } from './last-agent-turn.ts'
 import { resolveDesktopTerminalCwd, resolveDesktopWorkspaceRoot } from './desktop-terminal-cwd.ts'
 import type { DesktopTerminalDrawerProps, DesktopWorkspaceListing } from './TerminalDrawer.tsx'
 
@@ -33,7 +35,7 @@ export function desktopDrawerInject(
       const binding = ctx.sessions.binding(current)
       if (binding === undefined) return []
       const root = workspaceRoot()
-      const paths = collectLastAgentTurnPaths(binding.session.getSnapshot())
+      const paths = collectLastAgentTurnPathsFromEvents(binding.eventSource.getSnapshot().entries)
       if (root === undefined) return paths
       const relative: string[] = []
       for (const path of paths) {

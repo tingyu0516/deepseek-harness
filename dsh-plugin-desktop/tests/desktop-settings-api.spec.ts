@@ -72,6 +72,14 @@ function bootstrap(
     persistProfileSelection: async () => {},
     readMarket: () => market(),
     selectMarket: async provider => market(provider),
+    readWeb: () => ({
+      localUrl: 'http://127.0.0.1:3080/',
+      lanUrls: [],
+      lanState: 'inactive',
+      lanError: null,
+      lanCaFingerprint: null,
+      lanCaUrls: [],
+    }),
     scheduleRestart: () => {},
     scheduleRecoveryRestart: () => {},
     openTerminal: () => {},
@@ -144,6 +152,14 @@ describe('desktop settings controller', () => {
         { name: 'broken', exists: true, webCapable: false, selectable: false, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+      web: {
+        localUrl: 'http://127.0.0.1:3080/',
+        lanUrls: [],
+        lanState: 'inactive',
+        lanError: null,
+        lanCaFingerprint: null,
+        lanCaUrls: [],
+      },
     })
     expect(JSON.stringify(controller.read())).not.toContain('/private')
     expect(JSON.stringify(controller.read())).not.toContain('private-bundle')
@@ -170,6 +186,14 @@ describe('desktop settings controller', () => {
         { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+      web: {
+        localUrl: 'http://127.0.0.1:3080/',
+        lanUrls: [],
+        lanState: 'inactive',
+        lanError: null,
+        lanCaFingerprint: null,
+        lanCaUrls: [],
+      },
     })
     expect(create).toHaveBeenCalledWith('work')
     expect(persistProfileSelection).not.toHaveBeenCalled()
@@ -195,6 +219,14 @@ describe('desktop settings controller', () => {
         { name: 'work', exists: true, webCapable: true, selectable: true, deletable: true },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+      web: {
+        localUrl: 'http://127.0.0.1:3080/',
+        lanUrls: [],
+        lanState: 'inactive',
+        lanError: null,
+        lanCaFingerprint: null,
+        lanCaUrls: [],
+      },
     })
     expect(remove).toHaveBeenCalledWith('work')
   })
@@ -377,6 +409,14 @@ describe('desktop settings HTTP boundary', () => {
         { name: 'work', exists: true, webCapable: true, selectable: true, deletable: false },
       ],
       market: { requested: 'disabled', effective: 'disabled', legacyDefaulted: false },
+      web: {
+        localUrl: 'http://127.0.0.1:3080/',
+        lanUrls: [],
+        lanState: 'inactive',
+        lanError: null,
+        lanCaFingerprint: null,
+        lanCaUrls: [],
+      },
     })
     expect(create).toHaveBeenCalledWith('work')
   })

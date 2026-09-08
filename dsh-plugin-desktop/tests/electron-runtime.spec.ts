@@ -115,6 +115,10 @@ const electron = vi.hoisted(() => {
     off: vi.fn(),
     openDevTools: vi.fn(() => { devToolsOpened = true }),
     reloadIgnoringCache: vi.fn(),
+    session: {
+      fetch: vi.fn(async () => new Response('<html></html>', { status: 200 })),
+      webRequest: { onBeforeSendHeaders: vi.fn() },
+    },
     setZoomLevel: vi.fn((level: number) => { zoomLevel = level }),
     setWindowOpenHandler: vi.fn(),
   }
@@ -289,6 +293,11 @@ const spec: DesktopShellSpec = {
   minWidth: 900,
   minHeight: 640,
   url: 'http://127.0.0.1:43120/',
+  authenticationUrl: 'http://127.0.0.1:43120/?token=smoke',
+  rendererAccessHeader: {
+    name: 'x-dsh-desktop-renderer',
+    value: 'A'.repeat(43),
+  },
   productName: 'DSH Desktop',
   windowTitle: 'DeepSeek Harness Desktop',
   iconPath: '/tmp/app-icon.png',

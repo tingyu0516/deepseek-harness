@@ -1,4 +1,4 @@
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import {
   DEFAULT_CHARACTER_WALLPAPER_ID,

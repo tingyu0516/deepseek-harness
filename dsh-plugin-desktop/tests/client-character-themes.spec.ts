@@ -122,6 +122,7 @@ describe('desktop character theme preference', () => {
       },
       set: vi.fn(async () => {}),
       unset: vi.fn(async () => {}),
+      mutate: vi.fn(async () => {}),
     }
     let preference = 'system'
     const theme = {
@@ -177,6 +178,7 @@ describe('desktop character theme preference', () => {
   it('overlays Hu Tao tokens onto a builtin snapshot', () => {
     const snapshot = {
       preference: 'dark' as const,
+      fontSize: 14,
       active: { id: 'dark', colorScheme: 'dark' as const, tokens: { '--dsw-alias-bg-base': '#000' } },
       themes: [],
       revision: 1,
@@ -317,6 +319,7 @@ describe('desktop character theme preference', () => {
         subscribe: () => () => {},
         set: vi.fn(async () => {}),
         unset: vi.fn(async () => {}),
+        mutate: vi.fn(async () => {}),
       },
       onThemeChange: () => () => {},
     })

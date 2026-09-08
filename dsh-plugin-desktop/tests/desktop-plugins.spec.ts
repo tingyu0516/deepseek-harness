@@ -26,6 +26,7 @@ import {
   ensureDesktopProfile,
   prepareDesktopProfile,
 } from '../src/profile.ts'
+import { canCreateFileSymlinks } from './symlink-support.ts'
 
 interface Harness {
   readonly ctx: Context
@@ -358,7 +359,7 @@ describe('desktop direct bundle management', () => {
     await harness.dispose()
   })
 
-  it('filters every duplicate layer at composition time while preserving stale disabled names', async () => {
+  it('filters every duplicate layer at composition time while preserving stale disabled names', { timeout: process.platform === 'win32' ? 15_000 : 5_000 }, async () => {
     const root = temporaryRoot()
     const options = bootstrap(root)
     installBundle(options.homeDir, 'third-party-plugin')
@@ -369,7 +370,7 @@ describe('desktop direct bundle management', () => {
     const preview = harness.service.previewDisable(target.bundleId)
     await harness.service.executeDisable(preview.previewId)
 
-    const prepared = prepareDesktopProfile(undefined, options.homeDir, 'darwin', 'desktop', options.statePath)
+    const prepared = await prepareDesktopProfile(undefined, options.homeDir, 'darwin', 'desktop', options.statePath)
     const inserted = prepared.patches.flatMap(patch => Array.isArray(patch.insert) ? patch.insert : [])
     expect(inserted.filter(row => row.id === 'external-marker')).toHaveLength(0)
 
@@ -497,11 +498,13 @@ describe('desktop direct bundle management', () => {
     writeFileSync(options.statePath, 'x'.repeat(64 * 1024 + 1))
     expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('too large')
 
-    rmSync(options.statePath)
-    const target = join(root, 'real-state.json')
-    writeFileSync(target, JSON.stringify({ version: 1, profiles: [] }))
-    symlinkSync(target, options.statePath)
-    expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('regular file')
+    if (canCreateFileSymlinks) {
+      rmSync(options.statePath)
+      const target = join(root, 'real-state.json')
+      writeFileSync(target, JSON.stringify({ version: 1, profiles: [] }))
+      symlinkSync(target, options.statePath)
+      expect(() => readDesktopDisabledBundles(options.statePath, 'desktop')).toThrow('regular file')
+    }
 
     rmSync(options.statePath)
     const parentFile = join(root, 'not-a-directory')
@@ -529,7 +532,7 @@ describe('desktop direct bundle management', () => {
     await harness.dispose()
   })
 
-  it('filters a disabled bundle before reading its malformed patch during profile loading', async () => {
+  it('filters a disabled bundle before reading its malformed patch during profile loading', { timeout: process.platform === 'win32' ? 15_000 : 5_000 }, async () => {
     const root = temporaryRoot()
     const options = bootstrap(root)
     const packageDir = installBundle(options.homeDir, 'third-party-plugin')
@@ -540,13 +543,13 @@ describe('desktop direct bundle management', () => {
     await harness.service.executeDisable(harness.service.previewDisable(target.bundleId).previewId)
     writeFileSync(join(packageDir, 'cordis.patch.yml'), 'not: a-list\n')
 
-    expect(() => prepareDesktopProfile(
+    await expect(prepareDesktopProfile(
       undefined,
       options.homeDir,
       'darwin',
       'desktop',
       options.statePath,
-    )).not.toThrow()
+    )).resolves.toBeDefined()
     await harness.dispose()
   })
 })
