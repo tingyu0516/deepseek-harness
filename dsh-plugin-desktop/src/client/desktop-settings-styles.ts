@@ -299,6 +299,46 @@ const CSS = `
   padding-left: 14px;
   border-left: 2px solid var(--dsw-alias-border-l1);
 }
+.dshDesktopSettingsLanStatus {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+.dshDesktopSettingsLanStatus[data-state="ready"] .dshDesktopSettingsBadge {
+  color: var(--dsw-alias-state-success-primary);
+}
+.dshDesktopSettingsLanStatus[data-state="failed"] .dshDesktopSettingsBadge {
+  color: var(--dsw-alias-state-error-primary);
+}
+.dshDesktopSettingsLanStatus code,
+.dshDesktopSettingsLanFingerprint code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+.dshDesktopSettingsLanFingerprint {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.dshDesktopSettingsUrls {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.dshDesktopSettingsUrls a {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-brand-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
 .dshDesktopWallpaper {
   display: flex;
   flex-direction: column;

@@ -18,6 +18,7 @@ import {
   installDesktopPnpmRuntime,
   type DesktopPnpmRuntimeOptions,
 } from '../src/desktop-runtime-environment.ts'
+import { canCreateFileSymlinks } from './symlink-support.ts'
 
 const temporaryDirectories: string[] = []
 
@@ -255,7 +256,52 @@ describe('desktop Host pnpm runtime', () => {
     expect(environment).toEqual({ PATH: `${laterPath}${pathDelimiter}${originalPath}` })
   })
 
-  it('does not duplicate or later remove a PATH component another owner supplied', () => {
+  it.runIf(process.platform === 'win32')('reclaims PATH precedence from an inherited Desktop terminal shim', () => {
+    const root = temporaryDirectory()
+    const stateDir = join(root, 'runtime')
+    const pathDir = join(stateDir, 'bin')
+    const terminalShimDir = join(root, 'terminal', 'bin')
+    const captureEntry = join(root, 'capture.mjs')
+    const captureOutput = join(root, 'capture.txt')
+    mkdirSync(terminalShimDir, { recursive: true })
+    writeFileSync(join(terminalShimDir, 'pnpm.cmd'), '@echo inherited terminal shim failed\r\n@exit /b 90\r\n')
+    writeFileSync(captureEntry, [
+      "import { writeFileSync } from 'node:fs'",
+      "writeFileSync(process.argv.at(-1), 'host runtime')",
+      '',
+    ].join('\n'))
+    const environment: NodeJS.ProcessEnv = {
+      Path: `${terminalShimDir};${pathDir};${process.env.Path ?? ''}`,
+      PATHEXT: process.env.PATHEXT,
+      SystemRoot: process.env.SystemRoot,
+    }
+    const original = { ...environment }
+
+    const installation = installDesktopPnpmRuntime({
+      ...options(stateDir, 'win32', environment),
+      appExecutable: process.execPath,
+      pnpmBinPath: captureEntry,
+    })
+    const result = spawnSync(process.env.ComSpec ?? 'cmd.exe', [
+      '/d',
+      '/s',
+      '/c',
+      `pnpm "${captureOutput}"`,
+    ], {
+      encoding: 'utf8',
+      env: environment,
+      shell: false,
+      windowsVerbatimArguments: true,
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0)
+    expect(readFileSync(captureOutput, 'utf8')).toBe('host runtime')
+    installation.dispose()
+    expect(environment).toEqual(original)
+  })
+
+  it('does not duplicate or remove a runtime already first on PATH', () => {
     const stateDir = join(temporaryDirectory(), 'runtime')
     const pathDir = join(stateDir, 'bin')
     const platform = process.platform === 'win32' ? 'win32' : 'linux'
@@ -268,7 +314,7 @@ describe('desktop Host pnpm runtime', () => {
     expect(environment.PATH).toBe(`${pathDir}${pathDelimiter}${originalPath}`)
   })
 
-  it('rejects symlinked state directories before changing PATH', () => {
+  it.skipIf(!canCreateFileSymlinks)('rejects symlinked state directories before changing PATH', () => {
     const root = temporaryDirectory()
     const target = join(root, 'target')
     const stateDir = join(root, 'runtime')
@@ -281,7 +327,7 @@ describe('desktop Host pnpm runtime', () => {
     expect(environment).toEqual({ PATH: '/usr/bin' })
   })
 
-  it('rejects a symlinked generated file before changing PATH', () => {
+  it.skipIf(!canCreateFileSymlinks)('rejects a symlinked generated file before changing PATH', () => {
     const root = temporaryDirectory()
     const stateDir = join(root, 'runtime')
     const pathDir = join(stateDir, 'bin')
@@ -321,7 +367,7 @@ describe('desktop Host pnpm runtime', () => {
     installation.dispose()
   })
 
-  it('removes stray symlinks without touching their targets', () => {
+  it.skipIf(!canCreateFileSymlinks)('removes stray symlinks without touching their targets', () => {
     const root = temporaryDirectory()
     const stateDir = join(root, 'runtime')
     const pathDir = join(stateDir, 'bin')

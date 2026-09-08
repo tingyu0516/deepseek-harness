@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { DesktopRendererAccessHeader } from './desktop-browser-access.ts'
 import type { RendererBootReport } from './renderer-boot-contract.ts'
 import type { UpdateCheckResult, UpdateRequest } from './update-checker.ts'
 import type { ProfileCreateWindowOptions } from './profile-create-window.ts'
@@ -135,6 +136,10 @@ export interface DesktopShellSpec extends DesktopWindowConfig {
   windowsBuild?: number
   /** Unmodified Web root served by the active DSH profile. */
   url: string
+  /** Root URL carrying the process token that provisions the renderer's auth cookie. */
+  authenticationUrl: string
+  /** Ephemeral capability attached by Electron to this renderer generation's requests. */
+  rendererAccessHeader: DesktopRendererAccessHeader
   /** Native application and tray label. */
   productName: string
   /** Visible native caption on platforms that retain a title. */

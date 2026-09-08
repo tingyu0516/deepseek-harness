@@ -1,9 +1,9 @@
 /** Desktop-owned settings section registered into the official Settings shell. */
 
 import {
-  useCallback, useEffect, useId, useState, useSyncExternalStore, type FormEvent, type ReactNode,
+  useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode,
 } from 'react'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   DesktopMarketProvider, DesktopProfileView, DesktopSettingsApi, DesktopSettingsView,
@@ -12,6 +12,10 @@ import { DesktopWallpaperApiError } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import type { DesktopClientPlatform } from './environment.ts'
 import type { CharacterWallpaperCatalog, CharacterWallpaperThemeId } from '../character-wallpaper-contract.ts'
+import {
+  desktopBrowserAccessAvailable,
+  desktopBrowserAccessEnabled,
+} from '../desktop-network.ts'
 
 /** Browser view of the Host `dsh-desktop` settings namespace. */
 export interface DesktopShellSettings {
@@ -19,6 +23,8 @@ export interface DesktopShellSettings {
   readonly macosMaterial: 'off' | 'transparent'
   readonly windowsMaterial: 'off' | 'acrylic' | 'mica'
   readonly port: number
+  readonly openBrowser: boolean
+  readonly networkExposure: 'loopback' | 'lan'
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error'
   readonly characterTheme: 'off' | 'hutao' | 'furina'
   readonly hutaoWallpaper: string
@@ -64,8 +70,102 @@ export type DesktopSettingsSectionProps =
   & InjectFace<DesktopSettingsSectionInjected>
 
 type Translate = DesktopSettingsSectionProps['t']
-type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'wallpaper-select' | 'wallpaper-import' | 'wallpaper-delete' | 'notification' | 'pet'
+type BusyOperation = 'load' | 'create-profile' | 'select-profile' | 'delete-profile' | 'select-market' | 'mode' | 'material' | 'character-theme' | 'wallpaper-select' | 'wallpaper-import' | 'wallpaper-delete' | 'web' | 'notification' | 'pet'
 type RestartState = 'none' | 'restarting' | 'required'
+type LanPollWait = (signal: AbortSignal) => Promise<void>
+
+const LAN_POLL_INTERVAL_MS = 250
+const LAN_POLL_MAX_READS = 21
+
+const LAN_STATE_LOCALE_KEYS = {
+  inactive: 'lanStatusInactive',
+  starting: 'lanStatusStarting',
+  ready: 'lanStatusReady',
+  failed: 'lanStatusFailed',
+} as const satisfies Record<DesktopSettingsView['web']['lanState'], DesktopSettingsLocaleKey>
+
+function waitForLanPoll(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason)
+      return
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', cancel)
+      resolve()
+    }, LAN_POLL_INTERVAL_MS)
+    const cancel = (): void => {
+      clearTimeout(timer)
+      reject(signal.reason)
+    }
+    signal.addEventListener('abort', cancel, { once: true })
+  })
+}
+
+function isAbortError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === 'AbortError'
+}
+
+/** Refresh Host state, briefly following an in-flight hot LAN transition. */
+export async function readDesktopSettingsUntilLanSettled(
+  api: Pick<DesktopSettingsApi, 'read'>,
+  publish: (view: DesktopSettingsView) => void,
+  signal: AbortSignal,
+  wait: LanPollWait = waitForLanPoll,
+): Promise<DesktopSettingsView> {
+  let latest: DesktopSettingsView | undefined
+  for (let read = 0; read < LAN_POLL_MAX_READS; read += 1) {
+    signal.throwIfAborted()
+    latest = await api.read()
+    signal.throwIfAborted()
+    publish(latest)
+    if (latest.web.lanState !== 'starting' || read === LAN_POLL_MAX_READS - 1) return latest
+    await wait(signal)
+  }
+  throw new Error('dsh-plugin-desktop: unreachable LAN settings polling state')
+}
+
+/** Persist ordinary-browser permission and refresh the already-running edge. */
+export async function persistDesktopBrowserAccessHot(
+  settings: Pick<SettingsScope<DesktopShellSettings>, 'set'>,
+  checked: boolean,
+  currentExposure: DesktopShellSettings['networkExposure'],
+  refresh: () => Promise<DesktopSettingsView>,
+): Promise<DesktopSettingsView> {
+  if (!checked && currentExposure === 'lan') {
+    await settings.set('networkExposure', 'loopback')
+  }
+  await settings.set('openBrowser', checked)
+  return refresh()
+}
+
+/** Persist LAN intent and refresh its hot HTTPS ingress state. */
+export async function persistDesktopNetworkExposureHot(
+  settings: Pick<SettingsScope<DesktopShellSettings>, 'set'>,
+  exposure: DesktopShellSettings['networkExposure'],
+  refresh: () => Promise<DesktopSettingsView>,
+): Promise<DesktopSettingsView> {
+  await settings.set('networkExposure', exposure)
+  return refresh()
+}
+
+/** URLs are advertised only after the user explicitly enables browser access. */
+export function desktopBrowserUrlsShouldRender(
+  browserAccess: boolean,
+  _networkExposure: DesktopShellSettings['networkExposure'],
+): boolean {
+  return browserAccess
+}
+
+/** Keep cancellation side-effect free; only explicit confirmation enables LAN. */
+export function resolveDesktopLanConfirmation(
+  confirmed: boolean,
+  dismiss: () => void,
+  enableLan: () => void,
+): void {
+  dismiss()
+  if (confirmed) enableLan()
+}
 
 function useScope<T>(scope: SettingsScope<T>) {
   const subscribe = useCallback((listener: () => void) => scope.subscribe(listener), [scope])
@@ -140,11 +240,13 @@ function RepositoryLink({ href, children }: { href: string; children: ReactNode 
 
 function ToggleRow({
   label,
+  badge,
   checked,
   disabled,
   onChange,
 }: {
   label: ReactNode
+  badge?: ReactNode
   checked: boolean
   disabled: boolean
   onChange: (checked: boolean) => void
@@ -152,7 +254,10 @@ function ToggleRow({
   const labelId = useId()
   return (
     <div className="dshDesktopSettingsToggleRow">
-      <span id={labelId}>{label}</span>
+      <span id={labelId}>
+        {label}
+        {badge !== undefined && <span className="dshDesktopSettingsBadge">{badge}</span>}
+      </span>
       <button
         type="button"
         role="switch"
@@ -272,18 +377,31 @@ export function DesktopSettingsSection({
   const [operationFailed, setOperationFailed] = useState(false)
   const [restart, setRestart] = useState<RestartState>('none')
   const [pendingProfileDelete, setPendingProfileDelete] = useState<string>()
+  const [confirmLan, setConfirmLan] = useState(false)
   const [wallpapers, setWallpapers] = useState<CharacterWallpaperCatalog>()
   const [pendingWallpaperDelete, setPendingWallpaperDelete] = useState<string>()
   const [wallpaperError, setWallpaperError] = useState<DesktopSettingsLocaleKey>()
+  const lanPoll = useRef<AbortController>()
+
+  const refreshView = useCallback(async () => {
+    lanPoll.current?.abort()
+    const controller = new AbortController()
+    lanPoll.current = controller
+    try {
+      return await readDesktopSettingsUntilLanSettled(api, setView, controller.signal)
+    } finally {
+      if (lanPoll.current === controller) lanPoll.current = undefined
+    }
+  }, [api])
 
   const load = useCallback(async () => {
     setBusy('load')
     setLoadFailed(false)
     setOperationFailed(false)
     try {
-      setView(await api.read())
-    } catch {
-      setLoadFailed(true)
+      await refreshView()
+    } catch (cause) {
+      if (!isAbortError(cause)) setLoadFailed(true)
     }
     try {
       setWallpapers(await api.listWallpapers())
@@ -292,9 +410,10 @@ export function DesktopSettingsSection({
     } finally {
       setBusy(current => current === 'load' ? undefined : current)
     }
-  }, [api])
+  }, [refreshView])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => () => { lanPoll.current?.abort() }, [])
   useEffect(() => {
     if (restart !== 'restarting') return
     const timer = setTimeout(() => { setRestart('required') }, 8_000)
@@ -318,7 +437,15 @@ export function DesktopSettingsSection({
   const notificationsWritable = notifications.status === 'ready' && notifications.writable
   const hutaoPetWritable = hutaoPet.status === 'ready' && hutaoPet.writable
   const furinaPetWritable = furinaPet.status === 'ready' && furinaPet.writable
-  const mode = desktop.value?.mode ?? initialMode
+  const storedMode = desktop.value?.mode ?? initialMode
+  const configuredNetworkExposure = desktop.value?.networkExposure ?? 'loopback'
+  const browserAccess = desktopBrowserAccessEnabled(
+    storedMode,
+    desktop.value?.openBrowser ?? false,
+    configuredNetworkExposure,
+  )
+  const mode = storedMode
+  const networkExposure = browserAccess ? configuredNetworkExposure : 'loopback'
   const characterTheme = desktop.value?.characterTheme ?? 'off'
   const hutaoWallpaper = desktop.value?.hutaoWallpaper ?? 'default'
   const furinaWallpaper = desktop.value?.furinaWallpaper ?? 'default'
@@ -366,6 +493,24 @@ export function DesktopSettingsSection({
         market: { requested: provider, effective: current.market.effective, legacyDefaulted: false },
       })
       if (response.restartRequired) requestRestart()
+    })
+  }
+
+  const setBrowserAccess = (checked: boolean): void => {
+    void run('web', async () => {
+      if (checked) {
+        if (!desktopBrowserAccessAvailable(mode)) return
+        await persistDesktopBrowserAccessHot(desktopSettings, true, configuredNetworkExposure, refreshView)
+        return
+      }
+      await persistDesktopBrowserAccessHot(desktopSettings, false, configuredNetworkExposure, refreshView)
+    })
+  }
+
+  const setNetworkExposure = (exposure: DesktopShellSettings['networkExposure']): void => {
+    void run('web', async () => {
+      if (exposure === 'lan' && (!desktopBrowserAccessAvailable(mode) || !browserAccess)) return
+      await persistDesktopNetworkExposureHot(desktopSettings, exposure, refreshView)
     })
   }
 
@@ -787,6 +932,91 @@ export function DesktopSettingsSection({
               {busy === 'wallpaper-import' ? t('wallpaperImporting') : t('wallpaperImport')}
             </button>
           </div>
+        )}
+      </section>
+
+      <section className="dshDesktopSettingsGroup" aria-labelledby="dsh-desktop-web-title">
+        <div>
+          <h3 id="dsh-desktop-web-title">{t('webTitle')}</h3>
+          <p className="dshDesktopSettingsGroupIntro">{t('webIntro')}</p>
+        </div>
+        <ToggleRow
+          label={t('openBrowser')}
+          checked={browserAccess}
+          disabled={!desktopBrowserAccessAvailable(mode) || !settingsWritable || busy !== undefined}
+          onChange={setBrowserAccess}
+        />
+        <p className="dshDesktopSettingsNotice">{t('browserCompatibilityNotice')}</p>
+        <ToggleRow
+          label={t('lanAccess')}
+          badge={t('beta')}
+          checked={networkExposure === 'lan'}
+          disabled={!browserAccess || !settingsWritable || busy !== undefined}
+          onChange={(checked) => {
+            if (checked) setConfirmLan(true)
+            else setNetworkExposure('loopback')
+          }}
+        />
+        {confirmLan && (
+          <div className="dshDesktopSettingsDeleteConfirm" role="group" aria-label={t('lanConfirmTitle')}>
+            <span className="dshDesktopSettingsDeleteWarning">{t('lanConfirmBody')}</span>
+            <span className="dshDesktopSettingsDeleteActions">
+              <button
+                type="button"
+                className="dshDesktopSettingsButton dshDesktopSettingsButtonDanger"
+                disabled={busy !== undefined}
+                onClick={() => { resolveDesktopLanConfirmation(true, () => { setConfirmLan(false) }, () => { setNetworkExposure('lan') }) }}
+              >
+                {t('lanConfirmEnable')}
+              </button>
+              <button
+                type="button"
+                className="dshDesktopSettingsButton dshDesktopSettingsButtonSecondary"
+                disabled={busy !== undefined}
+                onClick={() => { resolveDesktopLanConfirmation(false, () => { setConfirmLan(false) }, () => {}) }}
+              >
+                {t('cancelDeleteProfile')}
+              </button>
+            </span>
+          </div>
+        )}
+        {view !== undefined && (
+          <div className="dshDesktopSettingsLanStatus" data-state={view.web.lanState} role="status">
+            <span className="dshDesktopSettingsChoiceTitle">
+              {t('lanStatus')}
+              <span className="dshDesktopSettingsBadge">{t(LAN_STATE_LOCALE_KEYS[view.web.lanState])}</span>
+            </span>
+            {view.web.lanError !== null && (
+              <span className="dshDesktopSettingsChoiceBody">
+                {t('lanError')}: <code>{view.web.lanError}</code>
+              </span>
+            )}
+          </div>
+        )}
+        {desktopBrowserUrlsShouldRender(browserAccess, networkExposure) && view !== undefined && (
+          <div className="dshDesktopSettingsUrls">
+            <span className="dshDesktopSettingsChoiceTitle">{t('browserUrls')}</span>
+            <a href={view.web.localUrl} target="_blank" rel="noopener noreferrer">{view.web.localUrl}</a>
+            {view.web.lanUrls.length > 0 && <span className="dshDesktopSettingsChoiceTitle">{t('lanHttpsUrls')}</span>}
+            {view.web.lanUrls.map(url => <a href={url} key={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
+          </div>
+        )}
+        {networkExposure === 'lan' && view !== undefined && (
+          <>
+            <p className="dshDesktopSettingsNotice">{t('lanTrustNotice')}</p>
+            {(view.web.lanCaFingerprint !== null || view.web.lanCaUrls.length > 0) && (
+              <div className="dshDesktopSettingsUrls">
+                <span className="dshDesktopSettingsChoiceTitle">{t('lanCaTitle')}</span>
+                {view.web.lanCaFingerprint !== null && (
+                  <span className="dshDesktopSettingsLanFingerprint">
+                    {t('lanCaFingerprint')}: <code>{view.web.lanCaFingerprint}</code>
+                  </span>
+                )}
+                {view.web.lanCaUrls.length > 0 && <span className="dshDesktopSettingsChoiceBody">{t('lanCaDownloads')}</span>}
+                {view.web.lanCaUrls.map(url => <a href={url} key={url} target="_blank" rel="noopener noreferrer">{url}</a>)}
+              </div>
+            )}
+          </>
         )}
       </section>
 

@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { LocaleId } from '@deepseek-ai/dsh-client-locale'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { ThemePreference } from '@deepseek-ai/dsh-client-ui-theme'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   apply,
@@ -31,6 +31,8 @@ import {
   DESKTOP_DIRECTORY_VALIDATOR_PATH,
 } from '../src/directory-picker-contract.ts'
 import type { DesktopRuntime, DesktopShellSpec } from '../src/runtime.ts'
+import { createDesktopBrowserAccess } from '../src/desktop-browser-access.ts'
+import { DesktopLanHttpsRuntime } from '../src/lan-https-runtime.ts'
 import { RENDERER_BOOT_REPORT_PATH, type RendererBootReport } from '../src/renderer-boot-contract.ts'
 
 const config: DesktopConfig = {
@@ -38,6 +40,7 @@ const config: DesktopConfig = {
   macosMaterial: 'transparent',
   windowsMaterial: 'acrylic',
   port: 43_120,
+  networkExposure: 'loopback',
   width: 1280,
   height: 840,
   minWidth: 900,
@@ -50,6 +53,8 @@ function desktopSettings(overrides: Partial<DesktopSettings> = {}): DesktopSetti
     macosMaterial: 'transparent',
     windowsMaterial: 'acrylic',
     port: 0,
+    openBrowser: false,
+    networkExposure: 'loopback',
     logLevel: 'info',
     characterTheme: 'off',
     hutaoWallpaper: 'default',
@@ -72,13 +77,16 @@ interface PluginHarness {
   pickDirectory: ReturnType<typeof vi.fn<() => Promise<string | null>>>
   pickImageFile: ReturnType<typeof vi.fn<() => Promise<string | null>>>
   validateDirectory: ReturnType<typeof vi.fn<(path: string) => Promise<boolean>>>
+  browserAccess: ReturnType<typeof createDesktopBrowserAccess>
+  lanHttps: DesktopLanHttpsRuntime
+  setLanHttpsEnabled: ReturnType<typeof vi.fn<DesktopLanHttpsRuntime['setEnabled']>>
   route(path: string): WebRoute | undefined
   notify(next: DesktopSettings, prev: DesktopSettings): Promise<void>
   notifyLocale(preference: LocaleId | undefined): void
   notifyTheme(preference: ThemePreference): void
 }
 
-function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginHarness {
+function createHarness(platform: DesktopRuntime['platform'] = 'darwin', ordinaryBrowserEnabled = false): PluginHarness {
   let shell: DesktopShellSpec | undefined
   let watcher: ((next: DesktopSettings, prev: DesktopSettings) => void | Promise<void>) | undefined
   const update = vi.fn(async (_patch: object) => {})
@@ -93,6 +101,12 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
   const settingsUpdated = new Set<(namespace: unknown, next: unknown) => void>()
   let localePreference: LocaleId | undefined
   let themePreference: ThemePreference = 'system'
+  const browserAccess = createDesktopBrowserAccess(
+    ordinaryBrowserEnabled,
+    Buffer.alloc(32, 6).toString('base64url'),
+  )
+  const lanHttps = new DesktopLanHttpsRuntime({ addresses: [] })
+  const setLanHttpsEnabled = vi.spyOn(lanHttps, 'setEnabled')
   const runtime: DesktopRuntime = {
     platform,
     windowsBuild: platform === 'win32' ? 22_631 : undefined,
@@ -139,7 +153,18 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
       return undefined
     }),
     register: vi.fn(() => ({
-      get: () => ({ mode: config.mode }),
+      get: () => ({
+        mode: config.mode,
+        macosMaterial: config.macosMaterial,
+        windowsMaterial: config.windowsMaterial,
+        port: config.port,
+        openBrowser: ordinaryBrowserEnabled,
+        networkExposure: config.networkExposure,
+        logLevel: 'info' as const,
+        characterTheme: 'off' as const,
+        hutaoWallpaper: 'default' as const,
+        furinaWallpaper: 'default' as const,
+      }),
       watch: (callback: typeof watcher) => {
         watcher = callback
         return () => { watcher = undefined }
@@ -158,9 +183,22 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
         return () => { if (routes.get(route.path) === route) routes.delete(route.path) }
       }),
     },
+    connection: {
+      authenticatedUrl: vi.fn((baseUrl: string) => {
+        const url = new URL(baseUrl)
+        url.searchParams.set('token', 'smoke')
+        return url.href
+      }),
+      requestRejection: vi.fn(() => undefined),
+    },
     settings,
     logger: { warn: vi.fn(), error: vi.fn() },
-    get: vi.fn((key: unknown) => String(key) === 'desktopRuntime' ? runtime : () => {}),
+    get: vi.fn((key: unknown) => {
+      if (String(key) === 'desktopRuntime') return runtime
+      if (String(key) === 'desktopBrowserAccess') return browserAccess
+      if (String(key) === 'desktopLanHttps') return lanHttps
+      return () => {}
+    }),
     effect: vi.fn((register: () => unknown) => register()),
     on: vi.fn((event: string, listener: (namespace: unknown, next: unknown) => void) => {
       if (event === 'settings/updated') settingsUpdated.add(listener)
@@ -179,15 +217,18 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin'): PluginH
     pickDirectory,
     pickImageFile,
     validateDirectory,
+    browserAccess,
+    lanHttps,
+    setLanHttpsEnabled,
     route: path => routes.get(path),
     notify: async (next, prev) => { await watcher?.(next, prev) },
     notifyLocale: (preference) => {
       localePreference = preference
-      for (const listener of settingsUpdated) listener(settingsNamespace('locale'), { preference })
+      for (const listener of settingsUpdated) listener('locale' as SettingsNamespace, { preference })
     },
     notifyTheme: (preference) => {
       themePreference = preference
-      for (const listener of settingsUpdated) listener(settingsNamespace('ui-theme'), { preference })
+      for (const listener of settingsUpdated) listener('ui-theme' as SettingsNamespace, { preference })
     },
   }
 }
@@ -201,6 +242,8 @@ describe('desktop Host plugin', () => {
       macosMaterial: 'transparent',
       windowsMaterial: 'acrylic',
       port: 43_120,
+      openBrowser: false,
+      networkExposure: 'loopback',
       logLevel: 'info',
       characterTheme: 'off',
       hutaoWallpaper: 'default',
@@ -288,8 +331,13 @@ describe('desktop Host plugin', () => {
     expect(harness.shell()).toEqual(expect.objectContaining({
       mode: 'compatibility',
       url: 'http://127.0.0.1:43120/?dsh-desktop-mode=compatibility&dsh-desktop-platform=darwin&dsh-desktop-version=2.0.0&dsh-desktop-material=transparent&dsh-desktop-titlebar-inset=36',
+      authenticationUrl: 'http://127.0.0.1:43120/?token=smoke',
       productName: 'DSH Desktop',
       windowTitle: 'DeepSeek Harness Desktop',
+      rendererAccessHeader: {
+        name: 'x-dsh-desktop-renderer',
+        value: Buffer.alloc(32, 6).toString('base64url'),
+      },
       readThemeSource: expect.any(Function),
     }))
     expect(harness.shell()?.iconPath.endsWith(join('build', 'app-icon-mac.png'))).toBe(true)
@@ -301,6 +349,19 @@ describe('desktop Host plugin', () => {
 
     await harness.shell()?.requestModeChange('advanced')
     expect(harness.update).toHaveBeenCalledWith({ mode: 'advanced' })
+  })
+
+  it('atomically withdraws browser access when the native tray selects a custom mode', async () => {
+    const harness = createHarness('darwin', true)
+    apply(harness.ctx, config)
+
+    await harness.shell()?.requestModeChange('advanced')
+
+    expect(harness.update).toHaveBeenCalledWith({
+      mode: 'advanced',
+      openBrowser: false,
+      networkExposure: 'loopback',
+    })
   })
 
   it('forwards same-origin renderer boot reports through the Host route', async () => {
@@ -495,6 +556,33 @@ describe('desktop Host plugin', () => {
     expect(harness.restart).not.toHaveBeenCalled()
   })
 
+  it('hot-applies browser and LAN access but restarts when a custom mode withdraws them', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    apply(harness.ctx, config)
+    harness.restart.mockImplementation(() => new Promise<void>(() => {}))
+
+    await harness.notify(
+      desktopSettings({ mode: 'compatibility', port: 43_120, openBrowser: true, networkExposure: 'lan' }),
+      desktopSettings({ mode: 'compatibility', port: 43_120, openBrowser: false, networkExposure: 'loopback' }),
+    )
+    await vi.runAllTimersAsync()
+    expect(harness.restart).not.toHaveBeenCalled()
+    expect(harness.browserAccess.ordinaryBrowserEnabled).toBe(true)
+    expect(harness.setLanHttpsEnabled).toHaveBeenLastCalledWith(true)
+
+    const enabledHarness = createHarness('darwin', true)
+    apply(enabledHarness.ctx, config)
+    await enabledHarness.notify(
+      desktopSettings({ mode: 'advanced', port: 43_120, openBrowser: true, networkExposure: 'loopback' }),
+      desktopSettings({ mode: 'compatibility', port: 43_120, openBrowser: true, networkExposure: 'loopback' }),
+    )
+    await vi.runAllTimersAsync()
+    expect(enabledHarness.restart).toHaveBeenCalledOnce()
+    expect(enabledHarness.browserAccess.ordinaryBrowserEnabled).toBe(false)
+    expect(enabledHarness.setLanHttpsEnabled).toHaveBeenLastCalledWith(false)
+  })
+
   it('maps Hu Tao and Furina onto the dark native appearance', () => {
     expect(resolveDesktopNativeThemeSource('light', 'hutao')).toBe('dark')
     expect(resolveDesktopNativeThemeSource('system', 'furina')).toBe('dark')
@@ -541,6 +629,11 @@ describe('desktop Host plugin', () => {
     Object.assign(harness.ctx.webServer, { host: '0.0.0.0' })
 
     expect(() => apply(harness.ctx, config)).toThrow('requires a loopback Web server')
+    expect(() => apply(harness.ctx, { ...config, networkExposure: 'lan' }))
+      .toThrow('requires a loopback Web server')
+
+    Object.assign(harness.ctx.webServer, { host: '127.0.0.1' })
+    expect(() => apply(harness.ctx, { ...config, networkExposure: 'lan' })).not.toThrow()
   })
 
   it('refuses custom-window settings on Linux before persistence', () => {
@@ -549,12 +642,53 @@ describe('desktop Host plugin', () => {
     const register = vi.mocked(harness.ctx.settings.register)
     const options = register.mock.calls[0]?.[2]
 
-    expect(() => options?.validate?.({ mode: 'advanced' })).toThrow(
+    const settings: DesktopSettings = {
+      mode: 'compatibility',
+      macosMaterial: 'transparent',
+      windowsMaterial: 'acrylic',
+      port: 43_120,
+      openBrowser: false,
+      networkExposure: 'loopback',
+      logLevel: 'info',
+      characterTheme: 'off',
+      hutaoWallpaper: 'default',
+      furinaWallpaper: 'default',
+    }
+    expect(() => options?.validate?.({ ...settings, mode: 'advanced' })).toThrow(
       'supported on macOS and Windows',
     )
-    expect(() => options?.validate?.({ mode: 'extended' })).toThrow(
+    expect(() => options?.validate?.({ ...settings, mode: 'extended' })).toThrow(
       'supported on macOS and Windows',
     )
-    expect(() => options?.validate?.({ mode: 'compatibility' })).not.toThrow()
+    expect(() => options?.validate?.({ ...settings, mode: 'compatibility' })).not.toThrow()
+    expect(() => options?.validate?.({
+      ...settings,
+      mode: 'advanced',
+      openBrowser: true,
+    })).toThrow('browser access requires compatibility mode')
+    expect(() => options?.validate?.({
+      ...settings,
+      mode: 'advanced',
+      networkExposure: 'lan',
+    })).toThrow('supported on macOS and Windows')
+  })
+
+  it('accepts a deferred LAN preference independently of browser mode on supported platforms', () => {
+    const harness = createHarness('darwin')
+    apply(harness.ctx, config)
+    const options = vi.mocked(harness.ctx.settings.register).mock.calls[0]?.[2]
+
+    expect(() => options?.validate?.({
+      mode: 'advanced',
+      macosMaterial: 'transparent',
+      windowsMaterial: 'acrylic',
+      port: 43_120,
+      openBrowser: false,
+      networkExposure: 'lan',
+      logLevel: 'info',
+      characterTheme: 'off',
+      hutaoWallpaper: 'default',
+      furinaWallpaper: 'default',
+    })).not.toThrow()
   })
 })

@@ -2,12 +2,14 @@
 
 import { createRequire } from 'node:module'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { isIP } from 'node:net'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { evaluate, isJsExpr, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import {
   composeEntries,
+  DEFAULT_PROFILE_PATCH_RELOAD,
   healProfilesModuleFallback,
   initProfile,
   loadOptionalPatches,
@@ -29,6 +31,13 @@ import { parseDocument } from 'yaml'
 import { unpackedAsarPath } from './packaged-runtime-path.ts'
 import { findOverlayPackage, resolveOverlayPackage } from './package-overlay.ts'
 import { DESKTOP_DEFAULT_WEB_PORT } from './desktop-port.ts'
+import {
+  desktopBrowserAccessEnabled,
+  desktopNetworkExposureForBrowserAccess,
+  parseDesktopNetworkExposure,
+  parseDesktopOpenBrowser,
+  type DesktopNetworkExposure,
+} from './desktop-network.ts'
 import type { DesktopShellMode } from './runtime.ts'
 import {
   DEFAULT_MACOS_WINDOW_MATERIAL,
@@ -128,6 +137,9 @@ export interface DesktopStartupSettings {
   port: number
   macosMaterial: MacosWindowMaterial
   windowsMaterial: WindowsWindowMaterial
+  /** Persisted compatibility key for ordinary-browser access permission. */
+  openBrowser: boolean
+  networkExposure: DesktopNetworkExposure
 }
 
 const DEFAULT_DESKTOP_STARTUP_SETTINGS: DesktopStartupSettings = Object.freeze({
@@ -135,6 +147,8 @@ const DEFAULT_DESKTOP_STARTUP_SETTINGS: DesktopStartupSettings = Object.freeze({
   port: DEFAULT_DESKTOP_PORT,
   macosMaterial: DEFAULT_MACOS_WINDOW_MATERIAL,
   windowsMaterial: DEFAULT_WINDOWS_WINDOW_MATERIAL,
+  openBrowser: false,
+  networkExposure: 'loopback',
 })
 
 /**
@@ -154,11 +168,20 @@ export function desktopStartupSettingsFromSettings(document: unknown): DesktopSt
     throw new Error(`${BIN_NAME}: ${DESKTOP_SETTINGS_NAMESPACE} settings must be a map`)
   }
   const values = section as Record<string, unknown>
+  const mode = parseDesktopShellMode(values.mode)
+  const networkExposure = parseDesktopNetworkExposure(values.networkExposure)
+  const openBrowser = desktopBrowserAccessEnabled(
+    mode,
+    parseDesktopOpenBrowser(values.openBrowser),
+    networkExposure,
+  )
   return {
-    mode: parseDesktopShellMode(values.mode),
+    mode,
     port: parseDesktopPort(values.port),
     macosMaterial: parseMacosWindowMaterial(values.macosMaterial),
     windowsMaterial: parseWindowsWindowMaterial(values.windowsMaterial),
+    openBrowser,
+    networkExposure: desktopNetworkExposureForBrowserAccess(openBrowser, networkExposure),
   }
 }
 
@@ -203,11 +226,11 @@ export function readDesktopShellMode(config: SettingsFileConfig): DesktopShellMo
 
 /** Resolve the public Web template once and reject an incompatible DSH release. */
 function requiredWebBundles(): string[] {
-  const bundles = PROFILE_TEMPLATES.web
-  if (bundles === undefined) {
+  const template = PROFILE_TEMPLATES.web
+  if (template === undefined) {
     throw new Error(`${BIN_NAME}: installed dsh-app-boot has no web profile template`)
   }
-  return [...bundles]
+  return [...template.bundles]
 }
 
 /** Prepared profile inputs consumed by app-boot. */
@@ -232,6 +255,12 @@ export interface PreparedDesktopProfile {
   windowsMaterial: WindowsWindowMaterial
   /** Persisted loopback Web port applied to every startup consumer. */
   port: number
+  /** Whether this generation permits ordinary browsers on the Web carrier. */
+  openBrowser: boolean
+  /** Listener scope applied to the Desktop-owned WebServer. */
+  networkExposure: DesktopNetworkExposure
+  /** Frozen LAN IPv4 snapshot trusted by this profile generation and its HTTPS edge. */
+  lanAddresses: readonly string[]
   /** Resolved file-backed settings document used by this generation. */
   settingsDocument: string
   /** Requested provider and the fail-closed provider effective for this generation. */
@@ -246,6 +275,8 @@ export interface PreparedDesktopProfile {
 export interface DesktopProfilePreparationHooks {
   /** Receive the trusted settings path before its contents are parsed. */
   onSettingsDocumentResolved?: (path: string) => void
+  /** LAN IPv4 literals sampled once before this profile generation is composed. */
+  lanAddresses?: readonly string[]
 }
 
 /** User patch entry skipped to keep a profile bootable. */
@@ -430,7 +461,7 @@ function loadRecoveryFilteredProfile(
     if (template === undefined) {
       throw new Error(`${BIN_NAME}: profile ${JSON.stringify(profileName)} does not exist`)
     }
-    initProfile(profileDir, template)
+    initProfile(profileDir, template.bundles, template.patchReload)
   }
   const manifest = readProfileManifest(BIN_NAME, profileDir)
   const rawBundles = (manifest.dsh?.profile as { bundles?: unknown } | undefined)?.bundles
@@ -492,6 +523,7 @@ function loadRecoveryFilteredProfile(
       layers,
       patchPath,
       patches: existsSync(patchPath) ? loadOverlayPatches(BIN_NAME, patchPath) : [],
+      patchReload: manifest.dsh?.profile?.patchReload ?? DEFAULT_PROFILE_PATCH_RELOAD,
     },
     ...(dshMarketFailure === undefined ? {} : { dshMarketFailure }),
   }
@@ -511,6 +543,30 @@ function rowConfig(row: EntryOptions | undefined): Record<string, unknown> {
   return config !== null && typeof config === 'object' && !Array.isArray(config)
     ? config as Record<string, unknown>
     : {}
+}
+
+/** Snapshot, validate, and deduplicate the LAN allowlist supplied by the launcher. */
+function preparedLanAddresses(addresses: readonly string[] | undefined): readonly string[] {
+  const unique = new Set<string>()
+  for (const address of addresses ?? []) {
+    if (isIP(address) !== 4) {
+      throw new Error(`${BIN_NAME}: LAN address ${JSON.stringify(address)} is not an IPv4 literal`)
+    }
+    unique.add(address)
+  }
+  return Object.freeze([...unique])
+}
+
+/** Merge launcher-derived LAN literals with a profile's explicit Web trust entries. */
+function webRuntimeTrustedHosts(
+  configured: unknown,
+  lanAddresses: readonly string[],
+): string[] {
+  if (configured === undefined) return [...lanAddresses]
+  if (!Array.isArray(configured) || configured.some(entry => typeof entry !== 'string')) {
+    throw new Error(`${BIN_NAME}: web-runtime trustedHosts must be an array of strings`)
+  }
+  return [...new Set([...configured, ...lanAddresses])]
 }
 
 /** Resolve a Loader row's platform gate without mutating the host process. */
@@ -725,7 +781,7 @@ function assertEffectiveMarketRows(
  * @param marketSelection - machine-level provider request fixed for this generation.
  * @returns root config, profile metadata, and ordered patches.
  */
-export function prepareDesktopProfile(
+export async function prepareDesktopProfile(
   telemetryDisabled: string | undefined = process.env.DSH_TELEMETRY_DISABLED,
   home: string = resolveDshHome(),
   platform: NodeJS.Platform = process.platform,
@@ -734,13 +790,13 @@ export function prepareDesktopProfile(
   marketSelection: DesktopMarketSnapshot = DEFAULT_DESKTOP_MARKET_SNAPSHOT,
   recoveryStatePath?: string,
   hooks: DesktopProfilePreparationHooks = {},
-): PreparedDesktopProfile {
+): Promise<PreparedDesktopProfile> {
   const profileDir = profileName === DESKTOP_PROFILE_NAME
     ? ensureDesktopProfile(home)
     : resolveProfileDir(profileName, home)
   const workspaceChanged = reconcileProfilePnpmWorkspace(profileDir)
   const requiresDependencyMigration = profileDependencyMigrationRequired(profileDir, workspaceChanged, platform)
-  healProfilesModuleFallback(INSTALL_ANCHOR, home)
+  await healProfilesModuleFallback({ installAnchor: INSTALL_ANCHOR, home })
   // `plugin-management` is the community market's user-facing scope. Startup
   // recovery has its own state file so switching to another provider cannot
   // reapply a stale community-market disable, while a recovery disable always
@@ -865,7 +921,8 @@ export function prepareDesktopProfile(
   } as SettingsFileConfig)
   const settingsDocument = resolveSettingsFileSpec(settingsConfig).filename
   hooks.onSettingsDocumentResolved?.(settingsDocument)
-  const { mode, port, macosMaterial, windowsMaterial } = readDesktopStartupSettings(settingsConfig)
+  const lanAddresses = preparedLanAddresses(hooks.lanAddresses)
+  const { mode, port, macosMaterial, windowsMaterial, openBrowser, networkExposure } = readDesktopStartupSettings(settingsConfig)
   patches.push({
     id: 'settings',
     config: settingsConfig,
@@ -886,6 +943,22 @@ export function prepareDesktopProfile(
       { id: 'ui-conversation', disabled: false },
     )
   }
+  // Browser access is an advertised Desktop capability, never an instruction
+  // to launch the operating system's default browser. LAN literals join the
+  // trust fence so an exposed HTTPS edge can reach the `/api` carrier.
+  const webRuntime = rows.get('web-runtime')
+  if (webRuntime === undefined) {
+    throw new Error(`${BIN_NAME}: desktop profile has no web-runtime row`)
+  }
+  const webRuntimeConfig = rowConfig(webRuntime)
+  patches.push({
+    id: 'web-runtime',
+    config: {
+      ...webRuntimeConfig,
+      openBrowser: false,
+      trustedHosts: webRuntimeTrustedHosts(webRuntimeConfig.trustedHosts, lanAddresses),
+    },
+  })
   const presets = rows.get(AGENT_PRESETS_ROW_ID)
   if (presets !== undefined) {
     const config = {
@@ -1019,6 +1092,8 @@ export function prepareDesktopProfile(
       port,
       macosMaterial,
       windowsMaterial,
+      openBrowser,
+      networkExposure,
     },
   })
   return {
@@ -1030,8 +1105,11 @@ export function prepareDesktopProfile(
     skippedOptionalEntries,
     mode,
     port,
+    openBrowser,
     macosMaterial,
     windowsMaterial,
+    networkExposure,
+    lanAddresses,
     settingsDocument,
     market: desktopMarketSnapshotWithEffective(marketSelection, effectiveMarket),
     requiresDependencyMigration,
