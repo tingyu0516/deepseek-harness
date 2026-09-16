@@ -4,6 +4,6 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "exclude": ["src/live2d/**/*.ts", "tests/pet-lookat-easing.spec.ts"],
+  "exclude": ["src/live2d/**/*.ts", "tests/pet-lookat-easing.spec.ts", "tests/pet-projection-closed-form.spec.ts"],
   "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

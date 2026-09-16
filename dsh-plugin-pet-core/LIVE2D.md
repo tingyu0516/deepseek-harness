@@ -11,7 +11,10 @@
 仅 `math/cubismtargetpoint.ts` 有一处 DSH 本地修改：`update()` 的位置积分按
 真实帧间隔（设计帧单位）加权，制动距离按帧权重归一，并新增 `SNAP_FRAME_WEIGHT`
 停滞钳制——上游按固定帧积分，帧率下降时视线扫速等比变慢（"慢半拍"）。
-同步上游时需重新套用该修改。
+该修改同时做了两层代数化简：累计时钟 `_userTimeSeconds/_lastTimeSeconds` 在
+构造和为常量运算下恒等于 `dt × FrameRate`，坍缩为一个 `_primed` 标志；
+制动公式中 `16·a·h − 8·a·h` 合并为 `8·a·h`（2x − x 在二进制浮点下精确），
+`h = d/weight` 只算一次。同步上游时需重新套用该修改。
 
 ## 目录契约
 
@@ -41,10 +44,11 @@
    `dsh-pet-<id>://live2dfailed` 回传主进程日志。
 
 查看器按 Cubism SDK for Web 示例的方式加载 `model3.json`：Idle 组循环待机，
-Expressions 用官方 `setExpression` / `setRandomExpression`，`physics3.json`
-由 Framework 运行。单击走模型 `HitAreas`（若带 `Motion` 字段则播对应组），
-没有命中区域时随机表情并尝试 `Pat` / `TapBody`。双击播 `Special` 组。
-不播放模型自带的音频。拖动仍用 `movementX` 加主进程钉死的窗口尺寸。
+`physics3.json` 由 Framework 运行。单击走模型 `HitAreas`（若带 `Motion`
+字段则播对应组）；没有 `HitAreas` 的模型按命中网格分区叠表情（芙宁娜：脸/帽子/
+呆毛/手/身子/大腿/小腿=走路切换/脚），左键不播动作。右键播 `Pat`（摊手），双击在
+`Special`/`Sad` 间切换形态。`idleVariants` 在无点击表情时按 `everyMs`/`holdMs`
+周期激活走路切换。不播放模型自带的音频。
 
 ## 许可证义务（部署者承担）
 

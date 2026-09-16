@@ -8,7 +8,7 @@ export type { PetCharacterDocument, PetCharacterId, PetLineCategory, PetLines, P
 export type { PetActivityEvent } from './pet-events.ts';
 export { loadPetElectron, petStatePath, petStateDuration, PetWindowController, resolvePetLive2DUrls, PET_SPEECH_SLOT_PX, } from './pet-window.ts';
 export { readPetLive2DCoreText, readPetLive2DViewerText } from './pet-live2d-host.ts';
-export type { PetBootPayload, PetBrowserWindow, PetElectron, PetLive2DAssets, PetLive2DSelection, PetRectangle, PetRuntimeHost, } from './pet-window.ts';
+export type { PetBootPayload, PetBrowserWindow, PetElectron, PetLive2DSelection, PetRectangle, PetRuntimeHost, } from './pet-window.ts';
 /** Settings presented by every character pet plugin. */
 export interface PetSettings {
     /** Whether the pet window should exist at all. Defaults to hidden. */

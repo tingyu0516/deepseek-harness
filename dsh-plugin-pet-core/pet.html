@@ -112,7 +112,11 @@
     opacity: 0;
     transition: opacity 0.15s ease, background 0.15s ease;
   }
-  .stage:hover .hide, .hide:focus-visible { opacity: 1; }
+  /* This window is focusless and click-through with forwarded moves: the
+     compositor never delivers a reliable mouseleave, so a :hover-gated
+     button would stay visible forever. The host poll already knows whether
+     the cursor is over the model and mirrors that onto body.on-pet. */
+  body.on-pet .hide, .hide:focus-visible { opacity: 1; }
   .hide:hover { background: rgba(20, 20, 24, 0.6); }
   @media (prefers-reduced-motion: reduce) {
     .bubble, .emote { transition: none !important; }
@@ -122,10 +126,10 @@
 <body>
 <main id="stage" class="stage">
   <div id="bubble" class="bubble"><span id="bubbleText"></span></div>
-  <div id="petWrap" class="pet-wrap" title="">
+  <div id="petWrap" class="pet-wrap">
     <span id="emote" class="emote" aria-hidden="true"></span>
   </div>
-  <button id="hide" class="hide" type="button" title="✕" aria-label="hide">&#10005;</button>
+  <button id="hide" class="hide" type="button" aria-label="hide">&#10005;</button>
 </main>
 <script>
 (function () {
@@ -202,12 +206,20 @@
     if (next === 'idle') scheduleChatter();
     else clearChatter();
   }
+  // The hide button is fixed-position inside a fixed stage, so its rect only
+  // changes with the viewport; cache it and refresh on resize instead of a
+  // forced layout read (getBoundingClientRect) on every cursor poll. The
+  // host's injected hit-test reads this cached rect.
+  var hideRect = null;
+  function refreshHideRect() {
+    hideRect = hideButton ? hideButton.getBoundingClientRect() : null;
+    window.__dshPetHideRect = hideRect;
+  }
+  refreshHideRect();
+  window.addEventListener('resize', refreshHideRect);
   function overPet(clientX, clientY) {
-    var hide = hideButton;
-    if (hide) {
-      var r = hide.getBoundingClientRect();
-      if (clientX >= r.left && clientX < r.right && clientY >= r.top && clientY < r.bottom) return true;
-    }
+    if (hideRect && clientX >= hideRect.left && clientX < hideRect.right &&
+        clientY >= hideRect.top && clientY < hideRect.bottom) return true;
     var rt = runtime();
     return !!(rt && typeof rt.coversPoint === 'function' && rt.coversPoint(clientX, clientY));
   }
@@ -250,7 +262,9 @@
     var locale = payload.locale || docLocale();
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en';
     document.title = 'DSH Pet \u00B7 ' + (character.copy[locale] || character.copy.zh).label;
-    petWrap.title = (character.copy[locale] || character.copy.zh).label;
+    // No title attribute on petWrap: this window is focusless and
+    // click-through with forwarded moves, so the OS tooltip it triggers has
+    // no hover leave to end it and stays on screen as a permanent black box.
     // attach() is async (wasm + textures). Calling enter() before rt.ready
     // dropped the greet expression and left a still face until the first click.
     applyLive2D(payload.live2d).then(function () {
@@ -369,6 +383,10 @@
     dispatch: dispatch,
     state: function () { return state; },
     setLive2D: applyLive2D,
+    /** Host cursor poll: cursor is over the model (or the hide button). */
+    setOnPet: function (on) {
+      document.body.classList.toggle('on-pet', !!on);
+    },
   };
 })();
 </script>

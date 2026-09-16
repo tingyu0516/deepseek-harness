@@ -782,8 +782,8 @@ describe('Electron desktop runtime', () => {
     expect((electron.menuTemplates.at(-1) as Array<{ label?: string }>).map(item => item.label))
       .toEqual(expect.arrayContaining([
         '打开 DSH Desktop',
-        '切换到扩展窗�?,
-        '退�?,
+        '切换到扩展窗口',
+        '退出',
       ]))
 
     runtime.setLocalePreference('en')
@@ -801,8 +801,8 @@ describe('Electron desktop runtime', () => {
     expect((electron.menuTemplates.at(-1) as Array<{ label?: string }>).map(item => item.label))
       .toEqual(expect.arrayContaining([
         '打开 DSH Desktop',
-        '切换到扩展窗�?,
-        '退�?,
+        '切换到扩展窗口',
+        '退出',
       ]))
 
     await release()
@@ -1241,7 +1241,7 @@ describe('Electron desktop runtime', () => {
       label: () => 'Later Tool',
       invoke: vi.fn(),
     })
-    let statusLabel = 'Check for Updates�?
+    let statusLabel = 'Check for Updates…'
     const status = runtime.registerTrayItem({
       group: 'status',
       order: 10,
@@ -1263,12 +1263,12 @@ describe('Electron desktop runtime', () => {
     expect(labels).toEqual([
       'Open DSH Desktop', undefined,
       'Earlier Tool', 'Later Tool', undefined,
-      'Check for Updates�?, undefined,
+      'Check for Updates…', undefined,
       'Switch to Extended Window', undefined,
       'Quit',
     ])
     expect(electron.menuTemplates.at(-1)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Check for Updates�?, enabled: false }),
+      expect.objectContaining({ label: 'Check for Updates…', enabled: false }),
     ]))
 
     statusLabel = 'Version 2.1.0 Available'
@@ -1428,7 +1428,7 @@ describe('Electron desktop runtime', () => {
 
     expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
       buttons: ['导出', '取消'],
-      detail: expect.stringContaining('本地路径、工作区 ID 和会�?ID'),
+      detail: expect.stringContaining('本地路径、工作区 ID 和会话 ID'),
     }))
     expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
       detail: expect.stringContaining('进程内存'),

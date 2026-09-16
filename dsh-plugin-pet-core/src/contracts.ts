@@ -114,10 +114,9 @@ export interface PetLive2DDocument {
    */
   readonly expressionHoldMs?: number
   /**
-   * Idle-state variations: while the pet is idle, activate one of the named
-   * expressions for `holdMs` every `everyMs` milliseconds (e.g. Furina's
-   * `walkSwitch` walking legs as a second idle stance). Taps override a
-   * running variant.
+   * Idle-state variations: while no tap expression is showing, activate one
+   * of the named expressions for `holdMs` every `everyMs` milliseconds
+   * (Furina's `walkSwitch` walking stance). A tap ends a running variant.
    */
   readonly idleVariants?: {
     readonly expressions?: readonly string[]
@@ -131,8 +130,9 @@ export interface PetLive2DDocument {
    */
   readonly hideParts?: readonly string[]
   /**
-   * Parts to stop pinning while a named expression is active. Furina's
-   * `walkSwitch` reveals `Part148` (走路2) for the walking overlay.
+   * Parts to stop pinning while a named expression is active. Optional:
+   * omitted entirely when a character's hidden parts must stay hidden
+   * unconditionally (Furina's walking overlay bakes the signboard art).
    */
   readonly expressionRevealParts?: Readonly<Record<string, readonly string[]>>
   /**
@@ -218,6 +218,78 @@ function parseCopy(value: unknown, path: string): PetCopy {
   return { label, lines: parsed as PetLines }
 }
 
+/** Read one optional string-array field off a validated object. */
+function parseIdArray(source: Record<string, unknown>, field: string, path: string): readonly string[] | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw) || raw.some(id => typeof id !== 'string' || id.length === 0)) {
+    throw new PetCharacterError(`${path} must be an array of ids`)
+  }
+  return Object.freeze([...raw])
+}
+
+/** Read one optional name→id string map off a validated object. */
+function parseIdMap(source: Record<string, unknown>, field: string, path: string): Readonly<Record<string, string>> | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`)
+  const mapped: Record<string, string> = {}
+  for (const [name, id] of Object.entries(raw)) {
+    if (name.length === 0 || typeof id !== 'string' || id.length === 0) {
+      throw new PetCharacterError(`${path} entries must map non-empty names to ids`)
+    }
+    mapped[name] = id
+  }
+  return Object.freeze(mapped)
+}
+
+/** Read one optional name→number map off a validated object. */
+function parseNumberMap(source: Record<string, unknown>, field: string, path: string): Readonly<Record<string, number>> | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`)
+  const mapped: Record<string, number> = {}
+  for (const [name, num] of Object.entries(raw)) {
+    if (name.length === 0 || typeof num !== 'number' || Number.isNaN(num)) {
+      throw new PetCharacterError(`${path} entries must map non-empty parameter ids to numbers`)
+    }
+    mapped[name] = num
+  }
+  return Object.freeze(mapped)
+}
+
+/** Read one optional name→string-array map off a validated object. */
+function parseIdArrayMap(source: Record<string, unknown>, field: string, path: string): Readonly<Record<string, readonly string[]>> | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`)
+  const mapped: Record<string, readonly string[]> = {}
+  for (const [name, ids] of Object.entries(raw)) {
+    mapped[name] = parseIdArray({ [name]: ids } as Record<string, unknown>, name, `${path}.${name}`)!
+  }
+  return Object.freeze(mapped)
+}
+
+/** Read one optional finite number bounded by `min ≤ value ≤ max`. */
+function parseBoundedNumber(source: Record<string, unknown>, field: string, path: string, min: number, max: number): number | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < min || raw > max) {
+    throw new PetCharacterError(`${path} must be a number between ${String(min)} and ${String(max)}`)
+  }
+  return raw
+}
+
+/** Read one optional finite number strictly greater than zero. */
+function parsePositiveNumber(source: Record<string, unknown>, field: string, path: string): number | undefined {
+  const raw = source[field]
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
+    throw new PetCharacterError(`${path} must be a positive number`)
+  }
+  return raw
+}
+
 /**
  * Validate the Live2D block. Asset names stay relative and rooted so a
  * character document can never point outside its plugin's `assets/live2d/` dir.
@@ -232,66 +304,41 @@ function parseLive2D(value: unknown, path: string): PetLive2DDocument {
   if (typeof core !== 'string' || !LIVE2D_CORE_PATTERN.test(core) || core.includes('..')) {
     throw new PetCharacterError(`${path}.core must be a relative *.js asset name`)
   }
-  let hideParameters: readonly string[] | undefined
-  const rawHide = value.hideParameters
-  if (rawHide !== undefined && rawHide !== null) {
-    if (!Array.isArray(rawHide) || rawHide.some(id => typeof id !== 'string' || id.length === 0)) {
-      throw new PetCharacterError(`${path}.hideParameters must be an array of parameter ids`)
-    }
-    hideParameters = Object.freeze([...rawHide])
+  const hideParameters = parseIdArray(value, 'hideParameters', `${path}.hideParameters`)
+  const expressionParameters = parseIdMap(value, 'expressionParameters', `${path}.expressionParameters`)
+  const tapFallbackGroups = parseIdArray(value, 'tapFallbackGroups', `${path}.tapFallbackGroups`)
+  const hitAreaMotions = parseIdMap(value, 'hitAreaMotions', `${path}.hitAreaMotions`)
+  const motionEndReset = parseNumberMap(value, 'motionEndReset', `${path}.motionEndReset`)
+  const lookOriginY = parseBoundedNumber(value, 'lookOriginY', `${path}.lookOriginY`, 0, 1)
+  const expressionHoldMs = parsePositiveNumber(value, 'expressionHoldMs', `${path}.expressionHoldMs`)
+  const hideParts = parseIdArray(value, 'hideParts', `${path}.hideParts`)
+  const expressionRevealParts = parseIdArrayMap(value, 'expressionRevealParts', `${path}.expressionRevealParts`)
+  const rawVariants = value.idleVariants
+  let idleVariants: PetLive2DDocument['idleVariants'] | undefined
+  if (rawVariants !== undefined && rawVariants !== null) {
+    if (!isObject(rawVariants)) throw new PetCharacterError(`${path}.idleVariants must be an object`)
+    const expressions = parseIdArray(rawVariants, 'expressions', `${path}.idleVariants.expressions`)
+    const everyMs = parsePositiveNumber(rawVariants, 'everyMs', `${path}.idleVariants.everyMs`)
+    const holdMs = parsePositiveNumber(rawVariants, 'holdMs', `${path}.idleVariants.holdMs`)
+    idleVariants = Object.freeze({
+      ...(expressions === undefined ? {} : { expressions }),
+      ...(everyMs === undefined ? {} : { everyMs }),
+      ...(holdMs === undefined ? {} : { holdMs }),
+    })
   }
-  let expressionParameters: Readonly<Record<string, string>> | undefined
-  const rawExpressionParameters = value.expressionParameters
-  if (rawExpressionParameters !== undefined && rawExpressionParameters !== null) {
-    if (!isObject(rawExpressionParameters)) {
-      throw new PetCharacterError(`${path}.expressionParameters must be an object`)
+  const rawOutfit = value.outfit
+  let outfit: PetLive2DDocument['outfit'] | undefined
+  if (rawOutfit !== undefined && rawOutfit !== null) {
+    if (!isObject(rawOutfit) || typeof rawOutfit.parameter !== 'string' || rawOutfit.parameter.length === 0) {
+      throw new PetCharacterError(`${path}.outfit.parameter must be a non-empty parameter id`)
     }
-    const mappedExpressionParameters: Record<string, string> = {}
-    for (const [name, id] of Object.entries(rawExpressionParameters)) {
-      if (name.length === 0 || typeof id !== 'string' || id.length === 0) {
-        throw new PetCharacterError(`${path}.expressionParameters entries must map non-empty names to parameter ids`)
-      }
-      mappedExpressionParameters[name] = id
-    }
-    expressionParameters = Object.freeze(mappedExpressionParameters)
-  }
-  let tapFallbackGroups: readonly string[] | undefined
-  const rawFallback = value.tapFallbackGroups
-  if (rawFallback !== undefined && rawFallback !== null) {
-    if (!Array.isArray(rawFallback) || rawFallback.some(id => typeof id !== 'string' || id.length === 0)) {
-      throw new PetCharacterError(`${path}.tapFallbackGroups must be an array of motion group names`)
-    }
-    tapFallbackGroups = Object.freeze([...rawFallback])
-  }
-  let hitAreaMotions: Readonly<Record<string, string>> | undefined
-  const rawHitAreaMotions = value.hitAreaMotions
-  if (rawHitAreaMotions !== undefined && rawHitAreaMotions !== null) {
-    if (!isObject(rawHitAreaMotions)) {
-      throw new PetCharacterError(`${path}.hitAreaMotions must be an object`)
-    }
-    const mappedHitAreaMotions: Record<string, string> = {}
-    for (const [name, group] of Object.entries(rawHitAreaMotions)) {
-      if (name.length === 0 || typeof group !== 'string' || group.length === 0) {
-        throw new PetCharacterError(`${path}.hitAreaMotions entries must map non-empty names to motion groups`)
-      }
-      mappedHitAreaMotions[name] = group
-    }
-    hitAreaMotions = Object.freeze(mappedHitAreaMotions)
-  }
-  let motionEndReset: Readonly<Record<string, number>> | undefined
-  const rawEndReset = value.motionEndReset
-  if (rawEndReset !== undefined && rawEndReset !== null) {
-    if (!isObject(rawEndReset)) {
-      throw new PetCharacterError(`${path}.motionEndReset must be an object`)
-    }
-    const mappedEndReset: Record<string, number> = {}
-    for (const [id, num] of Object.entries(rawEndReset)) {
-      if (id.length === 0 || typeof num !== 'number' || Number.isNaN(num)) {
-        throw new PetCharacterError(`${path}.motionEndReset entries must map non-empty parameter ids to numbers`)
-      }
-      mappedEndReset[id] = num
-    }
-    motionEndReset = Object.freeze(mappedEndReset)
+    const lowParts = parseIdArray(rawOutfit, 'lowParts', `${path}.outfit.lowParts`)
+    const highParts = parseIdArray(rawOutfit, 'highParts', `${path}.outfit.highParts`)
+    outfit = Object.freeze({
+      parameter: rawOutfit.parameter,
+      ...(lowParts === undefined ? {} : { lowParts }),
+      ...(highParts === undefined ? {} : { highParts }),
+    })
   }
   let expressionCycles: PetLive2DDocument['expressionCycles'] | undefined
   const rawCycles = value.expressionCycles
@@ -324,104 +371,6 @@ function parseLive2D(value: unknown, path: string): PetLive2DDocument {
       })
     }
     expressionCycles = Object.freeze(mappedCycles)
-  }
-  let lookOriginY: number | undefined
-  const rawLookOriginY = value.lookOriginY
-  if (rawLookOriginY !== undefined && rawLookOriginY !== null) {
-    if (typeof rawLookOriginY !== 'number' || !Number.isFinite(rawLookOriginY) || rawLookOriginY < 0 || rawLookOriginY > 1) {
-      throw new PetCharacterError(`${path}.lookOriginY must be a number between 0 and 1`)
-    }
-    lookOriginY = rawLookOriginY
-  }
-  let expressionHoldMs: number | undefined
-  const rawHold = value.expressionHoldMs
-  if (rawHold !== undefined && rawHold !== null) {
-    if (typeof rawHold !== 'number' || !Number.isFinite(rawHold) || rawHold <= 0) {
-      throw new PetCharacterError(`${path}.expressionHoldMs must be a positive number`)
-    }
-    expressionHoldMs = rawHold
-  }
-  let idleVariants: PetLive2DDocument['idleVariants'] | undefined
-  const rawVariants = value.idleVariants
-  if (rawVariants !== undefined && rawVariants !== null) {
-    if (!isObject(rawVariants)) {
-      throw new PetCharacterError(`${path}.idleVariants must be an object`)
-    }
-    let expressions: readonly string[] | undefined
-    if (rawVariants.expressions !== undefined && rawVariants.expressions !== null) {
-      if (!Array.isArray(rawVariants.expressions) || rawVariants.expressions.some(id => typeof id !== 'string' || id.length === 0)) {
-        throw new PetCharacterError(`${path}.idleVariants.expressions must be an array of expression names`)
-      }
-      expressions = Object.freeze([...rawVariants.expressions])
-    }
-    let everyMs: number | undefined
-    if (rawVariants.everyMs !== undefined && rawVariants.everyMs !== null) {
-      if (typeof rawVariants.everyMs !== 'number' || !Number.isFinite(rawVariants.everyMs) || rawVariants.everyMs <= 0) {
-        throw new PetCharacterError(`${path}.idleVariants.everyMs must be a positive number`)
-      }
-      everyMs = rawVariants.everyMs
-    }
-    let holdMs: number | undefined
-    if (rawVariants.holdMs !== undefined && rawVariants.holdMs !== null) {
-      if (typeof rawVariants.holdMs !== 'number' || !Number.isFinite(rawVariants.holdMs) || rawVariants.holdMs <= 0) {
-        throw new PetCharacterError(`${path}.idleVariants.holdMs must be a positive number`)
-      }
-      holdMs = rawVariants.holdMs
-    }
-    idleVariants = Object.freeze({
-      ...(expressions === undefined ? {} : { expressions }),
-      ...(everyMs === undefined ? {} : { everyMs }),
-      ...(holdMs === undefined ? {} : { holdMs }),
-    })
-  }
-  let hideParts: readonly string[] | undefined
-  const rawParts = value.hideParts
-  if (rawParts !== undefined && rawParts !== null) {
-    if (!Array.isArray(rawParts) || rawParts.some(id => typeof id !== 'string' || id.length === 0)) {
-      throw new PetCharacterError(`${path}.hideParts must be an array of part ids`)
-    }
-    hideParts = Object.freeze([...rawParts])
-  }
-  let expressionRevealParts: Readonly<Record<string, readonly string[]>> | undefined
-  const rawReveal = value.expressionRevealParts
-  if (rawReveal !== undefined && rawReveal !== null) {
-    if (!isObject(rawReveal)) {
-      throw new PetCharacterError(`${path}.expressionRevealParts must be an object`)
-    }
-    const mapped: Record<string, readonly string[]> = {}
-    for (const [name, ids] of Object.entries(rawReveal)) {
-      if (name.length === 0 || !Array.isArray(ids) || ids.some(id => typeof id !== 'string' || id.length === 0)) {
-        throw new PetCharacterError(`${path}.expressionRevealParts.${name} must be an array of part ids`)
-      }
-      mapped[name] = Object.freeze([...ids])
-    }
-    expressionRevealParts = Object.freeze(mapped)
-  }
-  let outfit: PetLive2DDocument['outfit'] | undefined
-  const rawOutfit = value.outfit
-  if (rawOutfit !== undefined && rawOutfit !== null) {
-    if (!isObject(rawOutfit) || typeof rawOutfit.parameter !== 'string' || rawOutfit.parameter.length === 0) {
-      throw new PetCharacterError(`${path}.outfit.parameter must be a non-empty parameter id`)
-    }
-    let lowParts: readonly string[] | undefined
-    if (rawOutfit.lowParts !== undefined && rawOutfit.lowParts !== null) {
-      if (!Array.isArray(rawOutfit.lowParts) || rawOutfit.lowParts.some(id => typeof id !== 'string' || id.length === 0)) {
-        throw new PetCharacterError(`${path}.outfit.lowParts must be an array of part ids`)
-      }
-      lowParts = Object.freeze([...rawOutfit.lowParts])
-    }
-    let highParts: readonly string[] | undefined
-    if (rawOutfit.highParts !== undefined && rawOutfit.highParts !== null) {
-      if (!Array.isArray(rawOutfit.highParts) || rawOutfit.highParts.some(id => typeof id !== 'string' || id.length === 0)) {
-        throw new PetCharacterError(`${path}.outfit.highParts must be an array of part ids`)
-      }
-      highParts = Object.freeze([...rawOutfit.highParts])
-    }
-    outfit = Object.freeze({
-      parameter: rawOutfit.parameter,
-      ...(lowParts === undefined ? {} : { lowParts }),
-      ...(highParts === undefined ? {} : { highParts }),
-    })
   }
   return Object.freeze({
     model,

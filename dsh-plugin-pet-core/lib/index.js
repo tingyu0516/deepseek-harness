@@ -58,6 +58,60 @@ function parseCopy(value, path) {
 		lines: parsed
 	};
 }
+/** Read one optional string-array field off a validated object. */
+function parseIdArray(source, field, path) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (!Array.isArray(raw) || raw.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path} must be an array of ids`);
+	return Object.freeze([...raw]);
+}
+/** Read one optional name→id string map off a validated object. */
+function parseIdMap(source, field, path) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`);
+	const mapped = {};
+	for (const [name, id] of Object.entries(raw)) {
+		if (name.length === 0 || typeof id !== "string" || id.length === 0) throw new PetCharacterError(`${path} entries must map non-empty names to ids`);
+		mapped[name] = id;
+	}
+	return Object.freeze(mapped);
+}
+/** Read one optional name→number map off a validated object. */
+function parseNumberMap(source, field, path) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`);
+	const mapped = {};
+	for (const [name, num] of Object.entries(raw)) {
+		if (name.length === 0 || typeof num !== "number" || Number.isNaN(num)) throw new PetCharacterError(`${path} entries must map non-empty parameter ids to numbers`);
+		mapped[name] = num;
+	}
+	return Object.freeze(mapped);
+}
+/** Read one optional name→string-array map off a validated object. */
+function parseIdArrayMap(source, field, path) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (!isObject(raw)) throw new PetCharacterError(`${path} must be an object`);
+	const mapped = {};
+	for (const [name, ids] of Object.entries(raw)) mapped[name] = parseIdArray({ [name]: ids }, name, `${path}.${name}`);
+	return Object.freeze(mapped);
+}
+/** Read one optional finite number bounded by `min ≤ value ≤ max`. */
+function parseBoundedNumber(source, field, path, min, max) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (typeof raw !== "number" || !Number.isFinite(raw) || raw < min || raw > max) throw new PetCharacterError(`${path} must be a number between ${String(min)} and ${String(max)}`);
+	return raw;
+}
+/** Read one optional finite number strictly greater than zero. */
+function parsePositiveNumber(source, field, path) {
+	const raw = source[field];
+	if (raw === void 0 || raw === null) return void 0;
+	if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) throw new PetCharacterError(`${path} must be a positive number`);
+	return raw;
+}
 /**
 * Validate the Live2D block. Asset names stay relative and rooted so a
 * character document can never point outside its plugin's `assets/live2d/` dir.
@@ -68,50 +122,39 @@ function parseLive2D(value, path) {
 	if (typeof model !== "string" || !LIVE2D_MODEL_PATTERN.test(model) || model.includes("..")) throw new PetCharacterError(`${path}.model must be a relative *.model3.json asset name`);
 	const core = value.core ?? DEFAULT_LIVE2D_CORE;
 	if (typeof core !== "string" || !LIVE2D_CORE_PATTERN.test(core) || core.includes("..")) throw new PetCharacterError(`${path}.core must be a relative *.js asset name`);
-	let hideParameters;
-	const rawHide = value.hideParameters;
-	if (rawHide !== void 0 && rawHide !== null) {
-		if (!Array.isArray(rawHide) || rawHide.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.hideParameters must be an array of parameter ids`);
-		hideParameters = Object.freeze([...rawHide]);
+	const hideParameters = parseIdArray(value, "hideParameters", `${path}.hideParameters`);
+	const expressionParameters = parseIdMap(value, "expressionParameters", `${path}.expressionParameters`);
+	const tapFallbackGroups = parseIdArray(value, "tapFallbackGroups", `${path}.tapFallbackGroups`);
+	const hitAreaMotions = parseIdMap(value, "hitAreaMotions", `${path}.hitAreaMotions`);
+	const motionEndReset = parseNumberMap(value, "motionEndReset", `${path}.motionEndReset`);
+	const lookOriginY = parseBoundedNumber(value, "lookOriginY", `${path}.lookOriginY`, 0, 1);
+	const expressionHoldMs = parsePositiveNumber(value, "expressionHoldMs", `${path}.expressionHoldMs`);
+	const hideParts = parseIdArray(value, "hideParts", `${path}.hideParts`);
+	const expressionRevealParts = parseIdArrayMap(value, "expressionRevealParts", `${path}.expressionRevealParts`);
+	const rawVariants = value.idleVariants;
+	let idleVariants;
+	if (rawVariants !== void 0 && rawVariants !== null) {
+		if (!isObject(rawVariants)) throw new PetCharacterError(`${path}.idleVariants must be an object`);
+		const expressions = parseIdArray(rawVariants, "expressions", `${path}.idleVariants.expressions`);
+		const everyMs = parsePositiveNumber(rawVariants, "everyMs", `${path}.idleVariants.everyMs`);
+		const holdMs = parsePositiveNumber(rawVariants, "holdMs", `${path}.idleVariants.holdMs`);
+		idleVariants = Object.freeze({
+			...expressions === void 0 ? {} : { expressions },
+			...everyMs === void 0 ? {} : { everyMs },
+			...holdMs === void 0 ? {} : { holdMs }
+		});
 	}
-	let expressionParameters;
-	const rawExpressionParameters = value.expressionParameters;
-	if (rawExpressionParameters !== void 0 && rawExpressionParameters !== null) {
-		if (!isObject(rawExpressionParameters)) throw new PetCharacterError(`${path}.expressionParameters must be an object`);
-		const mappedExpressionParameters = {};
-		for (const [name, id] of Object.entries(rawExpressionParameters)) {
-			if (name.length === 0 || typeof id !== "string" || id.length === 0) throw new PetCharacterError(`${path}.expressionParameters entries must map non-empty names to parameter ids`);
-			mappedExpressionParameters[name] = id;
-		}
-		expressionParameters = Object.freeze(mappedExpressionParameters);
-	}
-	let tapFallbackGroups;
-	const rawFallback = value.tapFallbackGroups;
-	if (rawFallback !== void 0 && rawFallback !== null) {
-		if (!Array.isArray(rawFallback) || rawFallback.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.tapFallbackGroups must be an array of motion group names`);
-		tapFallbackGroups = Object.freeze([...rawFallback]);
-	}
-	let hitAreaMotions;
-	const rawHitAreaMotions = value.hitAreaMotions;
-	if (rawHitAreaMotions !== void 0 && rawHitAreaMotions !== null) {
-		if (!isObject(rawHitAreaMotions)) throw new PetCharacterError(`${path}.hitAreaMotions must be an object`);
-		const mappedHitAreaMotions = {};
-		for (const [name, group] of Object.entries(rawHitAreaMotions)) {
-			if (name.length === 0 || typeof group !== "string" || group.length === 0) throw new PetCharacterError(`${path}.hitAreaMotions entries must map non-empty names to motion groups`);
-			mappedHitAreaMotions[name] = group;
-		}
-		hitAreaMotions = Object.freeze(mappedHitAreaMotions);
-	}
-	let motionEndReset;
-	const rawEndReset = value.motionEndReset;
-	if (rawEndReset !== void 0 && rawEndReset !== null) {
-		if (!isObject(rawEndReset)) throw new PetCharacterError(`${path}.motionEndReset must be an object`);
-		const mappedEndReset = {};
-		for (const [id, num] of Object.entries(rawEndReset)) {
-			if (id.length === 0 || typeof num !== "number" || Number.isNaN(num)) throw new PetCharacterError(`${path}.motionEndReset entries must map non-empty parameter ids to numbers`);
-			mappedEndReset[id] = num;
-		}
-		motionEndReset = Object.freeze(mappedEndReset);
+	const rawOutfit = value.outfit;
+	let outfit;
+	if (rawOutfit !== void 0 && rawOutfit !== null) {
+		if (!isObject(rawOutfit) || typeof rawOutfit.parameter !== "string" || rawOutfit.parameter.length === 0) throw new PetCharacterError(`${path}.outfit.parameter must be a non-empty parameter id`);
+		const lowParts = parseIdArray(rawOutfit, "lowParts", `${path}.outfit.lowParts`);
+		const highParts = parseIdArray(rawOutfit, "highParts", `${path}.outfit.highParts`);
+		outfit = Object.freeze({
+			parameter: rawOutfit.parameter,
+			...lowParts === void 0 ? {} : { lowParts },
+			...highParts === void 0 ? {} : { highParts }
+		});
 	}
 	let expressionCycles;
 	const rawCycles = value.expressionCycles;
@@ -128,80 +171,6 @@ function parseLive2D(value, path) {
 			});
 		}
 		expressionCycles = Object.freeze(mappedCycles);
-	}
-	let lookOriginY;
-	const rawLookOriginY = value.lookOriginY;
-	if (rawLookOriginY !== void 0 && rawLookOriginY !== null) {
-		if (typeof rawLookOriginY !== "number" || !Number.isFinite(rawLookOriginY) || rawLookOriginY < 0 || rawLookOriginY > 1) throw new PetCharacterError(`${path}.lookOriginY must be a number between 0 and 1`);
-		lookOriginY = rawLookOriginY;
-	}
-	let expressionHoldMs;
-	const rawHold = value.expressionHoldMs;
-	if (rawHold !== void 0 && rawHold !== null) {
-		if (typeof rawHold !== "number" || !Number.isFinite(rawHold) || rawHold <= 0) throw new PetCharacterError(`${path}.expressionHoldMs must be a positive number`);
-		expressionHoldMs = rawHold;
-	}
-	let idleVariants;
-	const rawVariants = value.idleVariants;
-	if (rawVariants !== void 0 && rawVariants !== null) {
-		if (!isObject(rawVariants)) throw new PetCharacterError(`${path}.idleVariants must be an object`);
-		let expressions;
-		if (rawVariants.expressions !== void 0 && rawVariants.expressions !== null) {
-			if (!Array.isArray(rawVariants.expressions) || rawVariants.expressions.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.idleVariants.expressions must be an array of expression names`);
-			expressions = Object.freeze([...rawVariants.expressions]);
-		}
-		let everyMs;
-		if (rawVariants.everyMs !== void 0 && rawVariants.everyMs !== null) {
-			if (typeof rawVariants.everyMs !== "number" || !Number.isFinite(rawVariants.everyMs) || rawVariants.everyMs <= 0) throw new PetCharacterError(`${path}.idleVariants.everyMs must be a positive number`);
-			everyMs = rawVariants.everyMs;
-		}
-		let holdMs;
-		if (rawVariants.holdMs !== void 0 && rawVariants.holdMs !== null) {
-			if (typeof rawVariants.holdMs !== "number" || !Number.isFinite(rawVariants.holdMs) || rawVariants.holdMs <= 0) throw new PetCharacterError(`${path}.idleVariants.holdMs must be a positive number`);
-			holdMs = rawVariants.holdMs;
-		}
-		idleVariants = Object.freeze({
-			...expressions === void 0 ? {} : { expressions },
-			...everyMs === void 0 ? {} : { everyMs },
-			...holdMs === void 0 ? {} : { holdMs }
-		});
-	}
-	let hideParts;
-	const rawParts = value.hideParts;
-	if (rawParts !== void 0 && rawParts !== null) {
-		if (!Array.isArray(rawParts) || rawParts.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.hideParts must be an array of part ids`);
-		hideParts = Object.freeze([...rawParts]);
-	}
-	let expressionRevealParts;
-	const rawReveal = value.expressionRevealParts;
-	if (rawReveal !== void 0 && rawReveal !== null) {
-		if (!isObject(rawReveal)) throw new PetCharacterError(`${path}.expressionRevealParts must be an object`);
-		const mapped = {};
-		for (const [name, ids] of Object.entries(rawReveal)) {
-			if (name.length === 0 || !Array.isArray(ids) || ids.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.expressionRevealParts.${name} must be an array of part ids`);
-			mapped[name] = Object.freeze([...ids]);
-		}
-		expressionRevealParts = Object.freeze(mapped);
-	}
-	let outfit;
-	const rawOutfit = value.outfit;
-	if (rawOutfit !== void 0 && rawOutfit !== null) {
-		if (!isObject(rawOutfit) || typeof rawOutfit.parameter !== "string" || rawOutfit.parameter.length === 0) throw new PetCharacterError(`${path}.outfit.parameter must be a non-empty parameter id`);
-		let lowParts;
-		if (rawOutfit.lowParts !== void 0 && rawOutfit.lowParts !== null) {
-			if (!Array.isArray(rawOutfit.lowParts) || rawOutfit.lowParts.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.outfit.lowParts must be an array of part ids`);
-			lowParts = Object.freeze([...rawOutfit.lowParts]);
-		}
-		let highParts;
-		if (rawOutfit.highParts !== void 0 && rawOutfit.highParts !== null) {
-			if (!Array.isArray(rawOutfit.highParts) || rawOutfit.highParts.some((id) => typeof id !== "string" || id.length === 0)) throw new PetCharacterError(`${path}.outfit.highParts must be an array of part ids`);
-			highParts = Object.freeze([...rawOutfit.highParts]);
-		}
-		outfit = Object.freeze({
-			parameter: rawOutfit.parameter,
-			...lowParts === void 0 ? {} : { lowParts },
-			...highParts === void 0 ? {} : { highParts }
-		});
 	}
 	return Object.freeze({
 		model,
@@ -459,20 +428,10 @@ function resolvePetLive2DUrls(character, assetsDir) {
 	const modelPath = join(assetsDir, live2d.model);
 	const corePath = join(assetsDir, live2d.core ?? "vendor/live2dcubismcore.min.js");
 	if (!existsSync(modelPath) || !existsSync(corePath)) return void 0;
+	const { model, core, ...optional } = live2d;
 	return {
-		model: live2d.model,
-		...live2d.hideParameters === void 0 ? {} : { hideParameters: live2d.hideParameters },
-		...live2d.expressionParameters === void 0 ? {} : { expressionParameters: live2d.expressionParameters },
-		...live2d.tapFallbackGroups === void 0 ? {} : { tapFallbackGroups: live2d.tapFallbackGroups },
-		...live2d.hitAreaMotions === void 0 ? {} : { hitAreaMotions: live2d.hitAreaMotions },
-		...live2d.motionEndReset === void 0 ? {} : { motionEndReset: live2d.motionEndReset },
-		...live2d.expressionCycles === void 0 ? {} : { expressionCycles: live2d.expressionCycles },
-		...live2d.lookOriginY === void 0 ? {} : { lookOriginY: live2d.lookOriginY },
-		...live2d.expressionHoldMs === void 0 ? {} : { expressionHoldMs: live2d.expressionHoldMs },
-		...live2d.idleVariants === void 0 ? {} : { idleVariants: live2d.idleVariants },
-		...live2d.hideParts === void 0 ? {} : { hideParts: live2d.hideParts },
-		...live2d.expressionRevealParts === void 0 ? {} : { expressionRevealParts: live2d.expressionRevealParts },
-		...live2d.outfit === void 0 ? {} : { outfit: live2d.outfit }
+		model,
+		...optional
 	};
 }
 const PET_STATE_DURATIONS = Object.freeze({
@@ -494,15 +453,10 @@ const WORK_AREA_MARGIN_PX = 8;
 /** Window pixels reserved above the character so speech never covers the model.
 *  Keep in sync with `--pet-speech-slot` in `pet.html`. */
 const PET_SPEECH_SLOT_PX = 80;
-/** Per-message cap for renderer-driven drag deltas. */
-const MANUAL_MOVE_MAX_PX = 64;
 /** Reject grab offsets outside the pet window (plus a small margin). */
 const DRAG_GRAB_MAX_PX = 4096;
 const POSITION_SAVE_DEBOUNCE_MS = 600;
-/** OS cursor polling cadence for screen-wide look-at tracking and drag follow.
-*  16ms keeps drag follow at display cadence; the renderer's canvas-rect fast
-*  path keeps each poll's coversPoint cost near zero, so poll cadence is no
-*  longer the click-through or drag-follow latency bottleneck. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
 const CURSOR_TRACK_MS = 16;
 function sanitizeElectronShape(loaded) {
 	if (typeof loaded !== "object" || loaded === null) return void 0;
@@ -609,6 +563,14 @@ var PetWindowController = class {
 	/** Designed content size; never re-read from getBounds during drag (DPI drift). */
 	layoutWidth = 0;
 	layoutHeight = 0;
+	/**
+	* Bounds memo for the cursor poller (one synchronous IPC per tick otherwise).
+	* Written by open/applyScale/drag, which already know the new origin.
+	* Invalidated on 'resize' and window swap. Not invalidated on 'moved':
+	* Windows often emits that after programmatic setBounds with a lagging
+	* getBounds(), which would poison hit-testing and stick click-through on.
+	*/
+	cachedBounds;
 	/** Latest mesh/hide-button hit from the cursor poller. */
 	pointerOnPet = false;
 	/** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
@@ -684,6 +646,7 @@ var PetWindowController = class {
 		});
 		this.window = window;
 		this.pageReady = false;
+		this.cachedBounds = bounds;
 		pinPetAcrossWorkspaces(window);
 		const lockZoom = window.webContents.setVisualZoomLevelLimits;
 		if (typeof lockZoom === "function") lockZoom.call(window.webContents, 1, 1);
@@ -703,12 +666,16 @@ var PetWindowController = class {
 		});
 		window.on("closed", () => {
 			if (this.window === window) this.window = void 0;
+			this.cachedBounds = void 0;
 			this.pageReady = false;
 			this.stopManualDrag(false);
 			this.stopCursorTracking();
 		});
 		window.on("moved", () => {
 			this.schedulePositionSave();
+		});
+		window.on("resize", () => {
+			this.cachedBounds = void 0;
 		});
 		this.queueBoot();
 		window.webContents.loadFile(this.options.htmlPath, { query: { locale } }).catch(() => {
@@ -726,6 +693,7 @@ var PetWindowController = class {
 		this.pendingBoot = void 0;
 		this.live2dSpec = void 0;
 		this.bootGate = void 0;
+		this.cachedBounds = void 0;
 		this.pointerOnPet = false;
 		this.ignoringMouse = void 0;
 		if (window !== void 0 && !window.isDestroyed()) window.close();
@@ -761,7 +729,9 @@ var PetWindowController = class {
 		const size = petLayoutSize(this.options.character, scale);
 		this.layoutWidth = size.width;
 		this.layoutHeight = size.height;
-		window.setBounds(this.clampToDisplay(bounds.x, bounds.y, size.width, size.height, this.options.electron.screen));
+		const next = this.clampToDisplay(bounds.x, bounds.y, size.width, size.height, this.options.electron.screen);
+		this.cachedBounds = next;
+		window.setBounds(next);
 	}
 	/** Re-send the boot payload (for example after preference changes). */
 	reboot() {
@@ -869,38 +839,10 @@ var PetWindowController = class {
 			this.stopManualDrag(true);
 			return;
 		}
-		if (command === "move") {
-			this.handleManualMove(url.searchParams.get("dx"), url.searchParams.get("dy"));
-			return;
-		}
 		if (command === "live2dfailed") {
 			const reason = url.searchParams.get("r") ?? "";
 			if (reason !== "") this.options.log?.(`live2d attach failed in renderer: ${reason}`);
 		}
-	}
-	/**
-	* Renderer-driven drag: apply one incremental integer offset. The constant
-	* per-message cap keeps a rogue page from teleporting the window, and the
-	* display-bounds clamp keeps it on this screen (including over the Dock).
-	* The `moved` listener already debounce-persists the resulting position.
-	*/
-	handleManualMove(rawDx, rawDy) {
-		const parsedDx = Number.parseInt(rawDx ?? "", 10);
-		const parsedDy = Number.parseInt(rawDy ?? "", 10);
-		if (Number.isNaN(parsedDx) || Number.isNaN(parsedDy)) return;
-		const dx = clamp(parsedDx, -64, MANUAL_MOVE_MAX_PX);
-		const dy = clamp(parsedDy, -64, MANUAL_MOVE_MAX_PX);
-		if (dx === 0 && dy === 0) return;
-		const window = this.window;
-		if (window === void 0 || window.isDestroyed()) return;
-		const bounds = window.getBounds();
-		const width = this.layoutWidth || bounds.width;
-		const height = this.layoutHeight || bounds.height;
-		const next = this.clampToDisplay(bounds.x + dx, bounds.y + dy, width, height, this.options.electron.screen);
-		window.setBounds({
-			x: next.x,
-			y: next.y
-		});
 	}
 	/** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
 	startManualDrag(rawOx, rawOy) {
@@ -915,34 +857,10 @@ var PetWindowController = class {
 		};
 		this.stopCursorTracking();
 		this.syncClickThrough();
-		this.pinDesignedSize();
-		this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(true);`);
 		if (this.dragTimer === void 0) this.dragTimer = setInterval(() => {
 			this.tickManualDrag();
 		}, CURSOR_TRACK_MS);
 		this.tickManualDrag();
-	}
-	/**
-	* One cold-path size pin per drag: re-asserts the designed layout size so
-	* Windows DPI drift cannot persist, while the 16ms drag ticks stay
-	* position-only (see tickManualDrag — a size write there takes the resize
-	* path and made the window trail the cursor). Reads the designed size, not
-	* getBounds, so the legacy HiDPI growth feedback loop cannot fire.
-	*/
-	pinDesignedSize() {
-		const window = this.window;
-		if (window === void 0 || window.isDestroyed()) return;
-		const width = this.layoutWidth;
-		const height = this.layoutHeight;
-		if (width <= 0 || height <= 0) return;
-		const bounds = window.getBounds();
-		if (bounds.width === width && bounds.height === height) return;
-		window.setBounds({
-			x: bounds.x,
-			y: bounds.y,
-			width,
-			height
-		});
 	}
 	/**
 	* @param resumeLookAt - restore screen-wide look-at after a user drag ends.
@@ -955,8 +873,8 @@ var PetWindowController = class {
 			this.dragTimer = void 0;
 		}
 		this.dragGrab = void 0;
+		this.ignoringMouse = void 0;
 		this.syncClickThrough();
-		this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(false);`);
 		if (resumeLookAt && this.isVisible()) this.startCursorTracking();
 	}
 	tickManualDrag() {
@@ -971,10 +889,8 @@ var PetWindowController = class {
 		const width = this.layoutWidth;
 		const height = this.layoutHeight;
 		const next = this.clampToDisplay(point.x - grab.ox, point.y - grab.oy, width, height, this.options.electron.screen);
-		window.setBounds({
-			x: next.x,
-			y: next.y
-		});
+		this.cachedBounds = next;
+		window.setBounds(next);
 	}
 	run(code, delayMs) {
 		const window = this.window;
@@ -1005,11 +921,11 @@ var PetWindowController = class {
 		this.lastCursor = void 0;
 	}
 	pollCursor() {
+		if (!this.isVisible()) return;
 		const window = this.window;
-		if (window === void 0 || window.isDestroyed() || !this.isOpen() || !this.isVisible()) return;
 		const point = this.options.electron.screen?.getCursorScreenPoint?.();
 		if (point === void 0) return;
-		const bounds = window.getBounds();
+		const bounds = this.cachedBounds ?? (this.cachedBounds = window.getBounds());
 		const x = point.x - bounds.x;
 		const y = point.y - bounds.y;
 		if (this.lastCursor !== void 0 && this.lastCursor.x === x && this.lastCursor.y === y) return;
@@ -1017,11 +933,18 @@ var PetWindowController = class {
 			x,
 			y
 		};
-		const code = `(function(){var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});var hide=document.getElementById('hide');if(hide){var r=hide.getBoundingClientRect();if(${x}>=r.left&&${x}<r.right&&${y}>=r.top&&${y}<r.bottom)return true;}return !!(rt&&rt.coversPoint&&rt.coversPoint(${x}, ${y}));})()`;
+		if (x < 0 || y < 0 || x >= bounds.width || y >= bounds.height) {
+			this.pointerOnPet = false;
+			this.syncClickThrough();
+			this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});window.__dshPet&&window.__dshPet.setOnPet&&window.__dshPet.setOnPet(false);`);
+			return;
+		}
+		const code = `(function(){var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});var hr=window.__dshPetHideRect;if(hr&&${x}>=hr.left&&${x}<hr.right&&${y}>=hr.top&&${y}<hr.bottom)return true;return !!(rt&&rt.coversPoint&&rt.coversPoint(${x}, ${y}));})()`;
 		window.webContents.executeJavaScript(code, true).then((hit) => {
 			if (this.window !== window || window.isDestroyed()) return;
 			this.pointerOnPet = hit === true;
 			this.syncClickThrough();
+			this.run(`window.__dshPet&&window.__dshPet.setOnPet&&window.__dshPet.setOnPet(${hit === true});`);
 		}).catch(() => {});
 	}
 	/** Capture clicks only on the model (or while dragging); empty pixels click through. */

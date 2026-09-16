@@ -19,9 +19,7 @@ export interface PetBrowserWindow {
     hide(): void;
     isVisible(): boolean;
     getBounds(): PetRectangle;
-    /** Electron accepts partial rectangles: position-only writes skip the
-     *  expensive resize path a full bounds write takes on Windows. */
-    setBounds(bounds: Pick<PetRectangle, 'x' | 'y'> | PetRectangle): void;
+    setBounds(bounds: PetRectangle): void;
     setPosition(x: number, y: number): void;
     setAlwaysOnTop(flag: boolean, level?: string): void;
     setVisibleOnAllWorkspaces(visible: boolean, options?: {
@@ -104,7 +102,7 @@ export interface PetLive2DSelection {
     readonly lookOriginY?: number;
     /** How long a tapped expression holds before easing back (ms). */
     readonly expressionHoldMs?: number;
-    /** Idle-state variations cycling while the pet is idle. */
+    /** Idle-state variations cycling while no tap expression is showing. */
     readonly idleVariants?: {
         readonly expressions?: readonly string[];
         readonly everyMs?: number;
@@ -120,11 +118,6 @@ export interface PetLive2DSelection {
         readonly lowParts?: readonly string[];
         readonly highParts?: readonly string[];
     };
-}
-/** Live2D assets one pet plugin exposes to the shared window controller. */
-export interface PetLive2DAssets {
-    /** Plugin-owned directory holding the model, its textures, and the vendor Core script. */
-    readonly dir: string;
 }
 /**
  * Resolve the Live2D selection from one asset directory and the character's
@@ -185,6 +178,14 @@ export declare class PetWindowController {
     /** Designed content size; never re-read from getBounds during drag (DPI drift). */
     private layoutWidth;
     private layoutHeight;
+    /**
+     * Bounds memo for the cursor poller (one synchronous IPC per tick otherwise).
+     * Written by open/applyScale/drag, which already know the new origin.
+     * Invalidated on 'resize' and window swap. Not invalidated on 'moved':
+     * Windows often emits that after programmatic setBounds with a lagging
+     * getBounds(), which would poison hit-testing and stick click-through on.
+     */
+    private cachedBounds;
     /** Latest mesh/hide-button hit from the cursor poller. */
     private pointerOnPet;
     /** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
@@ -217,23 +218,8 @@ export declare class PetWindowController {
     private injectLive2D;
     private handlePageReady;
     private handleNavigate;
-    /**
-     * Renderer-driven drag: apply one incremental integer offset. The constant
-     * per-message cap keeps a rogue page from teleporting the window, and the
-     * display-bounds clamp keeps it on this screen (including over the Dock).
-     * The `moved` listener already debounce-persists the resulting position.
-     */
-    private handleManualMove;
     /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
     private startManualDrag;
-    /**
-     * One cold-path size pin per drag: re-asserts the designed layout size so
-     * Windows DPI drift cannot persist, while the 16ms drag ticks stay
-     * position-only (see tickManualDrag — a size write there takes the resize
-     * path and made the window trail the cursor). Reads the designed size, not
-     * getBounds, so the legacy HiDPI growth feedback loop cannot fire.
-     */
-    private pinDesignedSize;
     /**
      * @param resumeLookAt - restore screen-wide look-at after a user drag ends.
      *   Closing the window passes false so a disposed controller does not restart

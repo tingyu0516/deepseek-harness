@@ -109,12 +109,13 @@ class FakeWindow {
   }
   isVisible(): boolean { return this.visible }
   getBounds(): PetRectangle { return { ...this.bounds } }
-  setBounds(bounds: Partial<PetRectangle>): void {
-    const moved = bounds.x !== undefined && bounds.x !== this.bounds.x
-      || bounds.y !== undefined && bounds.y !== this.bounds.y
-    this.bounds = { ...this.bounds, ...bounds }
-    if (moved) this.emit('moved')
+  setBounds(bounds: PetRectangle): void {
+    const moved = bounds.x !== this.bounds.x || bounds.y !== this.bounds.y
+    this.bounds = { ...bounds }
+    if (this.emitMovedOnBounds && moved) this.emit('moved')
   }
+  /** Windows can apply setBounds without a 'moved' event; tests may disable it. */
+  emitMovedOnBounds = true
   setPosition(x: number, y: number): void {
     this.bounds = { ...this.bounds, x, y }
     this.emit('moved')
@@ -440,39 +441,6 @@ describe('PetWindowController', () => {
     expect(commands).toEqual(['hide'])
   })
 
-  it('moves the window for renderer drag deltas and clamps per-message jumps', () => {
-    const windowController = controller()
-    windowController.open()
-    const window = FakeWindow.created[0]!
-    // Default placement is the bottom-right of the work area. Move inward so a
-    // MANUAL_MOVE_MAX_PX clamp is observable without hitting the display edge.
-    window.setBounds({ ...window.getBounds(), x: 400, y: 200 })
-    const before = window.getBounds()
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=10&dy=-4')
-    expect(window.getBounds().x).toBe(before.x + 10)
-    expect(window.getBounds().y).toBe(before.y - 4)
-    // Per-message deltas beyond the cap are clamped, not dropped.
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=999&dy=0')
-    expect(window.getBounds().x).toBe(before.x + 10 + 64)
-    // Malformed or missing values are ignored.
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=abc&dy=zz')
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move')
-    expect(window.getBounds()).toEqual({
-      x: before.x + 10 + 64,
-      y: before.y - 4,
-      width: before.width,
-      height: before.height,
-    })
-    // A stale larger getBounds (Windows DPI drift) must not stick: a drag
-    // start re-pins the designed layout size, and the move ticks themselves
-    // are position-only so the drift growth loop has no fuel.
-    window.setBounds({ x: before.x + 10 + 64, y: before.y - 4, width: 480, height: 640 })
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://move?dx=2&dy=0')
-    expect(window.getBounds().width).toBe(480)
-    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://dragstart?ox=10&oy=10')
-    expect(window.getBounds().width).toBe(before.width)
-    expect(window.getBounds().height).toBe(before.height)
-  })
   it('follows the OS cursor for the duration of a renderer drag', () => {
     let cursor = { x: 900, y: 400 }
     const electron = fakeElectron()
@@ -494,11 +462,35 @@ describe('PetWindowController', () => {
     cursor = { x: 50, y: 50 }
     vi.advanceTimersByTime(32)
     expect(window.getBounds()).toEqual({ x: 960, y: 370, width, height })
-    // Drag lifecycle freezes the Live2D render loop so its GPU frames stop
-    // racing the transparent window's compositor updates while moving.
-    const suspendCalls = window.webContents.executed.filter(code => code.includes('setSuspended'))
-    expect(suspendCalls.some(code => code.includes('(true)'))).toBe(true)
-    expect(suspendCalls.some(code => code.includes('(false)'))).toBe(true)
+  })
+
+  it('captures clicks on the model after a drag even if Electron omits moved', async () => {
+    // Windows often applies setBounds without a timely 'moved' (or with a
+    // lagging getBounds). The poller must keep the drag origin or it treats
+    // the cursor as outside the window and leaves click-through stuck on.
+    let cursor = { x: 900, y: 400 }
+    const electron = fakeElectron()
+    Object.assign(electron.screen!, { getCursorScreenPoint: () => ({ ...cursor }) })
+    const windowController = controller({ electron })
+    windowController.open()
+    const window = FakeWindow.created[0]!
+    window.emitMovedOnBounds = false
+    window.emit('ready-to-show')
+    expect(window.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
+    window.webContents.emit(
+      'will-navigate',
+      { preventDefault: () => {} },
+      'dsh-pet-hutao://dragstart?ox=40&oy=80',
+    )
+    cursor = { x: 1000, y: 450 }
+    vi.advanceTimersByTime(16)
+    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://dragend')
+    window.webContents.hitResult = true
+    cursor = { x: 980, y: 400 }
+    vi.advanceTimersByTime(20)
+    await Promise.resolve()
+    expect(window.getBounds()).toMatchObject({ x: 960, y: 370 })
+    expect(window.ignoreMouseEvents).toEqual({ ignore: false })
   })
 
   it('lets a drag cover the dock strip instead of stopping at the work area', () => {
@@ -597,7 +589,16 @@ describe('PetWindowController', () => {
     windowController.open()
     const window = FakeWindow.created[0]!
     window.emit('ready-to-show')
-    window.setPosition(600, 400)
+    // Production never user-drags the frameless window; the Host follows the
+    // OS cursor and writes the origin itself. Drive that path so the poller
+    // does not depend on Electron's 'moved' event (omitted or late on Windows).
+    window.webContents.emit(
+      'will-navigate',
+      { preventDefault: () => {} },
+      'dsh-pet-hutao://dragstart?ox=60&oy=36',
+    )
+    window.webContents.emit('will-navigate', { preventDefault: () => {} }, 'dsh-pet-hutao://dragend')
+    expect(window.getBounds()).toMatchObject({ x: 600, y: 400 })
     vi.advanceTimersByTime(250)
     // Client-space feed: cursor (660,436) - window (600,400) = (60,36).
     expect(window.webContents.executed.some(code => code.includes('setPointer(60, 36)'))).toBe(true)
@@ -632,11 +633,15 @@ describe('PetWindowController', () => {
     vi.advanceTimersByTime(20)
     await Promise.resolve()
     expect(window.ignoreMouseEvents).toEqual({ ignore: false })
+    // The hit result mirrors onto the page: body.on-pet drives the hide
+    // button because :hover never clears on this click-through window.
+    expect(window.webContents.executed.some(code => code.includes('setOnPet(true)'))).toBe(true)
     window.webContents.hitResult = false
     cursor = { x: 10, y: 10 }
     vi.advanceTimersByTime(20)
     await Promise.resolve()
     expect(window.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
+    expect(window.webContents.executed.some(code => code.includes('setOnPet(false)'))).toBe(true)
   })
 
   it('applies scale changes while keeping position', () => {

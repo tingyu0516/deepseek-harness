@@ -63,22 +63,20 @@ const FORM_EFFECT_PARAMETERS = ['Param174', 'Param175', 'Param176', 'Param177', 
 interface PetLive2DRuntime {
   ready: boolean
   attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean>
-  setState(state: string): number, setExpression(name: string | null): void, expressionNames(): string[]
-  playMotionGroup(group: string): number, hitTest(nx: number, ny: number): string
+  setState(state: string): number
+  playMotionGroup(group: string): number
   tap(clientX: number, clientY: number): string, setPointer(clientX?: number, clientY?: number): void
   /** True when the cursor is over the model or a short pad around thin meshes. */
   coversPoint(clientX: number, clientY: number): boolean
-  /** Freeze or resume the render loop: while the host drags the window every
-   *  frame would race the compositor for the GPU and the window lags the
-   *  cursor; a frozen rig keeps its last drawn frame. */
-  setSuspended?(suspended: boolean): void
 }
 
 declare global {
   interface Window {
     Live2DCubismCore?: { Moc?: unknown, Model?: unknown, Drawables?: unknown }
-    __dshPetLive2DRuntime?: PetLive2DRuntime, __DSH_PET_LIVE2D_STATUS?: string
+    __dshPetLive2DRuntime?: PetLive2DRuntime
     __DSH_PET_LIVE2D_ASSETS?: Record<string, string>
+    /** Cached hide-button rect from pet.html; refreshed by the page on resize. */
+    __dshPetHideRect?: { left: number, right: number, top: number, bottom: number } | null
   }
 }
 
@@ -120,9 +118,6 @@ let EXPRESSION_HOLD_MS = 9000
 let restParameters: number[] | undefined
 let restPartOpacities: number[] | undefined
 let motionWasPlaying = false
-function status(value: string): void {
-  window.__DSH_PET_LIVE2D_STATUS = value
-}
 function startFramework(): void {
   if (frameworkStarted) return
   const core = window.Live2DCubismCore
@@ -175,23 +170,43 @@ function sizeCanvas(canvas: HTMLCanvasElement, wrap: HTMLElement): void {
 }
 
 function clientToView(clientX: number, clientY: number): { x: number, y: number } | undefined {
-  if (canvasEl === undefined) return undefined
-  const box = canvasEl.getBoundingClientRect()
+  if (canvasEl === undefined || canvasRect === undefined) return undefined
+  const box = canvasRect
   if (box.width < 2 || box.height < 2) return undefined
   const deviceX = (clientX - box.left) * (canvasEl.width / box.width)
   const deviceY = (clientY - box.top) * (canvasEl.height / box.height)
   return { x: view.transformViewX(deviceX), y: view.transformViewY(deviceY) }
 }
 
-function hitAreaNames(): string[] {
+function hitAreaNames(): readonly string[] {
   const setting = (model as unknown as {
     _modelSetting?: { getHitAreasCount(): number, getHitAreaName(i: number): string }
   } | undefined)?._modelSetting
-  if (setting === undefined) return []
-  const names: string[] = []
-  const count = setting.getHitAreasCount()
-  for (let i = 0; i < count; i += 1) names.push(setting.getHitAreaName(i))
-  return names
+  if (setting === undefined) return EMPTY_HIT_AREAS
+  if (hitAreasCache === undefined) {
+    const names: string[] = []
+    const count = setting.getHitAreasCount()
+    for (let i = 0; i < count; i += 1) names.push(setting.getHitAreaName(i))
+    hitAreasCache = names
+  }
+  return hitAreasCache
+}
+const EMPTY_HIT_AREAS: readonly string[] = []
+let hitAreasCache: readonly string[] | undefined
+
+/**
+ * Layout rects of the canvas and the wrap, cached because both elements sit
+ * inside the fixed stage: their rects only change when the canvas backing
+ * size changes (attach, resize handler). Every cursor-move read of
+ * getBoundingClientRect forces layout, so the hit/look paths read these
+ * memoized values instead; refreshRects() runs at each invalidation point.
+ */
+let canvasRect: { left: number, top: number, width: number, height: number } | undefined
+let wrapRectHeight = 0
+
+function refreshRects(): void {
+  canvasRect = canvasEl === undefined ? undefined : canvasEl.getBoundingClientRect()
+  wrapRectHeight = wrapEl === undefined ? 0 : wrapEl.getBoundingClientRect().height
 }
 
 /**
@@ -257,8 +272,8 @@ function refreshCoverageMask(): void {
   const now = Date.now()
   if (now - maskDataAt < MASK_REFRESH_MS) return
   maskDataAt = now
-  if (canvasEl === undefined) return
-  const box = canvasEl.getBoundingClientRect()
+  if (canvasEl === undefined || canvasRect === undefined) return
+  const box = canvasRect
   if (box.width < 2 || box.height < 2) return
   const dpr = window.devicePixelRatio || 1
   const cell = Math.max(box.width, box.height) / MASK_MAX_CELLS
@@ -285,8 +300,8 @@ function refreshCoverageMask(): void {
 
 function coversMasked(clientX: number, clientY: number): boolean {
   if (canvasEl === undefined || maskData === undefined || maskW < 1 || maskH < 1) return false
-  const box = canvasEl.getBoundingClientRect()
-  if (box.width < 2 || box.height < 2) return false
+  const box = canvasRect
+  if (box === undefined || box.width < 2 || box.height < 2) return false
   const cx = Math.floor((clientX - box.left) / box.width * maskW)
   const cy = Math.floor((clientY - box.top) / box.height * maskH)
   if (cx < 0 || cx >= maskW || cy < 0 || cy >= maskH) return false
@@ -305,17 +320,22 @@ function configureMotionLoops(): void {
   }
 }
 
-function motionCount(group: string): number {
-  const setting = (model as unknown as {
+/** Cubism setting accessor; undefined before the model finishes loading. */
+function modelSetting(): { getMotionCount(group: string): number } | undefined {
+  return (model as unknown as {
     _modelSetting?: { getMotionCount(group: string): number }
   } | undefined)?._modelSetting
-  return setting?.getMotionCount(group) ?? 0
+}
+
+function motionCount(group: string): number {
+  return modelSetting()?.getMotionCount(group) ?? 0
 }
 
 function hasFormToggle(): boolean {
   return motionCount('Sad') > 0 && motionCount('Special') > 0
 }
 
+/** The form switch parameter a rig declares, or the Furina default. */
 function formParameter(): string | undefined {
   return attachedSpec.outfit?.parameter ?? (hasFormToggle() ? 'Param4' : undefined)
 }
@@ -334,6 +354,55 @@ function restoreFormRestPose(): void {
     cubism.setParameterValueById(ids.getId(parameter), formLatch)
   }
   cubism.saveParameters()
+}
+
+/**
+ * Per-frame parameter/part write caches, built once per attach. Every
+ * ById write would otherwise redo an O(m) id-manager string scan plus an
+ * O(n) parameter-index scan on each of the ~20 per-frame writes; here the
+ * indices resolve once. A missing id resolves to a negative/nonexistent
+ * index in both paths and the write is a no-op either way.
+ */
+type CachedCycle = { name: string, index: number, from: number, to: number, period: number }
+let hideParamCache: readonly number[] = []
+let exprParamCache: ReadonlyArray<{ name: string, index: number }> = []
+let cycleCache: readonly CachedCycle[] = []
+let hidePartCache: readonly number[] = []
+let revealPartCache: Readonly<Record<string, readonly number[]>> = {}
+const NO_PART_INDEXES: readonly number[] = []
+let formParamIndex = -1
+
+/** Resolve the write-cache indices from the just-attached model. */
+function buildWriteCaches(cubism: NonNullable<ReturnType<LAppModel['getModel']>>): void {
+  const ids = CubismFramework.getIdManager()
+  const paramIndex = (id: string): number => cubism.getParameterIndex(ids.getId(id))
+  hideParamCache = Object.freeze((attachedSpec.hideParameters ?? []).map(paramIndex))
+  exprParamCache = Object.freeze(
+    Object.entries(attachedSpec.expressionParameters ?? {}).map(([name, id]) => ({
+      name,
+      index: paramIndex(id),
+    })),
+  )
+  cycleCache = Object.freeze(
+    Object.entries(attachedSpec.expressionCycles ?? {}).map(([name, cycle]) => ({
+      name,
+      index: paramIndex(cycle.param),
+      from: cycle.from,
+      to: cycle.to,
+      period: cycle.period,
+    })),
+  )
+  hidePartCache = Object.freeze((attachedSpec.hideParts ?? []).map(id =>
+    cubism.getPartIndex(ids.getId(id)),
+  ))
+  const reveal: Record<string, readonly number[]> = {}
+  for (const [name, partIds] of Object.entries(attachedSpec.expressionRevealParts ?? {})) {
+    reveal[name] = Object.freeze(partIds.map(id => cubism.getPartIndex(ids.getId(id))))
+  }
+  revealPartCache = reveal
+  const formParameterId = attachedSpec.outfit?.parameter
+    ?? (hasFormToggle() ? 'Param4' : undefined)
+  formParamIndex = formParameterId === undefined ? -1 : paramIndex(formParameterId)
 }
 
 function endFormMotion(): void {
@@ -382,9 +451,7 @@ function playGroup(group: string, priority = LAppDefine.PriorityNormal): number 
 
 function playFirstGroup(groups: readonly string[], priority = LAppDefine.PriorityNormal): number {
   if (model === undefined || !ready) return 0
-  const setting = (model as unknown as {
-    _modelSetting?: { getMotionCount(group: string): number }
-  })._modelSetting
+  const setting = modelSetting()
   if (setting === undefined) return 0
   for (const group of groups) {
     if (setting.getMotionCount(group) > 0) return playGroup(group, priority)
@@ -404,9 +471,6 @@ function waitUntilReady(instance: LAppModel, timeoutMs: number): Promise<void> {
   })
 }
 
-function setOpacity(partId: string, opacity: number): void {
-  model?.getModel()?.setPartOpacityById(CubismFramework.getIdManager().getId(partId), opacity)
-}
 function setParam(parameterId: string, value: number): void {
   model?.getModel()?.setParameterValueById(CubismFramework.getIdManager().getId(parameterId), value)
 }
@@ -414,11 +478,10 @@ function setParam(parameterId: string, value: number): void {
 /** Turn one tapped expression on with an auto-release; empty name clears now. */
 function applyTapExpression(name: string): void {
   activeExpression = name
-  // A user tap cancels any running idle variant.
-  if (variantActive !== undefined) {
-    variantActive = undefined
+  // A user tap cancels a running idle variant and restarts its cycle.
+  if (variantEndAt !== 0) {
     variantEndAt = 0
-    variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? 20000)
+    variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? VARIANT_EVERY_MS)
   }
   if (expressionHoldTimer !== 0) clearTimeout(expressionHoldTimer)
   expressionHoldTimer = 0
@@ -432,63 +495,46 @@ function releaseTapExpression(): void {
 }
 
 /**
- * Idle-state variants (e.g. Furina's walking legs): while the pet idles,
- * activate a spec-declared expression for a few seconds every so often.
- * A user tap cancels the running variant; the cycle restarts afterwards.
+ * Idle-state variants (Furina's walking stance): every `everyMs` while no
+ * tap expression is showing, activate one spec-declared expression for
+ * `holdMs`. Rides the render loop because setInterval is throttled for this
+ * window type. A tap expression owns the face while it lasts: the cycle
+ * waits for it instead of clearing it, and a tap during a variant ends the
+ * variant (see applyTapExpression). `variantEndAt !== 0` is the single
+ * "variant running" flag.
  */
+const VARIANT_EVERY_MS = 20000
+const VARIANT_HOLD_MS = 8000
 let variantEndAt = 0
 let variantNextAt = 0
-/** The expression the idle variant activated (distinct from tap expressions). */
-let variantActive: string | undefined
-
-function pickIdleVariant(): string | undefined {
-  const variants = attachedSpec.idleVariants
-  const pool = variants?.expressions?.filter(name => name !== activeExpression) ?? []
-  if (pool.length === 0) return undefined
-  return pool[Math.floor(Math.random() * pool.length)]
-}
 
 function variantTick(): void {
-  const now = Date.now()
-  if (model === undefined || !ready) return
   const variants = attachedSpec.idleVariants
-  if (variants === undefined) return
-  // A holding variant releases (and eases its expression off) once the hold
-  // ends. This branch is time-based only, so the cycle can never deadlock.
+  if (variants === undefined || !ready) return
+  const now = Date.now()
   if (variantEndAt !== 0) {
-    if (now >= variantEndAt) {
-      variantEndAt = 0
-      activeExpression = ''
-      variantActive = undefined
-      variantNextAt = now + (variants.everyMs ?? 20000)
-    }
+    if (now < variantEndAt) return
+    variantEndAt = 0
+    activeExpression = ''
+    variantNextAt = now + (variants.everyMs ?? VARIANT_EVERY_MS)
     return
   }
-  // A user tap expression owns the face while it lasts.
-  if (activeExpression !== '') {
-    // Self-heal: a leftover expression with no hold and no variant claim
-    // (an interrupted cycle) is released once its activation window passed.
-    if (now >= variantNextAt && now >= variantEndAt) activeExpression = ''
-    return
-  }
-  if (now < variantNextAt) return
-  const pick = pickIdleVariant()
+  if (activeExpression !== '' || now < variantNextAt) return
+  const pool = variants.expressions ?? []
+  const pick = pool[Math.floor(Math.random() * pool.length)]
   if (pick === undefined) return
-  variantActive = pick
-  variantEndAt = now + (variants.holdMs ?? 8000)
+  variantEndAt = now + (variants.holdMs ?? VARIANT_HOLD_MS)
   activeExpression = pick
 }
 
 function startVariantTicker(): void {
-  variantActive = undefined
-  variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? 20000)
   variantEndAt = 0
+  variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? VARIANT_EVERY_MS)
 }
 
 function stopVariantTicker(): void {
   variantEndAt = 0
   variantNextAt = 0
-  variantActive = undefined
 }
 
 /** Ease expressionWeight toward its target each frame so expressions fade. */
@@ -499,47 +545,51 @@ function advanceExpressionFade(): void {
   // rig, so the parameter is the only transition there is — a smootherstep
   // curve (zero velocity at both ends) makes the hand glide instead of
   // snapping.
-  const duration = target > expressionProgress ? 1.0 : 1.0
-  const dt = Math.min(LAppPal.getDeltaTime(), 0.1)
   if (expressionProgress !== target) {
-    expressionProgress += Math.sign(target - expressionProgress) * dt / duration
+    const dt = Math.min(LAppPal.getDeltaTime(), 0.1)
+    expressionProgress += Math.sign(target - expressionProgress) * dt
     if (expressionProgress < 0) expressionProgress = 0
     if (expressionProgress > 1) expressionProgress = 1
+    const t = expressionProgress
+    expressionWeight = t * t * t * (t * (t * 6 - 15) + 10)
   }
-  const t = expressionProgress
-  expressionWeight = t * t * t * (t * (t * 6 - 15) + 10)
 }
 
 /** Sawtooth-cycle params declared for the active expression (fan spins etc.). */
-function applyExpressionCycles(): void {
-  const cycles = attachedSpec.expressionCycles
-  if (cycles === undefined) return
+function applyExpressionCycles(cubism: NonNullable<ReturnType<LAppModel['getModel']>>): void {
+  const cycles = cycleCache
+  if (cycles.length === 0) return
+  const active = activeExpression
   const seconds = performance.now() / 1000
-  for (const [name, cycle] of Object.entries(cycles)) {
-    if (activeExpression !== name) {
-      setParam(cycle.param, cycle.from)
+  for (const cycle of cycles) {
+    if (active !== cycle.name) {
+      cubism.setParameterValueByIndex(cycle.index, cycle.from)
       continue
     }
     const phase = (seconds % cycle.period) / cycle.period
-    setParam(cycle.param, cycle.from + (cycle.to - cycle.from) * phase)
+    cubism.setParameterValueByIndex(cycle.index, cycle.from + (cycle.to - cycle.from) * phase)
   }
 }
 
 function applyOverrides(): void {
-  for (const name of attachedSpec.hideParameters ?? []) setParam(name, 0)
+  const cubism = model?.getModel()
+  if (cubism === undefined) return
+  for (const index of hideParamCache) cubism.setParameterValueByIndex(index, 0)
   // Character-declared expression overlays only: parameter ids are
   // model-specific, so nothing is written without an explicit spec table.
-  for (const [name, id] of Object.entries(attachedSpec.expressionParameters ?? {})) {
-    setParam(id, name === activeExpression ? expressionWeight : 0)
+  const active = activeExpression
+  for (const entry of exprParamCache) {
+    cubism.setParameterValueByIndex(entry.index, entry.name === active ? expressionWeight : 0)
   }
-  applyExpressionCycles()
-  const parameter = formParameter()
-  if (parameter !== undefined && !formPlaying) setParam(parameter, formLatch)
+  applyExpressionCycles(cubism)
+  if (formParamIndex >= 0 && !formPlaying) cubism.setParameterValueByIndex(formParamIndex, formLatch)
 }
 function applyHiddenParts(): void {
-  const revealed = attachedSpec.expressionRevealParts?.[activeExpression] ?? []
-  for (const name of attachedSpec.hideParts ?? []) {
-    if (!revealed.includes(name)) setOpacity(name, 0)
+  const cubism = model?.getModel()
+  if (cubism === undefined) return
+  const revealed = revealPartCache[activeExpression] ?? NO_PART_INDEXES
+  for (const index of hidePartCache) {
+    if (!revealed.includes(index)) cubism.setPartOpacityByIndex(index, 0)
   }
 }
 
@@ -597,30 +647,56 @@ function hitRegion(x: number, y: number): string {
   return best
 }
 
+/** Persistent projection matrix; drawFrame writes its cells directly. */
+const projectionMatrix = new CubismMatrix44()
+/**
+ * The GL context and the offscreen singleton are process-wide constants
+ * between attach and release (the context is created once per canvas); the
+ * frame path reads them through module memoization instead of walking
+ * getGl()/getInstance() each frame. Cleared in releaseModel().
+ */
+let glContext: WebGLRenderingContext | WebGL2RenderingContext | undefined
+let offscreenManager: CubismWebGLOffscreenManager | undefined
+
 function drawFrame(): void {
   if (model === undefined || subdelegate === undefined || canvasEl === undefined) return
   LAppPal.updateTime()
-  const gl = subdelegate.getGl()
-  CubismWebGLOffscreenManager.getInstance().beginFrameProcess(gl)
+  const gl = glContext ?? subdelegate.getGl()
+  const offscreen = offscreenManager ?? CubismWebGLOffscreenManager.getInstance()
+  offscreen.beginFrameProcess(gl)
   gl.viewport(0, 0, canvasEl.width, canvasEl.height)
   gl.clearColor(0, 0, 0, 0)
   gl.clear(gl.COLOR_BUFFER_BIT)
   const { width, height } = canvasEl
-  const projection = new CubismMatrix44()
+  // Closed form of the previous loadIdentity ∘ scale ∘ multiplyByMatrix(view)
+  // chain: multiplyByMatrix(m) computes this = m·this, so the shipped matrix
+  // is view × S with S = diag(sx, sy, 1, 1) — each COLUMN of the view matrix
+  // scaled by one diagonal factor. sx/sy are frounded first to mirror the
+  // f32 storage inside projection.scale(), and every product is frounded to
+  // mirror the Float32Array store after the vendor's double-precision sum;
+  // the result is bitwise-identical with no per-frame Float32Array
+  // allocations and no 64-step matmul. Zero signs may normalize (−0·f + 0 =
+  // +0); invisible to WebGL uniforms.
   const cubismModel = model.getModel()
   if (cubismModel) {
-    if (cubismModel.getCanvasWidth() > 1.0 && width < height) {
-      model.getModelMatrix().setWidth(2.0)
-      projection.scale(1.0, width / height)
-    } else {
-      projection.scale(height / width, 1.0)
+    const wide = cubismModel.getCanvasWidth() > 1.0 && width < height
+    if (wide) model.getModelMatrix().setWidth(2.0)
+    const sx = Math.fround(wide ? 1.0 : height / width)
+    const sy = Math.fround(wide ? width / height : 1.0)
+    const viewTr = view.getViewMatrix().getArray()
+    const tr = projectionMatrix.getArray()
+    for (let col = 0; col < 4; ++col) {
+      const f = col === 0 ? sx : col === 1 ? sy : 1
+      tr[col] = Math.fround(viewTr[col] * f)
+      tr[col + 4] = Math.fround(viewTr[col + 4] * f)
+      tr[col + 8] = Math.fround(viewTr[col + 8] * f)
+      tr[col + 12] = Math.fround(viewTr[col + 12] * f)
     }
-    projection.multiplyByMatrix(view.getViewMatrix())
   }
   model.update()
-  model.draw(projection)
-  CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl)
-  CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl)
+  model.draw(projectionMatrix)
+  offscreen.endFrameProcess(gl)
+  offscreen.releaseStaleRenderTextures(gl)
   // Refresh the coverage mask from a freshly drawn frame on the same slow
   // cadence; drawImage inside the draw task reads this frame's composited
   // output, so no preserveDrawingBuffer is needed. This is the mask's only
@@ -630,22 +706,9 @@ function drawFrame(): void {
 }
 
 function loop(): void {
-  // The idle-variant lifecycle rides the render loop: setInterval is
-  // throttled for this window type, which once froze a variant on forever.
   variantTick()
   drawFrame()
   raf = requestAnimationFrame(loop)
-}
-/** Freeze the render loop while the host drags the window: a transparent
- *  window's every move needs a compositor pass, and racing the Live2D frame
- *  for the GPU made the window trail the cursor. The canvas keeps its last
- *  drawn frame, so the pet rides along as a still image. */
-function setSuspended(suspended: boolean): void {
-  if (suspended) {
-    stopLoop()
-    return
-  }
-  if (raf === 0 && model !== undefined && ready) loop()
 }
 function stopLoop(): void { if (raf !== 0) cancelAnimationFrame(raf); raf = 0 }
 
@@ -661,16 +724,24 @@ function releaseModel(): void {
   maskDataAt = 0
   maskW = 0
   maskH = 0
+  hideParamCache = []
+  exprParamCache = []
+  cycleCache = []
+  hidePartCache = []
+  revealPartCache = {}
+  formParamIndex = -1
+  hitAreasCache = undefined
   model?.release()
   model = undefined
   subdelegate?.release()
   subdelegate = undefined
+  glContext = undefined
+  offscreenManager = undefined
   ready = false
 }
 
 async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
   if (!spec.model) {
-    status('no model')
     return false
   }
   startFramework()
@@ -694,6 +765,8 @@ async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
     throw new Error('webgl unavailable')
   }
   subdelegate = next
+  glContext = next.getGl()
+  offscreenManager = CubismWebGLOffscreenManager.getInstance()
   view = new PetCubismView()
   view.initialize(canvas.width, canvas.height)
   LAppPal.updateTime()
@@ -707,25 +780,28 @@ async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
     applyHiddenParts()
     // No-Idle rigs: restore the boot rest pose once when the interaction
     // motion empties the queue (the official Idle motion normally does this).
-    const manager = (model as unknown as {
-      _motionManager?: { isFinished(): boolean }
-    } | undefined)?._motionManager
-    const motionFinished = manager?.isFinished() ?? true
-    if (restParameters !== undefined && motionWasPlaying && motionFinished) {
-      const cubism = model.getModel()
-      if (cubism) {
-        for (let i = 0; i < restParameters.length; i++) {
-          cubism.setParameterValueByIndex(i, restParameters[i]!)
+    // Rigs WITH an Idle motion skip the whole block: the Idle motion rewrites
+    // the base pose itself, so paying a per-frame isFinished() there is waste.
+    if (restParameters !== undefined) {
+      const motionFinished = (model as unknown as {
+        _motionManager?: { isFinished(): boolean }
+      } | undefined)?._motionManager?.isFinished() ?? true
+      if (motionWasPlaying && motionFinished) {
+        const cubism = model.getModel()
+        if (cubism) {
+          for (let i = 0; i < restParameters.length; i++) {
+            cubism.setParameterValueByIndex(i, restParameters[i]!)
+          }
+          for (let i = 0; i < restPartOpacities!.length; i++) {
+            cubism.setPartOpacityByIndex(i, restPartOpacities![i]!)
+          }
+          // Overwrite the update loop's save/load snapshot so the restored
+          // pose survives the next loadParameters().
+          cubism.saveParameters()
         }
-        for (let i = 0; i < restPartOpacities!.length; i++) {
-          cubism.setPartOpacityByIndex(i, restPartOpacities![i]!)
-        }
-        // Overwrite the update loop's save/load snapshot so the restored
-        // pose survives the next loadParameters().
-        cubism.saveParameters()
       }
+      motionWasPlaying = !motionFinished
     }
-    motionWasPlaying = !motionFinished
   }
   instance.loadAssets('', spec.model)
   model = instance
@@ -734,11 +810,8 @@ async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
   // Snapshot the rest pose for rigs without an Idle motion (Hutao: the
   // boot parameters are the artist-authored neutral face and stance).
   {
-    const setting = (model as unknown as {
-      _modelSetting?: { getMotionCount(group: string): number }
-    } | undefined)?._modelSetting
     const cubism = model.getModel()
-    if (cubism && (setting?.getMotionCount('Idle') ?? 0) === 0) {
+    if (cubism && motionCount('Idle') === 0) {
       restParameters = []
       restPartOpacities = []
       for (let i = 0; i < cubism.getParameterCount(); i++) {
@@ -753,46 +826,43 @@ async function attach(wrap: HTMLElement, spec: Live2DSpec): Promise<boolean> {
     }
     motionWasPlaying = false
   }
+  buildWriteCaches(model.getModel())
   ready = true
-  status('ok')
+  // The canvas is sized and inserted: memoize the layout rects the hit/look
+  // paths read, so cursor moves never force a layout read.
+  refreshRects()
   startVariantTicker()
   loop()
   return true
 }
 
+/**
+ * Pick a region's next expression, preferring one that is not already
+ * showing. A single-entry pool that is already active is re-picked so the
+ * tap refreshes its hold; left-click never falls back to a motion
+ * (right-click owns `Pat`).
+ */
 function pickTapExpression(region: string): string {
   const pool = TAP_EXPRESSIONS[region]
   if (!pool || pool.length === 0) return ''
   const others = pool.filter(name => name !== activeExpression)
-  if (pool.length === 1 && others.length === 0) return ''
   const choices = others.length > 0 ? others : pool
   return choices[Math.floor(Math.random() * choices.length)] ?? ''
 }
 
 const runtime: PetLive2DRuntime = {
   get ready(): boolean { return ready },
-  set ready(value: boolean) { ready = value },
   attach,
   setState(state: string): number {
     const groups = STATE_GROUPS[state] ?? ['Idle']
     const priority = state === 'idle' ? LAppDefine.PriorityIdle : LAppDefine.PriorityNormal
     return playFirstGroup(groups, priority)
   },
-  setExpression(name: string | null): void {
-    if (model === undefined || !ready) return
-    applyTapExpression(name ?? '')
-  },
-  expressionNames(): string[] {
-    return expressionList.slice()
-  },
   playMotionGroup(group: string): number {
     if (group === 'Special' && hasFormToggle()) {
       return playGroup(formLatch >= 0.5 ? 'Sad' : 'Special', LAppDefine.PriorityForce)
     }
     return playGroup(group, LAppDefine.PriorityForce)
-  },
-  hitTest(_nx: number, _ny: number): string {
-    return ''
   },
   coversPoint(clientX: number, clientY: number): boolean {
     if (model === undefined || !ready) return false
@@ -806,18 +876,12 @@ const runtime: PetLive2DRuntime = {
     // after attach, where one more 16ms poll round-trip is harmless.
     return maskData !== undefined && coversMasked(clientX, clientY)
   },
-  setSuspended(suspended: boolean): void {
-    if (model === undefined || !ready) return
-    setSuspended(suspended)
-  },
   tap(clientX: number, clientY: number): string {
     if (model === undefined || !ready) return ''
     const point = clientToView(clientX, clientY)
     if (point === undefined) return ''
     const areas = hitAreaNames()
-    const setting = (model as unknown as {
-      _modelSetting?: { getMotionCount(group: string): number }
-    })._modelSetting
+    const setting = modelSetting()
     const hasPlayableMotion = (group: string): boolean =>
       (setting?.getMotionCount(group) ?? 0) > 0
       || (setting?.getMotionCount('Pat') ?? 0) > 0
@@ -875,8 +939,6 @@ const runtime: PetLive2DRuntime = {
     if (!region) return `none::${y}`
     const name = pickTapExpression(region)
     applyTapExpression(name)
-    // A region whose pool is exhausted still owes the tap physical feedback.
-    if (!name) playFirstGroup(['Pat', 'TapBody'])
     return `${region}:${name || 'off'}:${y}`
   },
   setPointer(clientX?: number, clientY?: number): void {
@@ -894,12 +956,9 @@ const runtime: PetLive2DRuntime = {
     // window center): a character whose face sits above center otherwise
     // always aims a little below the cursor.
     let lookY = point.y
-    if (wrapEl !== undefined && attachedSpec.lookOriginY !== undefined) {
-      const rect = wrapEl.getBoundingClientRect()
-      if (rect.height > 2) {
-        const originPx = rect.height * attachedSpec.lookOriginY
-        lookY = (originPx - clientY) / (rect.height / 2)
-      }
+    if (wrapEl !== undefined && attachedSpec.lookOriginY !== undefined && wrapRectHeight > 2) {
+      const originPx = wrapRectHeight * attachedSpec.lookOriginY
+      lookY = (originPx - clientY) / (wrapRectHeight / 2)
     }
     model.setDragging(point.x, lookY)
   },
@@ -913,4 +972,6 @@ window.addEventListener('resize', () => {
   const beforeW = canvasEl.width, beforeH = canvasEl.height
   sizeCanvas(canvasEl, wrapEl)
   if (canvasEl.width !== beforeW || canvasEl.height !== beforeH) view.initialize(canvasEl.width, canvasEl.height)
+  // The canvas backing size and the wrap box may both have changed.
+  refreshRects()
 })

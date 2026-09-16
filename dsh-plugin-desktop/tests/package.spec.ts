@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -864,6 +865,20 @@ describe('published package surface', () => {
       trimOffsetLeft: -100,
       trimOffsetTop: -100,
     }))
+  })
+
+  it('leaves an already-valid macOS icon untouched on rebuild', async () => {
+    const { generateMacAppIcon } = await import(new URL('scripts/generate-mac-app-icon.mjs', packageRoot).href) as {
+      generateMacAppIcon: (source: string, output: string) => Promise<void>
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-mac-icon-'))
+    const output = join(dir, 'app-icon-mac.png')
+    const source = fileURLToPath(new URL('build/app-icon.png', packageRoot))
+    await generateMacAppIcon(source, output)
+    const first = statSync(output)
+    await generateMacAppIcon(source, output)
+    expect(statSync(output).mtimeMs).toBe(first.mtimeMs)
+    rmSync(dir, { recursive: true, force: true })
   })
 
   it('keeps Electron out of production dependencies consumed by electron-builder', () => {

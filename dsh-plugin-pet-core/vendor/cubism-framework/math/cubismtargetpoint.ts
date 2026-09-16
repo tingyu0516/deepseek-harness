@@ -34,8 +34,7 @@ export class CubismTargetPoint {
     this._faceY = 0.0;
     this._faceVX = 0.0;
     this._faceVY = 0.0;
-    this._lastTimeSeconds = 0.0;
-    this._userTimeSeconds = 0.0;
+    this._primed = false;
   }
 
   /**
@@ -49,26 +48,29 @@ export class CubismTargetPoint {
    * matches the design 4.0/s at any frame rate; a single long gap (drag
    * suspension, throttling) snaps to the target instead of integrating one
    * oversized step.
+   *
+   * DSH algebra: upstream books `_userTimeSeconds += dt` and diffs it against
+   * `_lastTimeSeconds` each call. That accumulator equals `dt * FrameRate`
+   * exactly (floating point identical until the accumulated sum grows so
+   * large that the addition itself rounds — years of uptime), so both state
+   * fields and the anchor branch collapse into one primed flag.
    */
   public update(deltaTimeSeconds: number): void {
-    // デルタ時間を加算する
-    this._userTimeSeconds += deltaTimeSeconds;
-
     // 首を中央から左右に振るときの平均的な速さは 秒速度。加速・減速を考慮して、その２倍を最高速度とする
     // 顔の振り具合を、中央（0.0）から、左右は（+-1.0）とする
     const faceParamMaxV: number = 40.0 / 10.0; // 7.5秒間に40分移動(5.3/sc)
     const maxV: number = (faceParamMaxV * 1.0) / FrameRate; // 1frameあたりに変化できる速度の上限
 
-    if (this._lastTimeSeconds == 0.0) {
-      this._lastTimeSeconds = this._userTimeSeconds;
+    if (!this._primed) {
+      // Upstream contract: the first call only anchors the time reference
+      // and integrates nothing.
+      this._primed = true;
       return;
     }
 
-    const deltaTimeWeight: number =
-      (this._userTimeSeconds - this._lastTimeSeconds) * FrameRate;
-    this._lastTimeSeconds = this._userTimeSeconds;
     // Real elapsed time in design-frame units. Every per-frame rate below is
     // scaled by this so the motion is identical at any frame rate.
+    const deltaTimeWeight: number = deltaTimeSeconds * FrameRate;
     if (deltaTimeWeight <= 0.0) return;
     const snap = deltaTimeWeight >= SNAP_FRAME_WEIGHT;
 
@@ -139,15 +141,12 @@ export class CubismTargetPoint {
       // term by deltaTimeWeight so braking stays per-frame at any frame rate;
       // without this, short frames trigger a cap long frames would not, and
       // the glide wobbles at low frame rates.
-
+      //
+      // DSH algebra: 16·maxA·h − 8·maxA·h = 8·maxA·h, and h = d/weight is
+      // computed once instead of twice.
+      const h: number = d / deltaTimeWeight;
       const maxV: number =
-        0.5 *
-        (CubismMath.sqrt(
-            maxA * maxA
-            + 16.0 * maxA * (d / deltaTimeWeight)
-            - 8.0 * maxA * (d / deltaTimeWeight)
-          )
-          - maxA);
+        0.5 * (CubismMath.sqrt(maxA * maxA + 8.0 * maxA * h) - maxA);
       const curV: number = CubismMath.sqrt(
         this._faceVX * this._faceVX + this._faceVY * this._faceVY
       );
@@ -198,8 +197,7 @@ export class CubismTargetPoint {
   private _faceY: number; // 顔の向きY（-1.0 ~ 1.0）
   private _faceVX: number; // 顔の向きの変化速度X
   private _faceVY: number; // 顔の向きの変化速度Y
-  private _lastTimeSeconds: number; // 最後の実行時間[秒]
-  private _userTimeSeconds: number; // デルタ時間の積算値[秒]
+  private _primed: boolean; // DSH: 最初の update() は時間基準の確定のみ
 }
 
 // Namespace definition for compatibility.

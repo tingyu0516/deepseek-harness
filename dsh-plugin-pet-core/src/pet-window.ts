@@ -33,9 +33,7 @@ export interface PetBrowserWindow {
   hide(): void
   isVisible(): boolean
   getBounds(): PetRectangle
-  /** Electron accepts partial rectangles: position-only writes skip the
-   *  expensive resize path a full bounds write takes on Windows. */
-  setBounds(bounds: Pick<PetRectangle, 'x' | 'y'> | PetRectangle): void
+  setBounds(bounds: PetRectangle): void
   setPosition(x: number, y: number): void
   setAlwaysOnTop(flag: boolean, level?: string): void
   setVisibleOnAllWorkspaces(visible: boolean, options?: {
@@ -115,7 +113,7 @@ export interface PetLive2DSelection {
   readonly lookOriginY?: number
   /** How long a tapped expression holds before easing back (ms). */
   readonly expressionHoldMs?: number
-  /** Idle-state variations cycling while the pet is idle. */
+  /** Idle-state variations cycling while no tap expression is showing. */
   readonly idleVariants?: {
     readonly expressions?: readonly string[]
     readonly everyMs?: number
@@ -133,12 +131,6 @@ export interface PetLive2DSelection {
   }
 }
 
-/** Live2D assets one pet plugin exposes to the shared window controller. */
-export interface PetLive2DAssets {
-  /** Plugin-owned directory holding the model, its textures, and the vendor Core script. */
-  readonly dir: string
-}
-
 /**
  * Resolve the Live2D selection from one asset directory and the character's
  * declared metadata. Returns `undefined` when files are absent; callers then
@@ -153,21 +145,8 @@ export function resolvePetLive2DUrls(
   const modelPath = join(assetsDir, live2d.model)
   const corePath = join(assetsDir, live2d.core ?? 'vendor/live2dcubismcore.min.js')
   if (!existsSync(modelPath) || !existsSync(corePath)) return undefined
-  return {
-    model: live2d.model,
-    ...(live2d.hideParameters === undefined ? {} : { hideParameters: live2d.hideParameters }),
-    ...(live2d.expressionParameters === undefined ? {} : { expressionParameters: live2d.expressionParameters }),
-    ...(live2d.tapFallbackGroups === undefined ? {} : { tapFallbackGroups: live2d.tapFallbackGroups }),
-    ...(live2d.hitAreaMotions === undefined ? {} : { hitAreaMotions: live2d.hitAreaMotions }),
-    ...(live2d.motionEndReset === undefined ? {} : { motionEndReset: live2d.motionEndReset }),
-    ...(live2d.expressionCycles === undefined ? {} : { expressionCycles: live2d.expressionCycles }),
-    ...(live2d.lookOriginY === undefined ? {} : { lookOriginY: live2d.lookOriginY }),
-    ...(live2d.expressionHoldMs === undefined ? {} : { expressionHoldMs: live2d.expressionHoldMs }),
-    ...(live2d.idleVariants === undefined ? {} : { idleVariants: live2d.idleVariants }),
-    ...(live2d.hideParts === undefined ? {} : { hideParts: live2d.hideParts }),
-    ...(live2d.expressionRevealParts === undefined ? {} : { expressionRevealParts: live2d.expressionRevealParts }),
-    ...(live2d.outfit === undefined ? {} : { outfit: live2d.outfit }),
-  }
+  const { model, core, ...optional } = live2d
+  return { model, ...optional }
 }
 
 /** One state request pushed into the renderer page. */
@@ -201,15 +180,10 @@ const WORK_AREA_MARGIN_PX = 8
 /** Window pixels reserved above the character so speech never covers the model.
  *  Keep in sync with `--pet-speech-slot` in `pet.html`. */
 export const PET_SPEECH_SLOT_PX = 80
-/** Per-message cap for renderer-driven drag deltas. */
-const MANUAL_MOVE_MAX_PX = 64
 /** Reject grab offsets outside the pet window (plus a small margin). */
 const DRAG_GRAB_MAX_PX = 4096
 const POSITION_SAVE_DEBOUNCE_MS = 600
-/** OS cursor polling cadence for screen-wide look-at tracking and drag follow.
- *  16ms keeps drag follow at display cadence; the renderer's canvas-rect fast
- *  path keeps each poll's coversPoint cost near zero, so poll cadence is no
- *  longer the click-through or drag-follow latency bottleneck. */
+/** OS cursor polling cadence for screen-wide look-at tracking and drag follow. */
 const CURSOR_TRACK_MS = 16
 
 interface PetPositionFile {
@@ -343,6 +317,14 @@ export class PetWindowController {
   /** Designed content size; never re-read from getBounds during drag (DPI drift). */
   private layoutWidth = 0
   private layoutHeight = 0
+  /**
+   * Bounds memo for the cursor poller (one synchronous IPC per tick otherwise).
+   * Written by open/applyScale/drag, which already know the new origin.
+   * Invalidated on 'resize' and window swap. Not invalidated on 'moved':
+   * Windows often emits that after programmatic setBounds with a lagging
+   * getBounds(), which would poison hit-testing and stick click-through on.
+   */
+  private cachedBounds: PetRectangle | undefined
   /** Latest mesh/hide-button hit from the cursor poller. */
   private pointerOnPet = false
   /** Last value sent to {@link PetBrowserWindow.setIgnoreMouseEvents}. */
@@ -423,6 +405,7 @@ export class PetWindowController {
     })
     this.window = window
     this.pageReady = false
+    this.cachedBounds = bounds
     pinPetAcrossWorkspaces(window)
     const lockZoom = window.webContents.setVisualZoomLevelLimits
     if (typeof lockZoom === 'function') void lockZoom.call(window.webContents, 1, 1)
@@ -440,11 +423,13 @@ export class PetWindowController {
     })
     window.on('closed', () => {
       if (this.window === window) this.window = undefined
+      this.cachedBounds = undefined
       this.pageReady = false
       this.stopManualDrag(false)
       this.stopCursorTracking()
     })
     window.on('moved', () => { this.schedulePositionSave() })
+    window.on('resize', () => { this.cachedBounds = undefined })
     this.queueBoot()
     void window.webContents.loadFile(this.options.htmlPath, {
       query: { locale },
@@ -464,6 +449,7 @@ export class PetWindowController {
     this.pendingBoot = undefined
     this.live2dSpec = undefined
     this.bootGate = undefined
+    this.cachedBounds = undefined
     this.pointerOnPet = false
     this.ignoringMouse = undefined
     if (window !== undefined && !window.isDestroyed()) window.close()
@@ -503,13 +489,15 @@ export class PetWindowController {
     const size = petLayoutSize(this.options.character, scale)
     this.layoutWidth = size.width
     this.layoutHeight = size.height
-    window.setBounds(this.clampToDisplay(
+    const next = this.clampToDisplay(
       bounds.x,
       bounds.y,
       size.width,
       size.height,
       this.options.electron.screen,
-    ))
+    )
+    this.cachedBounds = next
+    window.setBounds(next)
   }
 
   /** Re-send the boot payload (for example after preference changes). */
@@ -666,43 +654,10 @@ export class PetWindowController {
       this.stopManualDrag(true)
       return
     }
-    if (command === 'move') {
-      this.handleManualMove(url.searchParams.get('dx'), url.searchParams.get('dy'))
-      return
-    }
     if (command === 'live2dfailed') {
       const reason = url.searchParams.get('r') ?? ''
       if (reason !== '') this.options.log?.(`live2d attach failed in renderer: ${reason}`)
     }
-  }
-
-  /**
-   * Renderer-driven drag: apply one incremental integer offset. The constant
-   * per-message cap keeps a rogue page from teleporting the window, and the
-   * display-bounds clamp keeps it on this screen (including over the Dock).
-   * The `moved` listener already debounce-persists the resulting position.
-   */
-  private handleManualMove(rawDx: string | null, rawDy: string | null): void {
-    const parsedDx = Number.parseInt(rawDx ?? '', 10)
-    const parsedDy = Number.parseInt(rawDy ?? '', 10)
-    if (Number.isNaN(parsedDx) || Number.isNaN(parsedDy)) return
-    const dx = clamp(parsedDx, -MANUAL_MOVE_MAX_PX, MANUAL_MOVE_MAX_PX)
-    const dy = clamp(parsedDy, -MANUAL_MOVE_MAX_PX, MANUAL_MOVE_MAX_PX)
-    if (dx === 0 && dy === 0) return
-    const window = this.window
-    if (window === undefined || window.isDestroyed()) return
-    const bounds = window.getBounds()
-    const width = this.layoutWidth || bounds.width
-    const height = this.layoutHeight || bounds.height
-    const next = this.clampToDisplay(
-      bounds.x + dx,
-      bounds.y + dy,
-      width,
-      height,
-      this.options.electron.screen,
-    )
-    // Position-only write, same resize-path rationale as tickManualDrag.
-    window.setBounds({ x: next.x, y: next.y })
   }
 
   /** Follow the OS cursor until {@link stopManualDrag}, using the grab offset. */
@@ -715,30 +670,10 @@ export class PetWindowController {
     this.dragGrab = { ox, oy }
     this.stopCursorTracking()
     this.syncClickThrough()
-    this.pinDesignedSize()
-    this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(true);`)
     if (this.dragTimer === undefined) {
       this.dragTimer = setInterval(() => { this.tickManualDrag() }, CURSOR_TRACK_MS)
     }
     this.tickManualDrag()
-  }
-
-  /**
-   * One cold-path size pin per drag: re-asserts the designed layout size so
-   * Windows DPI drift cannot persist, while the 16ms drag ticks stay
-   * position-only (see tickManualDrag — a size write there takes the resize
-   * path and made the window trail the cursor). Reads the designed size, not
-   * getBounds, so the legacy HiDPI growth feedback loop cannot fire.
-   */
-  private pinDesignedSize(): void {
-    const window = this.window
-    if (window === undefined || window.isDestroyed()) return
-    const width = this.layoutWidth
-    const height = this.layoutHeight
-    if (width <= 0 || height <= 0) return
-    const bounds = window.getBounds()
-    if (bounds.width === width && bounds.height === height) return
-    window.setBounds({ x: bounds.x, y: bounds.y, width, height })
   }
 
   /**
@@ -752,8 +687,10 @@ export class PetWindowController {
       this.dragTimer = undefined
     }
     this.dragGrab = undefined
+    // Force a setIgnoreMouseEvents round-trip: Windows can drop forwarded
+    // mouse events after a capture/ignore toggle around a move.
+    this.ignoringMouse = undefined
     this.syncClickThrough()
-    this.run(`var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setSuspended)rt.setSuspended(false);`)
     if (resumeLookAt && this.isVisible()) this.startCursorTracking()
   }
 
@@ -775,13 +712,8 @@ export class PetWindowController {
       height,
       this.options.electron.screen,
     )
-    // Pure move, never a size write: on Windows every setBounds carrying
-    // width/height takes the expensive resize path (surface re-allocation)
-    // for a transparent window, and at 16ms cadence that queue is what made
-    // the window trail the cursor. Position-only moves skip it, and the
-    // legacy HiDPI growth bug it pinned against cannot fire without a size
-    // write.
-    window.setBounds({ x: next.x, y: next.y })
+    this.cachedBounds = next
+    window.setBounds(next)
   }
 
   private run(code: string, delayMs?: number): void {
@@ -814,30 +746,49 @@ export class PetWindowController {
   }
 
   private pollCursor(): void {
-    const window = this.window
-    if (window === undefined || window.isDestroyed() || !this.isOpen() || !this.isVisible()) return
+    if (!this.isVisible()) return
+    const window = this.window!
     const point = this.options.electron.screen?.getCursorScreenPoint?.()
     if (point === undefined) return
-    const bounds = window.getBounds()
+    // The window only moves or resizes through open/applyScale/drag (drag
+    // stops this poller and writes cachedBounds itself), so bounds between
+    // those events are constant: caching them drops a synchronous getBounds
+    // IPC from every 16ms tick. Do not refill from getBounds() after a drag:
+    // Windows returns the pre-move origin until the OS catches up.
+    const bounds = this.cachedBounds ?? (this.cachedBounds = window.getBounds())
     const x = point.x - bounds.x
     const y = point.y - bounds.y
     if (this.lastCursor !== undefined && this.lastCursor.x === x && this.lastCursor.y === y) return
     this.lastCursor = { x, y }
+    // Outside the window neither the model nor the hide button can be hit:
+    // clear the hit state locally and only feed the gaze target, skipping the
+    // per-tick hit-test evaluation (and its getBoundingClientRect layout
+    // read) in the renderer.
+    if (x < 0 || y < 0 || x >= bounds.width || y >= bounds.height) {
+      this.pointerOnPet = false
+      this.syncClickThrough()
+      this.run(
+        `var rt=window.__dshPetLive2DRuntime;if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});`
+        + `window.__dshPet&&window.__dshPet.setOnPet&&window.__dshPet.setOnPet(false);`,
+      )
+      return
+    }
+    // The page keeps a resize-refreshed hide-button rect (see pet.html); the
+    // injected poll reuses it instead of a per-tick getBoundingClientRect.
     const code = `(function(){`
       + `var rt=window.__dshPetLive2DRuntime;`
       + `if(rt&&rt.setPointer)rt.setPointer(${x}, ${y});`
-      + `var hide=document.getElementById('hide');`
-      + `if(hide){var r=hide.getBoundingClientRect();`
-      + `if(${x}>=r.left&&${x}<r.right&&${y}>=r.top&&${y}<r.bottom)return true;}`
+      + `var hr=window.__dshPetHideRect;`
+      + `if(hr&&${x}>=hr.left&&${x}<hr.right&&${y}>=hr.top&&${y}<hr.bottom)return true;`
       + `return !!(rt&&rt.coversPoint&&rt.coversPoint(${x}, ${y}));`
       + `})()`
     void window.webContents.executeJavaScript(code, true).then((hit: unknown) => {
       if (this.window !== window || window.isDestroyed()) return
       this.pointerOnPet = hit === true
       this.syncClickThrough()
+      this.run(`window.__dshPet&&window.__dshPet.setOnPet&&window.__dshPet.setOnPet(${hit === true});`)
     }).catch(() => {})
   }
-
   /** Capture clicks only on the model (or while dragging); empty pixels click through. */
   private syncClickThrough(): void {
     const window = this.window

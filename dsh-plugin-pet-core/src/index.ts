@@ -40,7 +40,6 @@ export type {
   PetBootPayload,
   PetBrowserWindow,
   PetElectron,
-  PetLive2DAssets,
   PetLive2DSelection,
   PetRectangle,
   PetRuntimeHost,

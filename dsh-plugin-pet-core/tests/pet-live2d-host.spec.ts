@@ -95,11 +95,17 @@ describe('pet live2d host', () => {
     expect(src).not.toContain("region === 'rightHand'")
   })
 
-  it('starts the idle variant timer before the first render frame', () => {
+  it('keeps the agreed gesture map: calf walks, only right-click shrugs, idle variants cycle', () => {
     const src = readFileSync(join(packageRoot, 'src/live2d/viewer.ts'), 'utf8')
-    const attachStart = src.indexOf('async function attach(')
-    const attach = src.slice(attachStart)
+    expect(src).toContain("calf: ['walkSwitch']")
+    // Left-click never falls back to the Pat motion; pet.html's contextmenu
+    // handler is the only Pat entry.
+    const tapStart = src.indexOf('tap(clientX: number, clientY: number): string {')
+    const tapBody = src.slice(tapStart, src.indexOf('setPointer(clientX?: number', tapStart))
+    expect(tapBody).not.toMatch(/if \(!name\) playFirstGroup/u)
+    const attach = src.slice(src.indexOf('async function attach('))
     expect(attach.indexOf('startVariantTicker()')).toBeGreaterThanOrEqual(0)
     expect(attach.indexOf('startVariantTicker()')).toBeLessThan(attach.indexOf('loop()'))
+    expect(src).toMatch(/function loop\(\): void \{\s*variantTick\(\)/u)
   })
 })

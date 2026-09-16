@@ -1,6 +1,6 @@
 /** Generate the macOS Dock icon with the platform's visual safe area. */
 
-import { writeFile } from 'node:fs/promises'
+import { statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -17,7 +17,27 @@ const sourcePath = join(packageRoot, 'build', 'app-icon.png')
 const outputPath = join(packageRoot, 'build', 'app-icon-mac.png')
 
 /**
+ * Whether a PNG's metadata matches the macOS icon contract.
+ * @param {import('sharp').Metadata} metadata
+ * @param {Buffer | undefined} icc - source ICC profile the icon must carry.
+ */
+function matchesIconContract(metadata, icc) {
+  return metadata.format === 'png'
+    && metadata.width === MAC_APP_ICON_CANVAS_SIZE
+    && metadata.height === MAC_APP_ICON_CANVAS_SIZE
+    && metadata.space === 'rgb16'
+    && metadata.depth === 'ushort'
+    && metadata.bitsPerSample === 16
+    && metadata.channels === 4
+    && metadata.hasAlpha === true
+    && icc !== undefined
+    && metadata.icc?.equals(icc) === true
+}
+
+/**
  * Derive the macOS application icon without changing the cross-platform source.
+ * An output that already satisfies the contract is left untouched so a routine
+ * build never rewrites a multi-megabyte file.
  * @param {string} source - absolute path to the square source PNG.
  * @param {string} output - absolute path for the generated macOS PNG.
  * @returns {Promise<void>} Resolves after the complete PNG has been written.
@@ -28,21 +48,19 @@ export async function generateMacAppIcon(source = sourcePath, output = outputPat
   }
 
   const metadata = await sharp(source).metadata()
-  if (
-    metadata.format !== 'png'
-    || metadata.width !== MAC_APP_ICON_CANVAS_SIZE
-    || metadata.height !== MAC_APP_ICON_CANVAS_SIZE
-    || metadata.space !== 'rgb16'
-    || metadata.depth !== 'ushort'
-    || metadata.bitsPerSample !== 16
-    || metadata.channels !== 4
-    || metadata.hasAlpha !== true
-    || metadata.icc === undefined
-  ) {
+  if (!matchesIconContract(metadata, metadata.icc)) {
     throw new Error(
       `generate-mac-app-icon: source must be a ${MAC_APP_ICON_CANVAS_SIZE}x${MAC_APP_ICON_CANVAS_SIZE} RGBA16 PNG with an ICC profile`,
     )
   }
+
+  let existing
+  try {
+    existing = statSync(output).isFile() ? await sharp(output).metadata() : undefined
+  } catch {
+    existing = undefined
+  }
+  if (existing !== undefined && matchesIconContract(existing, metadata.icc)) return
 
   const rendered = await sharp(source, { failOn: 'warning' })
     .resize({
@@ -69,21 +87,11 @@ export async function generateMacAppIcon(source = sourcePath, output = outputPat
     .toBuffer()
 
   const generated = await sharp(rendered).metadata()
-  if (
-    generated.format !== 'png'
-    || generated.width !== MAC_APP_ICON_CANVAS_SIZE
-    || generated.height !== MAC_APP_ICON_CANVAS_SIZE
-    || generated.space !== 'rgb16'
-    || generated.depth !== 'ushort'
-    || generated.bitsPerSample !== 16
-    || generated.channels !== 4
-    || generated.hasAlpha !== true
-    || generated.icc?.equals(metadata.icc) !== true
-  ) {
+  if (!matchesIconContract(generated, metadata.icc)) {
     throw new Error('generate-mac-app-icon: generated icon did not preserve the source color data')
   }
 
-  await writeFile(output, rendered)
+  writeFileSync(output, rendered)
 }
 
 const invokedPath = process.argv[1]

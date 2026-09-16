@@ -19,6 +19,7 @@
     "src/live2d/**/*.ts",
     "vendor/cubism-sample/**/*.ts",
     "vendor/cubism-core/live2dcubismcore.d.ts",
-    "tests/pet-lookat-easing.spec.ts"
+    "tests/pet-lookat-easing.spec.ts",
+    "tests/pet-projection-closed-form.spec.ts"
   ]
 }

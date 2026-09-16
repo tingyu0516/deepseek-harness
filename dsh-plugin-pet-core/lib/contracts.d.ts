@@ -101,10 +101,9 @@ export interface PetLive2DDocument {
      */
     readonly expressionHoldMs?: number;
     /**
-     * Idle-state variations: while the pet is idle, activate one of the named
-     * expressions for `holdMs` every `everyMs` milliseconds (e.g. Furina's
-     * `walkSwitch` walking legs as a second idle stance). Taps override a
-     * running variant.
+     * Idle-state variations: while no tap expression is showing, activate one
+     * of the named expressions for `holdMs` every `everyMs` milliseconds
+     * (Furina's `walkSwitch` walking stance). A tap ends a running variant.
      */
     readonly idleVariants?: {
         readonly expressions?: readonly string[];
@@ -118,8 +117,9 @@ export interface PetLive2DDocument {
      */
     readonly hideParts?: readonly string[];
     /**
-     * Parts to stop pinning while a named expression is active. Furina's
-     * `walkSwitch` reveals `Part148` (走路2) for the walking overlay.
+     * Parts to stop pinning while a named expression is active. Optional:
+     * omitted entirely when a character's hidden parts must stay hidden
+     * unconditionally (Furina's walking overlay bakes the signboard art).
      */
     readonly expressionRevealParts?: Readonly<Record<string, readonly string[]>>;
     /**

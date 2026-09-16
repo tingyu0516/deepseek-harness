@@ -90,4 +90,26 @@ describe('pet.html renderer contract', () => {
   it('honors reduced-motion preferences for the bubble', () => {
     expect(page).toContain('prefers-reduced-motion')
   })
+
+  it('never exposes native tooltips on a focusless click-through window', () => {
+    // The pet window is transparent, frameless, focusless, and forwards mouse
+    // moves while click-through: Chromium never observes a reliable
+    // mouseleave there, so any title attribute becomes a tooltip that stays
+    // on screen after the cursor leaves. Assert no title attribute or element
+    // title assignment exists (document.title only names the frameless
+    // window and triggers no tooltip).
+    expect(page).not.toMatch(/\stitle\s*=/u)
+    // document.title names the frameless window (no tooltip); every other
+    // element title assignment is forbidden.
+    const withoutWindowTitle = page.split('\n').filter(line => !line.includes('document.title')).join('\n')
+    expect(withoutWindowTitle).not.toMatch(/[\w$]+\.title\s*=[^=]/u)
+  })
+
+  it('drives the hide button from the host cursor poll, not :hover', () => {
+    // With forwarded mouse moves and ignore-mouse-events, :hover state sticks
+    // once entered; the host poll mirrors its hit result onto body.on-pet.
+    expect(page).toContain('body.on-pet .hide')
+    expect(page).not.toContain('.stage:hover .hide')
+    expect(page).toContain('setOnPet: function')
+  })
 })

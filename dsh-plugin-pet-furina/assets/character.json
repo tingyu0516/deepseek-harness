@@ -151,11 +151,6 @@
       "Part187",
       "Part148"
     ],
-    "expressionRevealParts": {
-      "walkSwitch": [
-        "Part148"
-      ]
-    },
     "outfit": {
       "parameter": "Param4"
     },

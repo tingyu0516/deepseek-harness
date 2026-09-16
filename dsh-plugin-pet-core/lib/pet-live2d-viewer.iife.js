@@ -4488,8 +4488,7 @@
 			this._faceY = 0;
 			this._faceVX = 0;
 			this._faceVY = 0;
-			this._lastTimeSeconds = 0;
-			this._userTimeSeconds = 0;
+			this._primed = false;
 		}
 		/**
 		* 更新処理
@@ -4502,16 +4501,20 @@
 		* matches the design 4.0/s at any frame rate; a single long gap (drag
 		* suspension, throttling) snaps to the target instead of integrating one
 		* oversized step.
+		*
+		* DSH algebra: upstream books `_userTimeSeconds += dt` and diffs it against
+		* `_lastTimeSeconds` each call. That accumulator equals `dt * FrameRate`
+		* exactly (floating point identical until the accumulated sum grows so
+		* large that the addition itself rounds — years of uptime), so both state
+		* fields and the anchor branch collapse into one primed flag.
 		*/
 		update(deltaTimeSeconds) {
-			this._userTimeSeconds += deltaTimeSeconds;
 			const maxV = 40 / 10 * 1 / FrameRate;
-			if (this._lastTimeSeconds == 0) {
-				this._lastTimeSeconds = this._userTimeSeconds;
+			if (!this._primed) {
+				this._primed = true;
 				return;
 			}
-			const deltaTimeWeight = (this._userTimeSeconds - this._lastTimeSeconds) * FrameRate;
-			this._lastTimeSeconds = this._userTimeSeconds;
+			const deltaTimeWeight = deltaTimeSeconds * FrameRate;
 			if (deltaTimeWeight <= 0) return;
 			const snap = deltaTimeWeight >= SNAP_FRAME_WEIGHT;
 			const frameToMaxSpeed = .15 * FrameRate;
@@ -4539,7 +4542,8 @@
 			this._faceVX += ax;
 			this._faceVY += ay;
 			{
-				const maxV = .5 * (CubismMath.sqrt(maxA * maxA + 16 * maxA * (d / deltaTimeWeight) - 8 * maxA * (d / deltaTimeWeight)) - maxA);
+				const h = d / deltaTimeWeight;
+				const maxV = .5 * (CubismMath.sqrt(maxA * maxA + 8 * maxA * h) - maxA);
 				const curV = CubismMath.sqrt(this._faceVX * this._faceVX + this._faceVY * this._faceVY);
 				if (curV > maxV) {
 					this._faceVX *= maxV / curV;
@@ -4581,8 +4585,7 @@
 		_faceY;
 		_faceVX;
 		_faceVY;
-		_lastTimeSeconds;
-		_userTimeSeconds;
+		_primed;
 	};
 	let Live2DCubismFramework$30;
 	(function(_Live2DCubismFramework) {
@@ -14827,9 +14830,6 @@
 	let restParameters;
 	let restPartOpacities;
 	let motionWasPlaying = false;
-	function status(value) {
-		window.__DSH_PET_LIVE2D_STATUS = value;
-	}
 	function startFramework() {
 		if (frameworkStarted) return;
 		const core = window.Live2DCubismCore;
@@ -14869,8 +14869,8 @@
 		canvas.height = height;
 	}
 	function clientToView(clientX, clientY) {
-		if (canvasEl === void 0) return void 0;
-		const box = canvasEl.getBoundingClientRect();
+		if (canvasEl === void 0 || canvasRect === void 0) return void 0;
+		const box = canvasRect;
 		if (box.width < 2 || box.height < 2) return void 0;
 		const deviceX = (clientX - box.left) * (canvasEl.width / box.width);
 		const deviceY = (clientY - box.top) * (canvasEl.height / box.height);
@@ -14881,11 +14881,29 @@
 	}
 	function hitAreaNames() {
 		const setting = model?._modelSetting;
-		if (setting === void 0) return [];
-		const names = [];
-		const count = setting.getHitAreasCount();
-		for (let i = 0; i < count; i += 1) names.push(setting.getHitAreaName(i));
-		return names;
+		if (setting === void 0) return EMPTY_HIT_AREAS;
+		if (hitAreasCache === void 0) {
+			const names = [];
+			const count = setting.getHitAreasCount();
+			for (let i = 0; i < count; i += 1) names.push(setting.getHitAreaName(i));
+			hitAreasCache = names;
+		}
+		return hitAreasCache;
+	}
+	const EMPTY_HIT_AREAS = [];
+	let hitAreasCache;
+	/**
+	* Layout rects of the canvas and the wrap, cached because both elements sit
+	* inside the fixed stage: their rects only change when the canvas backing
+	* size changes (attach, resize handler). Every cursor-move read of
+	* getBoundingClientRect forces layout, so the hit/look paths read these
+	* memoized values instead; refreshRects() runs at each invalidation point.
+	*/
+	let canvasRect;
+	let wrapRectHeight = 0;
+	function refreshRects() {
+		canvasRect = canvasEl === void 0 ? void 0 : canvasEl.getBoundingClientRect();
+		wrapRectHeight = wrapEl === void 0 ? 0 : wrapEl.getBoundingClientRect().height;
 	}
 	/**
 	* Screen-space bounding boxes of the declared hit areas, scanned on an 8px
@@ -14949,8 +14967,8 @@
 		const now = Date.now();
 		if (now - maskDataAt < MASK_REFRESH_MS) return;
 		maskDataAt = now;
-		if (canvasEl === void 0) return;
-		const box = canvasEl.getBoundingClientRect();
+		if (canvasEl === void 0 || canvasRect === void 0) return;
+		const box = canvasRect;
 		if (box.width < 2 || box.height < 2) return;
 		window.devicePixelRatio;
 		const cell = Math.max(box.width, box.height) / MASK_MAX_CELLS;
@@ -14974,8 +14992,8 @@
 	}
 	function coversMasked(clientX, clientY) {
 		if (canvasEl === void 0 || maskData === void 0 || maskW < 1 || maskH < 1) return false;
-		const box = canvasEl.getBoundingClientRect();
-		if (box.width < 2 || box.height < 2) return false;
+		const box = canvasRect;
+		if (box === void 0 || box.width < 2 || box.height < 2) return false;
 		const cx = Math.floor((clientX - box.left) / box.width * maskW);
 		const cy = Math.floor((clientY - box.top) / box.height * maskH);
 		if (cx < 0 || cx >= maskW || cy < 0 || cy >= maskH) return false;
@@ -14989,12 +15007,17 @@
 		if (motions === void 0) return;
 		for (const [name, motion] of motions) motion.setLoop(name.startsWith("Idle"));
 	}
+	/** Cubism setting accessor; undefined before the model finishes loading. */
+	function modelSetting() {
+		return model?._modelSetting;
+	}
 	function motionCount(group) {
-		return (model?._modelSetting)?.getMotionCount(group) ?? 0;
+		return modelSetting()?.getMotionCount(group) ?? 0;
 	}
 	function hasFormToggle() {
 		return motionCount("Sad") > 0 && motionCount("Special") > 0;
 	}
+	/** The form switch parameter a rig declares, or the Furina default. */
 	function formParameter() {
 		return attachedSpec.outfit?.parameter ?? (hasFormToggle() ? "Param4" : void 0);
 	}
@@ -15010,6 +15033,36 @@
 		const parameter = formParameter();
 		if (parameter !== void 0) cubism.setParameterValueById(ids.getId(parameter), formLatch);
 		cubism.saveParameters();
+	}
+	let hideParamCache = [];
+	let exprParamCache = [];
+	let cycleCache = [];
+	let hidePartCache = [];
+	let revealPartCache = {};
+	const NO_PART_INDEXES = [];
+	let formParamIndex = -1;
+	/** Resolve the write-cache indices from the just-attached model. */
+	function buildWriteCaches(cubism) {
+		const ids = CubismFramework.getIdManager();
+		const paramIndex = (id) => cubism.getParameterIndex(ids.getId(id));
+		hideParamCache = Object.freeze((attachedSpec.hideParameters ?? []).map(paramIndex));
+		exprParamCache = Object.freeze(Object.entries(attachedSpec.expressionParameters ?? {}).map(([name, id]) => ({
+			name,
+			index: paramIndex(id)
+		})));
+		cycleCache = Object.freeze(Object.entries(attachedSpec.expressionCycles ?? {}).map(([name, cycle]) => ({
+			name,
+			index: paramIndex(cycle.param),
+			from: cycle.from,
+			to: cycle.to,
+			period: cycle.period
+		})));
+		hidePartCache = Object.freeze((attachedSpec.hideParts ?? []).map((id) => cubism.getPartIndex(ids.getId(id))));
+		const reveal = {};
+		for (const [name, partIds] of Object.entries(attachedSpec.expressionRevealParts ?? {})) reveal[name] = Object.freeze(partIds.map((id) => cubism.getPartIndex(ids.getId(id))));
+		revealPartCache = reveal;
+		const formParameterId = attachedSpec.outfit?.parameter ?? (hasFormToggle() ? "Param4" : void 0);
+		formParamIndex = formParameterId === void 0 ? -1 : paramIndex(formParameterId);
 	}
 	function endFormMotion() {
 		formPlaying = false;
@@ -15047,7 +15100,7 @@
 	}
 	function playFirstGroup(groups, priority = 2) {
 		if (model === void 0 || !ready) return 0;
-		const setting = model._modelSetting;
+		const setting = modelSetting();
 		if (setting === void 0) return 0;
 		for (const group of groups) if (setting.getMotionCount(group) > 0) return playGroup(group, priority);
 		return 0;
@@ -15069,19 +15122,15 @@
 			tick();
 		});
 	}
-	function setOpacity(partId, opacity) {
-		model?.getModel()?.setPartOpacityById(CubismFramework.getIdManager().getId(partId), opacity);
-	}
 	function setParam(parameterId, value) {
 		model?.getModel()?.setParameterValueById(CubismFramework.getIdManager().getId(parameterId), value);
 	}
 	/** Turn one tapped expression on with an auto-release; empty name clears now. */
 	function applyTapExpression(name) {
 		activeExpression = name;
-		if (variantActive !== void 0) {
-			variantActive = void 0;
+		if (variantEndAt !== 0) {
 			variantEndAt = 0;
-			variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? 2e4);
+			variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? VARIANT_EVERY_MS);
 		}
 		if (expressionHoldTimer !== 0) clearTimeout(expressionHoldTimer);
 		expressionHoldTimer = 0;
@@ -15093,91 +15142,85 @@
 		activeExpression = "";
 	}
 	/**
-	* Idle-state variants (e.g. Furina's walking legs): while the pet idles,
-	* activate a spec-declared expression for a few seconds every so often.
-	* A user tap cancels the running variant; the cycle restarts afterwards.
+	* Idle-state variants (Furina's walking stance): every `everyMs` while no
+	* tap expression is showing, activate one spec-declared expression for
+	* `holdMs`. Rides the render loop because setInterval is throttled for this
+	* window type. A tap expression owns the face while it lasts: the cycle
+	* waits for it instead of clearing it, and a tap during a variant ends the
+	* variant (see applyTapExpression). `variantEndAt !== 0` is the single
+	* "variant running" flag.
 	*/
+	const VARIANT_EVERY_MS = 2e4;
+	const VARIANT_HOLD_MS = 8e3;
 	let variantEndAt = 0;
 	let variantNextAt = 0;
-	/** The expression the idle variant activated (distinct from tap expressions). */
-	let variantActive;
-	function pickIdleVariant() {
-		const pool = attachedSpec.idleVariants?.expressions?.filter((name) => name !== activeExpression) ?? [];
-		if (pool.length === 0) return void 0;
-		return pool[Math.floor(Math.random() * pool.length)];
-	}
 	function variantTick() {
-		const now = Date.now();
-		if (model === void 0 || !ready) return;
 		const variants = attachedSpec.idleVariants;
-		if (variants === void 0) return;
+		if (variants === void 0 || !ready) return;
+		const now = Date.now();
 		if (variantEndAt !== 0) {
-			if (now >= variantEndAt) {
-				variantEndAt = 0;
-				activeExpression = "";
-				variantActive = void 0;
-				variantNextAt = now + (variants.everyMs ?? 2e4);
-			}
+			if (now < variantEndAt) return;
+			variantEndAt = 0;
+			activeExpression = "";
+			variantNextAt = now + (variants.everyMs ?? VARIANT_EVERY_MS);
 			return;
 		}
-		if (activeExpression !== "") {
-			if (now >= variantNextAt && now >= variantEndAt) activeExpression = "";
-			return;
-		}
-		if (now < variantNextAt) return;
-		const pick = pickIdleVariant();
+		if (activeExpression !== "" || now < variantNextAt) return;
+		const pool = variants.expressions ?? [];
+		const pick = pool[Math.floor(Math.random() * pool.length)];
 		if (pick === void 0) return;
-		variantActive = pick;
-		variantEndAt = now + (variants.holdMs ?? 8e3);
+		variantEndAt = now + (variants.holdMs ?? VARIANT_HOLD_MS);
 		activeExpression = pick;
 	}
 	function startVariantTicker() {
-		variantActive = void 0;
-		variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? 2e4);
 		variantEndAt = 0;
+		variantNextAt = Date.now() + (attachedSpec.idleVariants?.everyMs ?? VARIANT_EVERY_MS);
 	}
 	function stopVariantTicker() {
 		variantEndAt = 0;
 		variantNextAt = 0;
-		variantActive = void 0;
 	}
 	/** Ease expressionWeight toward its target each frame so expressions fade. */
 	function advanceExpressionFade() {
 		const target = activeExpression === "" ? 0 : 1;
-		const duration = target > expressionProgress ? 1 : 1;
-		const dt = Math.min(LAppPal.getDeltaTime(), .1);
 		if (expressionProgress !== target) {
-			expressionProgress += Math.sign(target - expressionProgress) * dt / duration;
+			const dt = Math.min(LAppPal.getDeltaTime(), .1);
+			expressionProgress += Math.sign(target - expressionProgress) * dt;
 			if (expressionProgress < 0) expressionProgress = 0;
 			if (expressionProgress > 1) expressionProgress = 1;
+			const t = expressionProgress;
+			expressionWeight = t * t * t * (t * (t * 6 - 15) + 10);
 		}
-		const t = expressionProgress;
-		expressionWeight = t * t * t * (t * (t * 6 - 15) + 10);
 	}
 	/** Sawtooth-cycle params declared for the active expression (fan spins etc.). */
-	function applyExpressionCycles() {
-		const cycles = attachedSpec.expressionCycles;
-		if (cycles === void 0) return;
+	function applyExpressionCycles(cubism) {
+		const cycles = cycleCache;
+		if (cycles.length === 0) return;
+		const active = activeExpression;
 		const seconds = performance.now() / 1e3;
-		for (const [name, cycle] of Object.entries(cycles)) {
-			if (activeExpression !== name) {
-				setParam(cycle.param, cycle.from);
+		for (const cycle of cycles) {
+			if (active !== cycle.name) {
+				cubism.setParameterValueByIndex(cycle.index, cycle.from);
 				continue;
 			}
 			const phase = seconds % cycle.period / cycle.period;
-			setParam(cycle.param, cycle.from + (cycle.to - cycle.from) * phase);
+			cubism.setParameterValueByIndex(cycle.index, cycle.from + (cycle.to - cycle.from) * phase);
 		}
 	}
 	function applyOverrides() {
-		for (const name of attachedSpec.hideParameters ?? []) setParam(name, 0);
-		for (const [name, id] of Object.entries(attachedSpec.expressionParameters ?? {})) setParam(id, name === activeExpression ? expressionWeight : 0);
-		applyExpressionCycles();
-		const parameter = formParameter();
-		if (parameter !== void 0 && !formPlaying) setParam(parameter, formLatch);
+		const cubism = model?.getModel();
+		if (cubism === void 0) return;
+		for (const index of hideParamCache) cubism.setParameterValueByIndex(index, 0);
+		const active = activeExpression;
+		for (const entry of exprParamCache) cubism.setParameterValueByIndex(entry.index, entry.name === active ? expressionWeight : 0);
+		applyExpressionCycles(cubism);
+		if (formParamIndex >= 0 && !formPlaying) cubism.setParameterValueByIndex(formParamIndex, formLatch);
 	}
 	function applyHiddenParts() {
-		const revealed = attachedSpec.expressionRevealParts?.[activeExpression] ?? [];
-		for (const name of attachedSpec.hideParts ?? []) if (!revealed.includes(name)) setOpacity(name, 0);
+		const cubism = model?.getModel();
+		if (cubism === void 0) return;
+		const revealed = revealPartCache[activeExpression] ?? NO_PART_INDEXES;
+		for (const index of hidePartCache) if (!revealed.includes(index)) cubism.setPartOpacityByIndex(index, 0);
 	}
 	function regionOf(handle) {
 		for (const name in PART_REGION) if (handle.isEqual(name)) return PART_REGION[name] ?? "";
@@ -15236,45 +15279,52 @@
 		}
 		return best;
 	}
+	/** Persistent projection matrix; drawFrame writes its cells directly. */
+	const projectionMatrix = new CubismMatrix44();
+	/**
+	* The GL context and the offscreen singleton are process-wide constants
+	* between attach and release (the context is created once per canvas); the
+	* frame path reads them through module memoization instead of walking
+	* getGl()/getInstance() each frame. Cleared in releaseModel().
+	*/
+	let glContext;
+	let offscreenManager;
 	function drawFrame() {
 		if (model === void 0 || subdelegate === void 0 || canvasEl === void 0) return;
 		LAppPal.updateTime();
-		const gl = subdelegate.getGl();
-		CubismWebGLOffscreenManager.getInstance().beginFrameProcess(gl);
+		const gl = glContext ?? subdelegate.getGl();
+		const offscreen = offscreenManager ?? CubismWebGLOffscreenManager.getInstance();
+		offscreen.beginFrameProcess(gl);
 		gl.viewport(0, 0, canvasEl.width, canvasEl.height);
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		const { width, height } = canvasEl;
-		const projection = new CubismMatrix44();
 		const cubismModel = model.getModel();
 		if (cubismModel) {
-			if (cubismModel.getCanvasWidth() > 1 && width < height) {
-				model.getModelMatrix().setWidth(2);
-				projection.scale(1, width / height);
-			} else projection.scale(height / width, 1);
-			projection.multiplyByMatrix(view.getViewMatrix());
+			const wide = cubismModel.getCanvasWidth() > 1 && width < height;
+			if (wide) model.getModelMatrix().setWidth(2);
+			const sx = Math.fround(wide ? 1 : height / width);
+			const sy = Math.fround(wide ? width / height : 1);
+			const viewTr = view.getViewMatrix().getArray();
+			const tr = projectionMatrix.getArray();
+			for (let col = 0; col < 4; ++col) {
+				const f = col === 0 ? sx : col === 1 ? sy : 1;
+				tr[col] = Math.fround(viewTr[col] * f);
+				tr[col + 4] = Math.fround(viewTr[col + 4] * f);
+				tr[col + 8] = Math.fround(viewTr[col + 8] * f);
+				tr[col + 12] = Math.fround(viewTr[col + 12] * f);
+			}
 		}
 		model.update();
-		model.draw(projection);
-		CubismWebGLOffscreenManager.getInstance().endFrameProcess(gl);
-		CubismWebGLOffscreenManager.getInstance().releaseStaleRenderTextures(gl);
+		model.draw(projectionMatrix);
+		offscreen.endFrameProcess(gl);
+		offscreen.releaseStaleRenderTextures(gl);
 		refreshCoverageMask();
 	}
 	function loop() {
 		variantTick();
 		drawFrame();
 		raf = requestAnimationFrame(loop);
-	}
-	/** Freeze the render loop while the host drags the window: a transparent
-	*  window's every move needs a compositor pass, and racing the Live2D frame
-	*  for the GPU made the window trail the cursor. The canvas keeps its last
-	*  drawn frame, so the pet rides along as a still image. */
-	function setSuspended(suspended) {
-		if (suspended) {
-			stopLoop();
-			return;
-		}
-		if (raf === 0 && model !== void 0 && ready) loop();
 	}
 	function stopLoop() {
 		if (raf !== 0) cancelAnimationFrame(raf);
@@ -15292,17 +15342,23 @@
 		maskDataAt = 0;
 		maskW = 0;
 		maskH = 0;
+		hideParamCache = [];
+		exprParamCache = [];
+		cycleCache = [];
+		hidePartCache = [];
+		revealPartCache = {};
+		formParamIndex = -1;
+		hitAreasCache = void 0;
 		model?.release();
 		model = void 0;
 		subdelegate?.release();
 		subdelegate = void 0;
+		glContext = void 0;
+		offscreenManager = void 0;
 		ready = false;
 	}
 	async function attach(wrap, spec) {
-		if (!spec.model) {
-			status("no model");
-			return false;
-		}
+		if (!spec.model) return false;
 		startFramework();
 		attachedSpec = spec;
 		if (spec.expressionHoldMs !== void 0) EXPRESSION_HOLD_MS = spec.expressionHoldMs;
@@ -15318,6 +15374,8 @@
 		const next = new LAppSubdelegate();
 		if (!next.initialize(canvas)) throw new Error("webgl unavailable");
 		subdelegate = next;
+		glContext = next.getGl();
+		offscreenManager = CubismWebGLOffscreenManager.getInstance();
 		view = new PetCubismView();
 		view.initialize(canvas.width, canvas.height);
 		LAppPal.updateTime();
@@ -15327,25 +15385,26 @@
 			advanceExpressionFade();
 			applyOverrides();
 			applyHiddenParts();
-			const motionFinished = (model?._motionManager)?.isFinished() ?? true;
-			if (restParameters !== void 0 && motionWasPlaying && motionFinished) {
-				const cubism = model.getModel();
-				if (cubism) {
-					for (let i = 0; i < restParameters.length; i++) cubism.setParameterValueByIndex(i, restParameters[i]);
-					for (let i = 0; i < restPartOpacities.length; i++) cubism.setPartOpacityByIndex(i, restPartOpacities[i]);
-					cubism.saveParameters();
+			if (restParameters !== void 0) {
+				const motionFinished = model?._motionManager?.isFinished() ?? true;
+				if (motionWasPlaying && motionFinished) {
+					const cubism = model.getModel();
+					if (cubism) {
+						for (let i = 0; i < restParameters.length; i++) cubism.setParameterValueByIndex(i, restParameters[i]);
+						for (let i = 0; i < restPartOpacities.length; i++) cubism.setPartOpacityByIndex(i, restPartOpacities[i]);
+						cubism.saveParameters();
+					}
 				}
+				motionWasPlaying = !motionFinished;
 			}
-			motionWasPlaying = !motionFinished;
 		};
 		instance.loadAssets("", spec.model);
 		model = instance;
 		await waitUntilReady(instance, 3e4);
 		configureMotionLoops();
 		{
-			const setting = model?._modelSetting;
 			const cubism = model.getModel();
-			if (cubism && (setting?.getMotionCount("Idle") ?? 0) === 0) {
+			if (cubism && motionCount("Idle") === 0) {
 				restParameters = [];
 				restPartOpacities = [];
 				for (let i = 0; i < cubism.getParameterCount(); i++) restParameters.push(cubism.getParameterValueByIndex(i));
@@ -15356,17 +15415,23 @@
 			}
 			motionWasPlaying = false;
 		}
+		buildWriteCaches(model.getModel());
 		ready = true;
-		status("ok");
+		refreshRects();
 		startVariantTicker();
 		loop();
 		return true;
 	}
+	/**
+	* Pick a region's next expression, preferring one that is not already
+	* showing. A single-entry pool that is already active is re-picked so the
+	* tap refreshes its hold; left-click never falls back to a motion
+	* (right-click owns `Pat`).
+	*/
 	function pickTapExpression(region) {
 		const pool = TAP_EXPRESSIONS[region];
 		if (!pool || pool.length === 0) return "";
 		const others = pool.filter((name) => name !== activeExpression);
-		if (pool.length === 1 && others.length === 0) return "";
 		const choices = others.length > 0 ? others : pool;
 		return choices[Math.floor(Math.random() * choices.length)] ?? "";
 	}
@@ -15374,41 +15439,24 @@
 		get ready() {
 			return ready;
 		},
-		set ready(value) {
-			ready = value;
-		},
 		attach,
 		setState(state) {
 			return playFirstGroup(STATE_GROUPS[state] ?? ["Idle"], state === "idle" ? 1 : 2);
-		},
-		setExpression(name) {
-			if (model === void 0 || !ready) return;
-			applyTapExpression(name ?? "");
-		},
-		expressionNames() {
-			return expressionList.slice();
 		},
 		playMotionGroup(group) {
 			if (group === "Special" && hasFormToggle()) return playGroup(formLatch >= .5 ? "Sad" : "Special", 3);
 			return playGroup(group, 3);
 		},
-		hitTest(_nx, _ny) {
-			return "";
-		},
 		coversPoint(clientX, clientY) {
 			if (model === void 0 || !ready) return false;
 			return maskData !== void 0 && coversMasked(clientX, clientY);
-		},
-		setSuspended(suspended) {
-			if (model === void 0 || !ready) return;
-			setSuspended(suspended);
 		},
 		tap(clientX, clientY) {
 			if (model === void 0 || !ready) return "";
 			const point = clientToView(clientX, clientY);
 			if (point === void 0) return "";
 			const areas = hitAreaNames();
-			const setting = model._modelSetting;
+			const setting = modelSetting();
 			const hasPlayableMotion = (group) => (setting?.getMotionCount(group) ?? 0) > 0 || (setting?.getMotionCount("Pat") ?? 0) > 0 || (setting?.getMotionCount("TapBody") ?? 0) > 0;
 			if (areas.length > 0) for (const name of areas) {
 				if (!model.hitTest(name, point.x, point.y)) continue;
@@ -15457,7 +15505,6 @@
 			if (!region) return `none::${y}`;
 			const name = pickTapExpression(region);
 			applyTapExpression(name);
-			if (!name) playFirstGroup(["Pat", "TapBody"]);
 			return `${region}:${name || "off"}:${y}`;
 		},
 		setPointer(clientX, clientY) {
@@ -15472,10 +15519,7 @@
 				return;
 			}
 			let lookY = point.y;
-			if (wrapEl !== void 0 && attachedSpec.lookOriginY !== void 0) {
-				const rect = wrapEl.getBoundingClientRect();
-				if (rect.height > 2) lookY = (rect.height * attachedSpec.lookOriginY - clientY) / (rect.height / 2);
-			}
+			if (wrapEl !== void 0 && attachedSpec.lookOriginY !== void 0 && wrapRectHeight > 2) lookY = (wrapRectHeight * attachedSpec.lookOriginY - clientY) / (wrapRectHeight / 2);
 			model.setDragging(point.x, lookY);
 		}
 	};
@@ -15485,6 +15529,7 @@
 		const beforeW = canvasEl.width, beforeH = canvasEl.height;
 		sizeCanvas(canvasEl, wrapEl);
 		if (canvasEl.width !== beforeW || canvasEl.height !== beforeH) view.initialize(canvasEl.width, canvasEl.height);
+		refreshRects();
 	});
 	//#endregion
 })();

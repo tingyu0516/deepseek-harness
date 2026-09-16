@@ -1,4 +1,7 @@
-@import "tailwindcss";
+/* Restrict class scanning to this native-ui tree. The default git-root
+   walk otherwise reads the entire desktop + upstream checkout and the
+   Vite generate:build hook alone takes ~40s on Windows. */
+@import "tailwindcss" source("..");
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter/wght.css";
