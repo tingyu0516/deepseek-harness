@@ -7,6 +7,17 @@ import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const copyResult = spawnSync(process.execPath, [
+  fileURLToPath(new URL('./copy-shipped-agent-presets.ts', import.meta.url)),
+  packageRoot,
+], {
+  cwd: packageRoot,
+  stdio: 'inherit',
+})
+if (copyResult.error !== undefined) throw copyResult.error
+if (copyResult.status !== 0) {
+  throw new Error(`copy-shipped-agent-presets.ts exited with ${String(copyResult.status)}`)
+}
 const builderCli = require.resolve('electron-builder/cli.js')
 const result = spawnSync(process.execPath, [builderCli, '--dir'], {
   cwd: packageRoot,

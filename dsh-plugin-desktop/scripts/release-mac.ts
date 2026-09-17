@@ -9,6 +9,7 @@ import {
   assertMacReleaseReady,
   withoutMacReleaseSecrets,
 } from './release-preflight.ts'
+import { copyInstalledShippedAgentPresets } from './copy-shipped-agent-presets.ts'
 import { prepareInstalledMacUniversalRuntime } from './mac-universal.ts'
 
 /** Injectable release boundary used by focused tests. */
@@ -70,7 +71,10 @@ function defaultReleaseOptions(): MacReleaseOptions {
     listCodeSigningIdentities,
     run,
     log: message => console.log(message),
-    prepareRuntime: () => prepareInstalledMacUniversalRuntime(desktopRoot),
+    prepareRuntime: () => {
+      copyInstalledShippedAgentPresets(desktopRoot)
+      prepareInstalledMacUniversalRuntime(desktopRoot)
+    },
   }
 }
 

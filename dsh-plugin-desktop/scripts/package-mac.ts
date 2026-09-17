@@ -5,6 +5,7 @@ import { rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { copyInstalledShippedAgentPresets } from './copy-shipped-agent-presets.ts'
 import { withoutMacReleaseSecrets } from './release-preflight.ts'
 import { prepareInstalledMacUniversalRuntime } from './mac-universal.ts'
 
@@ -72,7 +73,10 @@ function defaultOptions(): MacSmokePackageOptions {
     desktopRoot,
     outputDir,
     resetOutput: () => rmSync(outputDir, { recursive: true, force: true }),
-    prepareRuntime: () => prepareInstalledMacUniversalRuntime(desktopRoot),
+    prepareRuntime: () => {
+      copyInstalledShippedAgentPresets(desktopRoot)
+      prepareInstalledMacUniversalRuntime(desktopRoot)
+    },
     builderCli: require.resolve('electron-builder/cli.js'),
     verifier: fileURLToPath(new URL('./verify-mac-smoke.ts', import.meta.url)),
     nodeExecutable: process.execPath,

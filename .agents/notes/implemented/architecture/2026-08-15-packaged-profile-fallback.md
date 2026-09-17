@@ -10,7 +10,7 @@ DSH profile plugins resolve installation-owned packages through symlinks below `
 
 ## Decision
 
-Electron Builder unpacks the desktop deployment manifest, Cordis patch, runtime modules and assets, and `node_modules`. The desktop Host maps its installation anchor from `app.asar/package.json` to `app.asar.unpacked/package.json` before calling `healProfilesModuleFallback`; ordinary source and npm launches keep their existing physical path unchanged. The packaged-runtime hook requires the physical manifest, desktop plugin subpaths and native assets, and runtime dependency sentinels before signing begins.
+Electron Builder unpacks the desktop deployment manifest, Cordis patch, runtime modules and assets, and `node_modules`. The desktop Host maps its installation anchor from `app.asar/package.json` to `app.asar.unpacked/package.json` before calling `healProfilesModuleFallback`; ordinary source and npm launches keep their existing physical path unchanged. The published `@deepseek-ai/dsh` tarball ships only `lib/*.js`; packaging copies `@deepseek-ai/dsh-agent-presets/presets` onto that package's `config/agent-presets` mount and admits `config` in its `files` list so the Cordis preset and bundled skills exist as physical unpacked files. The packaged-runtime hook requires the physical manifest, desktop plugin subpaths and native assets, and runtime dependency sentinels before signing begins.
 
 ## Verification
 

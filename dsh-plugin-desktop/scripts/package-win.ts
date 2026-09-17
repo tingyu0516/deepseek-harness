@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { copyInstalledShippedAgentPresets } from './copy-shipped-agent-presets.ts'
 
 const WINDOWS_SIGNING_KEYS = [
   'CSC_IDENTITY_AUTO_DISCOVERY',
@@ -45,6 +46,8 @@ export interface WindowsPackageOptions {
   ) => void
   /** Report non-secret packaging progress. */
   readonly log: (message: string) => void
+  /** Copy shipped CLI agent presets into the installed dsh package before packing. */
+  readonly prepareRuntime: () => void
 }
 
 /**
@@ -97,6 +100,7 @@ export function createWindowsPackageOptions(verifier = './verify-win-installer.t
     nodeExecutable: process.execPath,
     run,
     log: message => console.log(message),
+    prepareRuntime: () => copyInstalledShippedAgentPresets(desktopRoot),
   }
 }
 
@@ -143,6 +147,7 @@ export function packageWindowsArtifact(
   } else {
     options.log('Skipping the Windows package preflight; the package gate already passed.')
   }
+  options.prepareRuntime()
   options.run(
     options.nodeExecutable,
     [

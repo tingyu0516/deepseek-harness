@@ -648,6 +648,7 @@ describe('published package surface', () => {
       'cordis.patch.yml',
       'lib/**',
       'package.json',
+      'node_modules/@deepseek-ai/dsh/config/agent-presets/**',
       '!node_modules/node-pty/build/**',
     ])
     expect(manifest.build?.mac?.icon).toBe('build/app-icon-mac.png')
@@ -685,6 +686,7 @@ describe('published package surface', () => {
       .toContain("join(packageRoot, 'assets', 'themes')")
     expect(manifest.scripts?.['package:dir']).toBe('yarn run build && node scripts/package-dir.mjs')
     expect(packageDir).toContain("CSC_IDENTITY_AUTO_DISCOVERY: 'false'")
+    expect(packageDir).toContain('copy-shipped-agent-presets.ts')
     expect(manifest.scripts?.['dist:mac']).toBe('node scripts/release-mac.ts')
     expect(manifest.scripts?.['dist:mac-smoke']).toBe('node scripts/package-mac.ts')
     expect(manifest.scripts?.['dist:win']).toBe('node scripts/package-win.ts')
@@ -693,6 +695,7 @@ describe('published package surface', () => {
     expect(manifest.scripts?.['check:win-package']).toContain('yarn run build')
     expect(manifest.scripts?.['check:win-package']).toContain('yarn run typecheck')
     expect(manifest.scripts?.['check:win-package']).toContain('tests/package-win.spec.ts')
+    expect(manifest.scripts?.['check:win-package']).toContain('tests/copy-shipped-agent-presets.spec.ts')
     expect(manifest.scripts?.['check:win-package']).toContain('tests/desktop-installer-quit.spec.ts')
     expect(manifest.scripts?.['check:win-package']).toContain('tests/installer-nsh.spec.ts')
     expect(manifest.scripts?.['check:win-package']).toContain('tests/verify-win-portable.spec.ts')
@@ -704,6 +707,7 @@ describe('published package surface', () => {
     expect(manifest.scripts?.['check:mac-package']).toContain('yarn run build')
     expect(manifest.scripts?.['check:mac-package']).toContain('yarn run typecheck')
     expect(manifest.scripts?.['check:mac-package']).toContain('tests/package-mac.spec.ts')
+    expect(manifest.scripts?.['check:mac-package']).toContain('tests/copy-shipped-agent-presets.spec.ts')
     expect(manifest.scripts?.['check:mac-package']).toContain('tests/verify-mac-smoke.spec.ts')
     expect(manifest.scripts?.['check:mac-package']).toContain('tests/mac-universal.spec.ts')
     expect(manifest.scripts?.['check:mac-package']).toContain('yarn run verify:closure')

@@ -35,6 +35,7 @@ function options(calls: CommandCall[], logs: string[] = []): WindowsPackageOptio
       calls.push({ command, args: [...args], cwd, env: { ...env } })
     },
     log: message => logs.push(message),
+    prepareRuntime: () => undefined,
   }
 }
 
@@ -85,6 +86,19 @@ describe('Windows x64 installer packaging', () => {
     expect(logs).toEqual([
       'Building an unsigned Windows x64 installer; Authenticode is a separate release step.',
     ])
+  })
+
+  it('materializes shipped agent presets before electron-builder', () => {
+    const calls: CommandCall[] = []
+    const prepared: string[] = []
+
+    packageWindowsInstaller({
+      ...options(calls),
+      prepareRuntime: () => prepared.push('presets'),
+    })
+
+    expect(prepared).toEqual(['presets'])
+    expect(calls[1]?.args).toContain('--win')
   })
 
   it('checks without credentials, builds an unsigned portable ZIP target, then verifies it', () => {
