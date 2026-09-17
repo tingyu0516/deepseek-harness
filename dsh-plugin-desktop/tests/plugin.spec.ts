@@ -59,6 +59,8 @@ function desktopSettings(overrides: Partial<DesktopSettings> = {}): DesktopSetti
     characterTheme: 'off',
     hutaoWallpaper: 'default',
     furinaWallpaper: 'default',
+    characterThemeBrightness: 100,
+    characterThemeOpacity: 56,
     ...overrides,
   }
 }
@@ -164,6 +166,8 @@ function createHarness(platform: DesktopRuntime['platform'] = 'darwin', ordinary
         characterTheme: 'off' as const,
         hutaoWallpaper: 'default' as const,
         furinaWallpaper: 'default' as const,
+        characterThemeBrightness: 100,
+        characterThemeOpacity: 56,
       }),
       watch: (callback: typeof watcher) => {
         watcher = callback
@@ -248,11 +252,15 @@ describe('desktop Host plugin', () => {
       characterTheme: 'off',
       hutaoWallpaper: 'default',
       furinaWallpaper: 'default',
+      characterThemeBrightness: 100,
+      characterThemeOpacity: 56,
     })
     expect(() => DesktopSettingsSchema({ port: -1 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 1.5 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ port: 65_536 } as DesktopSettings)).toThrow()
     expect(() => DesktopSettingsSchema({ characterTheme: 'light' } as never)).toThrow()
+    expect(() => DesktopSettingsSchema({ characterThemeBrightness: 49 } as never)).toThrow()
+    expect(() => DesktopSettingsSchema({ characterThemeOpacity: 19 } as never)).toThrow()
     expect(() => Config({ mode: 'custom' } as never)).toThrow()
     expect(String(DESKTOP_SETTINGS_NAMESPACE)).toBe('dsh-desktop')
   })
@@ -653,6 +661,8 @@ describe('desktop Host plugin', () => {
       characterTheme: 'off',
       hutaoWallpaper: 'default',
       furinaWallpaper: 'default',
+      characterThemeBrightness: 100,
+      characterThemeOpacity: 56,
     }
     expect(() => options?.validate?.({ ...settings, mode: 'advanced' })).toThrow(
       'supported on macOS and Windows',
@@ -689,6 +699,8 @@ describe('desktop Host plugin', () => {
       characterTheme: 'off',
       hutaoWallpaper: 'default',
       furinaWallpaper: 'default',
+      characterThemeBrightness: 100,
+      characterThemeOpacity: 56,
     })).not.toThrow()
   })
 })

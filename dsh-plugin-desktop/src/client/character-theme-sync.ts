@@ -1,6 +1,13 @@
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import {
+  CHARACTER_THEME_BRIGHTNESS_DEFAULT,
+  CHARACTER_THEME_OPACITY_DEFAULT,
+  characterThemeAppearance,
+  characterThemeSidebarOpacity,
+  type CharacterThemeAppearance,
+} from '../character-theme-appearance.ts'
+import {
   DEFAULT_CHARACTER_WALLPAPER_ID,
   isCustomCharacterWallpaperId,
 } from '../character-wallpaper-contract.ts'
@@ -14,6 +21,8 @@ export interface DesktopCharacterWallpaperSettings {
   readonly characterTheme?: unknown
   readonly hutaoWallpaper?: unknown
   readonly furinaWallpaper?: unknown
+  readonly characterThemeBrightness?: unknown
+  readonly characterThemeOpacity?: unknown
 }
 
 const CHARACTER_THEME_IDS = new Set<string>(['hutao', 'furina'])
@@ -151,13 +160,48 @@ const CHARACTER_THEME_ATTR = 'data-dsh-character-theme'
 const DARK_ATTRIBUTE = 'data-ds-dark-theme'
 
 /**
+ * @param snapshot - Desktop settings scope snapshot.
+ * @returns clamped wallpaper brightness and panel overlay.
+ */
+export function readDesktopCharacterThemeAppearance(
+  snapshot: {
+    readonly status: string
+    readonly value?: DesktopCharacterWallpaperSettings | undefined
+  },
+): CharacterThemeAppearance {
+  if (snapshot.status !== 'ready') {
+    return { brightness: CHARACTER_THEME_BRIGHTNESS_DEFAULT, opacity: CHARACTER_THEME_OPACITY_DEFAULT }
+  }
+  return characterThemeAppearance(snapshot.value)
+}
+
+function characterThemeAppearanceCss(appearance: CharacterThemeAppearance): string {
+  const sidebar = characterThemeSidebarOpacity(appearance.opacity)
+  const filter = appearance.brightness === CHARACTER_THEME_BRIGHTNESS_DEFAULT
+    ? 'none'
+    : `brightness(${String(appearance.brightness)}%)`
+  return [
+    `--dsh-character-wallpaper-brightness: ${String(appearance.brightness)}%`,
+    `--dsh-character-wallpaper-filter: ${filter}`,
+    `--dsh-character-panel-opacity: ${String(appearance.opacity)}%`,
+    `--dsh-character-sidebar-opacity: ${String(sidebar)}%`,
+  ].map(declaration => `${declaration} !important;`).join(' ')
+}
+
+/**
  * Write character-theme tokens as a last-writer stylesheet so official presenters
  * cannot retract them, and mark the document for the wallpaper hook.
  * @param preference - Desktop-owned selection.
+ * @param wallpaperId - bundled or imported wallpaper id.
+ * @param appearance - wallpaper brightness and chrome overlay.
  */
 export function applyCharacterThemeToDocument(
   preference: DesktopCharacterThemePreference,
   wallpaperId = DEFAULT_CHARACTER_WALLPAPER_ID,
+  appearance: CharacterThemeAppearance = {
+    brightness: CHARACTER_THEME_BRIGHTNESS_DEFAULT,
+    opacity: CHARACTER_THEME_OPACITY_DEFAULT,
+  },
 ): void {
   const def = characterThemeDefinition(preference)
   const existing = document.getElementById(TOKEN_STYLE_ID)
@@ -174,7 +218,7 @@ export function applyCharacterThemeToDocument(
   const declarations = Object.entries(characterThemeTokens(preference, wallpaperId))
     .map(([name, value]) => `${name}: ${value} !important;`)
     .join(' ')
-  const nextCss = `body { ${declarations} }`
+  const nextCss = `body { ${declarations} ${characterThemeAppearanceCss(appearance)} }`
   const currentAttr = document.body.getAttribute(CHARACTER_THEME_ATTR)
   if (style.textContent === nextCss && currentAttr === def.id) {
     if (def.colorScheme === 'dark' && !document.body.hasAttribute(DARK_ATTRIBUTE)) {

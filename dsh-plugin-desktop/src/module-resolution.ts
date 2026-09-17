@@ -4,6 +4,7 @@ import Module, { registerHooks } from 'node:module'
 import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unpackedAsarPath } from './packaged-runtime-path.ts'
+import { retainAsarModuleResolver } from './asar-module-resolver-state.ts'
 import {
   findOverlayPackage,
   packageNameFromSpecifier,
@@ -129,10 +130,12 @@ export function installProfilePackageResolver(profileBaseUrl: string): () => voi
       }
     },
   })
+  const releaseMarker = retainAsarModuleResolver()
   let active = true
   return () => {
     if (!active) return
     active = false
+    releaseMarker()
     hooks.deregister()
     if (commonJsModule._resolveFilename === overlayResolveFilename) {
       commonJsModule._resolveFilename = previousResolveFilename

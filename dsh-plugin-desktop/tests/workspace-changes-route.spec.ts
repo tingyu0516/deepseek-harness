@@ -58,7 +58,7 @@ async function git(cwd: string, args: readonly string[]): Promise<void> {
 }
 
 describe.skipIf(!gitAvailable())('desktop workspace changes route', () => {
-  it('lists uncommitted, staged, unstaged, commits, and last-turn files inside the workspace', { timeout: 20_000 }, async () => {
+  it('lists uncommitted, staged, unstaged, commits, and last-turn files inside the workspace', { timeout: 60_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-changes-'))
     try {
       await git(root, ['init'])

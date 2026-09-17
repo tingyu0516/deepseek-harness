@@ -20,6 +20,7 @@ import {
   type PackagedRuntimeContext,
   type PackagedDiagnosticWorkerLauncher,
 } from '../scripts/verify-packaged-runtime.ts'
+import { DESKTOP_LAUNCHER_PREINSTALLS } from '../src/launcher-preinstall.ts'
 import { FORBIDDEN_MACOS_UNIVERSAL_ENTRIES } from '../scripts/mac-universal.ts'
 
 function context(
@@ -44,6 +45,18 @@ function completePackageResolver(unpackedRoot: string): PackageResolver {
 }
 
 describe('packaged desktop runtime verification', () => {
+  it('keeps launcher preinstall unpack paths aligned with the catalog', () => {
+    for (const plugin of DESKTOP_LAUNCHER_PREINSTALLS) {
+      expect(REQUIRED_UNPACKED_RUNTIME_ENTRIES).toContain(
+        `node_modules/${plugin.packageName}/package.json`,
+      )
+      expect(REQUIRED_UNPACKED_RUNTIME_ENTRIES).toContain(
+        `node_modules/${plugin.packageName}/${plugin.entryFile}`,
+      )
+      expect(REQUIRED_UNPACKED_PACKAGE_SPECIFIERS).toContain(plugin.packageName)
+    }
+  })
+
   it('fails the diagnostic Worker smoke when its archive omits the crash dump', async () => {
     const unpackedRoot = resolvePackagedUnpackedRoot(context('/build', 'win32'))
     const launch = vi.fn<PackagedDiagnosticWorkerLauncher>(async (_workerPath, workerData) => {

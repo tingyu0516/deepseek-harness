@@ -12,8 +12,7 @@ import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installExtendedStyles } from './extended-styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
-import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
-import { desktopDrawerInject, injectDesktopComposerBranch, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
+import { injectDesktopComposerBranch } from './desktop-drawer-inject.ts'
 
 /** Own the enhanced layout and root slot without installing an independent frame. */
 export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -42,10 +41,6 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
     await settings.set('mode', mode)
   }
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay', id: 'desktop-terminal-drawer', order: 10,
-    inject: () => desktopDrawerInject(ctx, requestDesktopWorkspaceTree),
-  }, DesktopTerminalDrawer))
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay', id: 'desktop-advanced-titlebar', order: -1000, locale: 'desktop.settings',
     inject: () => ({
       api,
@@ -53,14 +48,14 @@ export function applyAdvancedShell(ctx: ClientContext, environment: DesktopClien
       setMode,
     }),
   }, DesktopFrameTitlebar))
-  injectDesktopRightSidebarToggle(ctx)
   injectDesktopComposerBranch(ctx)
   ctx.effect(() => ctx.slots.register({
     name: 'root',
     children: {
       sidebar: { kind: 'single', scope: 'root' },
-      conversation: { kind: 'single', scope: 'session-maybe' },
+      main: { kind: 'keyed', scope: 'root' },
       details: { kind: 'single', scope: 'session' },
+      rightbar: { kind: 'single', scope: 'root' },
       'shell.overlay': { kind: 'list', scope: 'root' },
     },
     inject: () => ({ layout: desktopLayout, platform: environment.platform }),

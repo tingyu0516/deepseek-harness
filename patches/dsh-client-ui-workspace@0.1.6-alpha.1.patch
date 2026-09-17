@@ -1,8 +1,8 @@
 diff --git a/lib/client.js b/lib/client.js
-index 09aa4675cf..e8f589a277 100644
+index 0000000..0000001 100644
 --- a/lib/client.js
 +++ b/lib/client.js
-@@ -2144,6 +2144,7 @@ window.__ModuleLoader__.load({
+@@ -2191,6 +2191,7 @@ window.__ModuleLoader__.load({
  			};
  			return (0, react_jsx_runtime.jsxs)("div", {
  				className: clsx(WorkspaceBrowser_module_css_default.root, !wide && WorkspaceBrowser_module_css_default.rail),

@@ -70,6 +70,14 @@ import type { DesktopLocale, DesktopShellMode } from './runtime.ts'
 import type {} from './runtime.ts'
 import { desktopLocaleFromLanguageTag } from './tray-locale.ts'
 import {
+  CHARACTER_THEME_BRIGHTNESS_DEFAULT,
+  CHARACTER_THEME_BRIGHTNESS_MAX,
+  CHARACTER_THEME_BRIGHTNESS_MIN,
+  CHARACTER_THEME_OPACITY_DEFAULT,
+  CHARACTER_THEME_OPACITY_MAX,
+  CHARACTER_THEME_OPACITY_MIN,
+} from './character-theme-appearance.ts'
+import {
   CHARACTER_THEME_ASSET_ROUTES,
   characterThemeAssetFile,
   handleCharacterThemeAsset,
@@ -166,6 +174,10 @@ export interface DesktopSettings {
   hutaoWallpaper: string
   /** Wallpaper selected for Furina; `default` is the bundled PNG. */
   furinaWallpaper: string
+  /** Wallpaper brightness percent while a character theme is selected. */
+  characterThemeBrightness: number
+  /** Conversation and details overlay percent while a character theme is selected. */
+  characterThemeOpacity: number
 }
 
 /** Schema registered with the standard settings service. */
@@ -180,6 +192,12 @@ export const DesktopSettingsSchema: z<DesktopSettings> = z.object({
   characterTheme: z.union(['off', 'hutao', 'furina'] as const).default('off'),
   hutaoWallpaper: z.string().min(1).max(32).default('default'),
   furinaWallpaper: z.string().min(1).max(32).default('default'),
+  characterThemeBrightness: z.number().step(1)
+    .min(CHARACTER_THEME_BRIGHTNESS_MIN).max(CHARACTER_THEME_BRIGHTNESS_MAX)
+    .default(CHARACTER_THEME_BRIGHTNESS_DEFAULT),
+  characterThemeOpacity: z.number().step(1)
+    .min(CHARACTER_THEME_OPACITY_MIN).max(CHARACTER_THEME_OPACITY_MAX)
+    .default(CHARACTER_THEME_OPACITY_DEFAULT),
 })
 
 /**

@@ -18,8 +18,7 @@ import { DesktopLayoutState } from './layout-state.ts'
 import { provideDesktopLayout } from './layout-service.ts'
 import { installDesktopOwnedStyles } from './styles.ts'
 import { installDesktopThemePresenter } from './theme-presenter.ts'
-import { DesktopTerminalDrawer, requestDesktopWorkspaceTree } from './TerminalDrawer.tsx'
-import { desktopDrawerInject, injectDesktopComposerBranch, injectDesktopRightSidebarToggle } from './desktop-drawer-inject.ts'
+import { injectDesktopComposerBranch } from './desktop-drawer-inject.ts'
 
 /** Own the extended root/sidebar surface without reusing enhanced-mode chrome. */
 function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientEnvironment): void {
@@ -43,8 +42,9 @@ function applyExtendedOwnedShell(ctx: ClientContext, environment: DesktopClientE
     name: 'root',
     children: {
       'sidebar': { kind: 'single', scope: 'root' },
-      'conversation': { kind: 'single', scope: 'session-maybe' },
+      'main': { kind: 'keyed', scope: 'root' },
       'details': { kind: 'single', scope: 'session' },
+      'rightbar': { kind: 'single', scope: 'root' },
       'shell.overlay': { kind: 'list', scope: 'root' },
     },
     inject: () => ({ layout: desktopLayout, platform: environment.platform }),
@@ -88,13 +88,6 @@ export function applyFramedShell(
 
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
-    id: 'desktop-terminal-drawer',
-    order: 10,
-    inject: () => desktopDrawerInject(ctx, requestDesktopWorkspaceTree),
-  }, DesktopTerminalDrawer))
-
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
     id: 'desktop-frame-titlebar',
     order: -1000,
     locale: DESKTOP_SETTINGS_LOCALE_NAMESPACE,
@@ -104,8 +97,7 @@ export function applyFramedShell(
       setMode,
     }),
   }, DesktopFrameTitlebar))
-  injectDesktopRightSidebarToggle(ctx)
-  injectDesktopComposerBranch(ctx)
+  if (environment.mode === 'extended') injectDesktopComposerBranch(ctx)
 }
 
 /** Compose the extended-owned layout beneath its independent Desktop frame. */

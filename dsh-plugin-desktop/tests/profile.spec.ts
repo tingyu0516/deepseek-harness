@@ -16,6 +16,7 @@ import {
   validateDshMarketBundlePatches,
 } from '../src/profile.ts'
 import { DESKTOP_MARKET_IDENTITIES } from '../src/desktop-market.ts'
+import { DESKTOP_LAUNCHER_PREINSTALLS } from '../src/launcher-preinstall.ts'
 
 const homes: string[] = []
 
@@ -363,11 +364,34 @@ virtualStoreDirMaxLength: 60
     expect(rows.find(row => row.id === 'desktop-profiles')).toEqual(expect.objectContaining({
       name: 'dsh-plugin-desktop/profiles',
     }))
-    expect(rows.find(row => row.id === 'desktop-pet-hutao')).toEqual(expect.objectContaining({
-      name: 'dsh-plugin-pet-hutao',
+    for (const plugin of DESKTOP_LAUNCHER_PREINSTALLS) {
+      expect(rows.find(row => row.id === plugin.loaderId)).toEqual(expect.objectContaining({
+        name: plugin.packageName,
+      }))
+    }
+    expect(rows.find(row => row.id === 'web')).toEqual(expect.objectContaining({
+      config: expect.objectContaining({
+        searchProvider: 'modsearch',
+        fetchProvider: 'http',
+      }),
     }))
-    expect(rows.find(row => row.id === 'desktop-pet-furina')).toEqual(expect.objectContaining({
-      name: 'dsh-plugin-pet-furina',
+    expect(rows.find(row => row.id === 'better-sidebar')).toEqual(expect.objectContaining({
+      name: 'dsh-better-sidebar',
+      disabled: {
+        __jsExpr: "[...ctx.loader.entries()].some((e) => e.options.name === 'dsh-better-sidebar' && e.options.id !== 'better-sidebar' && !e.disabled)",
+      },
+    }))
+    expect(rows.find(row => row.id === 'ds-harness-remote')).toEqual(expect.objectContaining({
+      name: 'ds-harness-remote',
+      disabled: {
+        __jsExpr: "[...ctx.loader.entries()].some(entry => (entry.options.id === 'dsh-tui' || entry.options.name === '@deepseek-harness-tui/dsh-tui') && !entry.disabled)",
+      },
+    }))
+    expect(rows.find(row => row.id === 'ds-harness-remote-tui')).toEqual(expect.objectContaining({
+      name: 'ds-harness-remote',
+      disabled: {
+        __jsExpr: "![...ctx.loader.entries()].some(entry => (entry.options.id === 'dsh-tui' || entry.options.name === '@deepseek-harness-tui/dsh-tui') && !entry.disabled)",
+      },
     }))
     expect(rows.filter(row => row.id === 'desktop-pet-hutao')).toHaveLength(1)
     expect(rows.filter(row => row.id === 'desktop-pet-furina')).toHaveLength(1)

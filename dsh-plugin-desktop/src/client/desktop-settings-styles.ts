@@ -248,6 +248,34 @@ const CSS = `
   font-size: 12px;
 }
 .dshDesktopSettingsSelect:disabled { opacity: .55; }
+.dshDesktopSettingsSliderStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dshDesktopSettingsSliderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.dshDesktopSettingsSliderRow .dshDesktopSettingsChoiceTitle { flex: 0 0 7.5em; }
+.dshDesktopSettingsSlider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+.dshDesktopSettingsSlider:disabled { opacity: .55; }
+.dshDesktopSettingsSliderValue {
+  flex: 0 0 3.25em;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 .dshDesktopSettingsNotice,
 .dshDesktopSettingsError,
 .dshDesktopSettingsSuccess {

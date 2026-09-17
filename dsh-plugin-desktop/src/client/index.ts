@@ -1,13 +1,13 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
-import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type { IWorkspaces } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only service and SlotMap convergence for the Desktop settings section.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { UiWorkspace } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { applyAdvancedShell } from './advanced-shell.ts'
 import {
   installCharacterThemeBackgroundStyles,
@@ -16,6 +16,7 @@ import {
 import { startRendererBootReporter } from './boot-health.ts'
 import {
   applyCharacterThemeToDocument,
+  readDesktopCharacterThemeAppearance,
   readDesktopCharacterThemePreference,
   readDesktopCharacterWallpaperId,
   syncDesktopCharacterTheme,
@@ -76,8 +77,6 @@ export type {
   DesktopClientMode,
   DesktopClientPlatform,
 } from './environment.ts'
-export { DesktopTerminalDrawer, closeDesktopTerminalDrawer, createTerminalResizeMessage, openDesktopTerminalDrawer, readTerminalWebSocketConfig, toggleDesktopTerminalDrawer } from './TerminalDrawer.tsx'
-export type { TerminalWebSocketConfig, TerminalWebSocketResizeMessage } from './TerminalDrawer.tsx'
 export type {
   DesktopWindowDragRegion,
   DesktopWindowInsets,
@@ -93,8 +92,6 @@ export const inject = [
   'settingsScope',
   'sessions',
   'theme',
-  'workspaces',
-  'uiWorkspace',
   'uiRenderer',
 ]
 
@@ -102,14 +99,6 @@ export const inject = [
 export function apply(ctx: ClientContext): void {
   const environment = parseDesktopClientEnvironment(window.location.search)
   if (!environment) return
-  ctx.effect(
-    () => installCharacterThemeBackgroundStyles(),
-    'dsh-plugin-desktop: character theme background',
-  )
-  ctx.effect(
-    () => registerDesktopCharacterThemes(ctx.theme),
-    'dsh-plugin-desktop: character theme registry',
-  )
   ctx.effect(
     () => provideDesktopWindow(ctx, desktopWindowService(environment)),
     'dsh-plugin-desktop: native window geometry service',
@@ -121,8 +110,20 @@ export function apply(ctx: ClientContext): void {
   )
   ctx.effect(
     () => installWorkspaceFolderDrop({
-      create: input => ctx.workspaces.create(input),
-      startSession: workspaceId => { ctx.uiWorkspace.startSession(workspaceId) },
+      create: input => {
+        const workspaces = ctx.get('workspaces') as IWorkspaces | undefined
+        if (workspaces === undefined) {
+          return Promise.reject(new Error('dsh-plugin-desktop: workspace service is not available'))
+        }
+        return workspaces.create(input)
+      },
+      startSession: workspaceId => {
+        const uiWorkspace = ctx.get('uiWorkspace') as UiWorkspace | undefined
+        if (uiWorkspace === undefined) {
+          throw new Error('dsh-plugin-desktop: workspace UI service is not available')
+        }
+        uiWorkspace.startSession(workspaceId)
+      },
       ...(environment.platform === 'win32'
         ? { validateDirectory: (path: string) => requestDesktopDirectoryValidation(path) }
         : {}),
@@ -140,6 +141,14 @@ export function apply(ctx: ClientContext): void {
   if (environment.platform !== 'linux' && environment.mode === 'compatibility') {
     applyFramedShell(ctx, environment, desktopSettings)
   }
+  ctx.effect(
+    () => installCharacterThemeBackgroundStyles(),
+    'dsh-plugin-desktop: character theme background',
+  )
+  ctx.effect(
+    () => registerDesktopCharacterThemes(ctx.theme),
+    'dsh-plugin-desktop: character theme registry',
+  )
   // Last writer: project character tokens after official and Desktop presenters.
   ctx.effect(
     () => {
@@ -161,10 +170,14 @@ export function apply(ctx: ClientContext): void {
         desktopSettings: shellSettings,
         officialTheme,
         onThemeChange: listener => ctx.on('theme/change', listener),
-        project: preference => projector.apply(
-          preference,
-          readDesktopCharacterWallpaperId(shellSettings.getSnapshot(), preference),
-        ),
+        project: preference => {
+          const snapshot = shellSettings.getSnapshot()
+          projector.apply(
+            preference,
+            readDesktopCharacterWallpaperId(snapshot, preference),
+            readDesktopCharacterThemeAppearance(snapshot),
+          )
+        },
       })
       return () => {
         stop()

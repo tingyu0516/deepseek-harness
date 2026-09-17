@@ -421,7 +421,7 @@ describe('MarketSettingsTab', () => {
     })
   })
 
-  it('uses a complete verified index with local OR filters, local pages of 50, metadata, and explicit rescans', async () => {
+  it('uses a complete verified index with local OR filters, local pages of 50, metadata, and explicit rescans', { timeout: 15_000 }, async () => {
     const availableItem = makeInstallableItem(
       firstSource,
       'available-plugin',

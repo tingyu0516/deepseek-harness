@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
+import {
+  characterThemeAppearance,
+  characterThemeSidebarOpacity,
+} from '../src/character-theme-appearance.ts'
 import { CHARACTER_THEMES, FURINA_THEME, HUTAO_THEME } from '../src/client/character-themes.ts'
 import {
   installCharacterThemeBackgroundStyles,
@@ -72,12 +76,17 @@ describe('desktop character themes', () => {
     expect(style.dataset.pluginCss).toBe('dsh-plugin-desktop/character-theme-background')
     expect(css).toContain('body[data-dsh-character-theme]::before')
     expect(css).toContain('background-image: var(--dsw-character-bg-image, none)')
-    expect(css).toContain('contain: paint')
     expect(css).not.toMatch(/body\[data-dsh-character-theme\] \{[^}]*background-image: var\(--dsw-character-bg-image/)
     expect(css).toContain('#root')
-    expect(css).toMatch(/body\[data-dsh-character-theme\]:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\)\s+\.dshDesktopSidebarSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-layer-1\) 42%, var\(--dsw-alias-bg-layer-3\)\) !important;/)
-    expect(css).toMatch(/body\[data-dsh-character-theme\] \.dshDesktopConversationSurface,\s*body\[data-dsh-character-theme\] \.dshDesktopDetailsSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) 82%, transparent\) !important;/)
-    expect(css).toMatch(/body\[data-dsh-character-theme\] \.dshDesktopTerminalSurface,\s*body\[data-dsh-character-theme\] \.dshDesktopTerminalDrawer \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) 82%, var\(--dsw-alias-bg-layer-3\)\) !important;/)
+    expect(css).not.toContain('#root > *')
+    expect(css).toContain('body[data-dsh-character-theme] .frame')
+    expect(css).toContain('filter: var(--dsh-character-wallpaper-filter, none)')
+    expect(css).not.toContain('contain: paint')
+    expect(css).not.toContain('translateZ(0)')
+    expect(css).toMatch(/body\[data-dsh-character-theme\]:is\(\[data-dsh-desktop-mode="extended"\], \[data-dsh-desktop-mode="advanced"\]\)\s+\.dshDesktopSidebarSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-layer-1\) var\(--dsh-character-sidebar-opacity, 29%\), transparent\) !important;/)
+    expect(css).toMatch(/body\[data-dsh-character-theme\] \.dshDesktopConversationSurface,\s*body\[data-dsh-character-theme\] \.dshDesktopDetailsSurface \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) var\(--dsh-character-panel-opacity, 56%\), transparent\) !important;/)
+    expect(css).toMatch(/body\[data-dsh-character-theme\] \.dshDesktopRightbarSurface,\s*body\[data-dsh-character-theme\] \[data-dsh-panel-host\] \{[^}]*background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) var\(--dsh-character-panel-opacity, 56%\), transparent\) !important;/)
+    expect(css).not.toContain('filter: brightness(var(--dsh-character-wallpaper-brightness, 100%))')
     expect(css).not.toContain('body[data-dsh-character-theme] .dshDesktopFrame .dshDesktopTerminalDrawer {')
     expect(css).not.toMatch(/body\[data-dsh-character-theme\] \.dshDesktopSidebarSurface \{[^}]*background-color: transparent !important;/)
     expect(appendChild).toHaveBeenCalledWith(style)
@@ -189,8 +198,8 @@ describe('desktop character theme preference', () => {
     expect(overlaid.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/hutao.png")')
     expect(overlaid.active.tokens['--dsw-alias-bg-base']).toBe('rgba(23, 16, 20, 0.45)')
     const custom = snapshotWithCharacterTheme(snapshot, 'hutao', 'wp_0123456789abcdef')
-    expect(custom.active.tokens['--dsw-character-bg-image']).toContain('url("/themes/custom/hutao/wp_0123456789abcdef")')
-    expect(custom.active.tokens['--dsw-character-bg-image']).toContain('linear-gradient')
+    expect(custom.active.tokens['--dsw-character-bg-image']).toBe('url("/themes/custom/hutao/wp_0123456789abcdef")')
+    expect(custom.active.tokens['--dsw-character-bg-image']).not.toContain('linear-gradient')
     expect(custom.active.tokens['--dsw-character-bg-image']).not.toContain('url("/themes/hutao.png")')
   })
 
@@ -256,6 +265,10 @@ describe('desktop character theme preference', () => {
     applyCharacterThemeToDocument('hutao')
     expect(style.id).toBe('dsh-desktop-character-theme-tokens')
     expect(css).toContain('--dsw-character-bg-image:')
+    expect(css).toContain('--dsh-character-wallpaper-brightness: 100%')
+    expect(css).toContain('--dsh-character-wallpaper-filter: none')
+    expect(css).toContain('--dsh-character-panel-opacity: 56%')
+    expect(css).toContain('--dsh-character-sidebar-opacity: 29%')
     expect(css).toContain('!important')
     expect(body.setAttribute).toHaveBeenCalledWith('data-dsh-character-theme', 'hutao')
     expect(body.setAttribute).toHaveBeenCalledWith('data-ds-dark-theme', '')
@@ -269,6 +282,12 @@ describe('desktop character theme preference', () => {
     applyCharacterThemeToDocument('off')
     expect(remove).toHaveBeenCalledOnce()
     expect(body.removeAttribute).toHaveBeenCalledWith('data-dsh-character-theme')
+
+    applyCharacterThemeToDocument('hutao', 'default', { brightness: 120, opacity: 50 })
+    expect(css).toContain('--dsh-character-wallpaper-brightness: 120%')
+    expect(css).toContain('--dsh-character-wallpaper-filter: brightness(120%)')
+    expect(css).toContain('--dsh-character-panel-opacity: 50%')
+    expect(css).toContain('--dsh-character-sidebar-opacity: 26%')
   })
 
   it('does not retrigger the dark-attribute observer after restoring it', () => {
@@ -324,5 +343,21 @@ describe('desktop character theme preference', () => {
       onThemeChange: () => () => {},
     })
     expect(theme.setTheme).not.toHaveBeenCalled()
+  })
+})
+
+describe('character theme appearance', () => {
+  it('clamps brightness and overlay opacity to the shipped ranges', () => {
+    expect(characterThemeAppearance()).toEqual({ brightness: 100, opacity: 56 })
+    expect(characterThemeAppearance({
+      characterThemeBrightness: 120,
+      characterThemeOpacity: 50,
+    })).toEqual({ brightness: 120, opacity: 50 })
+    expect(characterThemeAppearance({
+      characterThemeBrightness: 49,
+      characterThemeOpacity: 19,
+    })).toEqual({ brightness: 100, opacity: 56 })
+    expect(characterThemeSidebarOpacity(56)).toBe(29)
+    expect(characterThemeSidebarOpacity(50)).toBe(26)
   })
 })

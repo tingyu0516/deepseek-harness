@@ -25,7 +25,7 @@ const MAX_CANDIDATES = 10_000
 const MAX_RECEIPTS = 512
 const LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall', 'prepare'] as const
 const BLOCKED_PRODUCT_PACKAGES = new Set(['dsh-plugin-desktop', 'dsh-community-market'])
-const DSH_RUNTIME_VERSION = '0.1.2-rc.1'
+const DSH_RUNTIME_VERSION = '0.1.6-alpha.1'
 const CORDIS_RUNTIME_VERSION = '4.0.2'
 const NODE_RUNTIME_VERSION = '24.18.1'
 

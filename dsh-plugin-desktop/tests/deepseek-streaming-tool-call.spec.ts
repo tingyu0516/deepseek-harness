@@ -6,9 +6,9 @@ import {
 } from '@deepseek-ai/dsh-llm-deepseek'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-function sseResponse(payloads: readonly unknown[]): Response {
-  const body = payloads
-    .map(payload => `data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`)
+function sseResponse(events: readonly Record<string, unknown>[]): Response {
+  const body = events
+    .map(event => `event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`)
     .join('')
   return new Response(body, {
     status: 200,
@@ -21,36 +21,30 @@ describe('DeepSeek streaming tool calls', () => {
     vi.unstubAllGlobals()
   })
 
-  it('keeps the first non-empty id and name when continuation deltas contain empty strings', async () => {
+  it('keeps the tool identity from content_block_start and concatenates JSON argument deltas', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => sseResponse([
       {
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: 'call_web_search',
-              type: 'function',
-              function: { name: 'web_search', arguments: '{"query":' },
-            }],
-          },
-        }],
+        type: 'message_start',
+        message: { id: 'msg_1', model: 'deepseek-v4-pro', usage: { input_tokens: 10, output_tokens: 1 } },
       },
       {
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: '',
-              function: { name: '', arguments: '"AI news today"}' },
-            }],
-          },
-        }],
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'tool_use', id: 'call_web_search', name: 'web_search', input: {} },
       },
       {
-        choices: [{ delta: {}, finish_reason: 'tool_calls' }],
-        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{"query":' },
       },
-      '[DONE]',
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '"AI news today"}' },
+      },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 5 } },
+      { type: 'message_stop' },
     ])))
 
     const connection = resolveAdapterOptions({

@@ -2,10 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import type { PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from './contracts.ts'
 import type { DesktopClientPlatform } from './environment.ts'
-import { useDesktopTerminalDrawerOpen } from './TerminalDrawer.tsx'
 import {
   collapsedSidebarWidth, computeDesktopColumns, DesktopLayoutState,
-  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
+  RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
 } from './layout-state.ts'
 
 /** Private values assembled by one Desktop-owned shell registration. */
@@ -18,7 +17,7 @@ export interface AdvancedFrameInjected {
 
 /** Full enhanced-mode root slot props. */
 export type AdvancedFrameProps = PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'details' | 'rightbar' | 'shell.overlay'>
   & AdvancedFrameInjected
 
 /** Enhanced-mode owner preserving the original Desktop layout contract. */
@@ -33,7 +32,6 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
   const subscribeLayout = useCallback((listener: () => void) => layout.subscribe(listener), [layout])
   const readLayout = useCallback(() => layout.getSnapshot(), [layout])
   const panels = useSyncExternalStore(subscribeLayout, readLayout)
-  const terminalOpen = useDesktopTerminalDrawerOpen()
   const frameRef = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
   const detailsSession = useSessions((state) => {
@@ -73,22 +71,32 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
 
   const collapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
   const sidebarPreference = collapsed ? 0 : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const terminalInset = terminalOpen ? Math.min(640, viewport * 0.92) : 0
-  const layoutViewport = Math.max(320, viewport - terminalInset)
+  const rightbarPreference = panels.rightbar ?? Math.max(RIGHTBAR_MIN, Math.round(viewport * RIGHTBAR_DEFAULT_RATIO))
+  const normal = computeDesktopColumns(
+    viewport,
+    !panels.rightbarShown && narrow ? 0 : sidebarPreference,
+    detailsSession === undefined ? 0 : panels.details,
+    collapsedSidebarWidth(mode, platform),
+    rightbarPreference,
+  )
   const columns = computeDesktopColumns(
-    layoutViewport,
+    viewport,
     sidebarPreference,
     detailsSession === undefined ? 0 : panels.details,
     collapsedSidebarWidth(mode, platform),
+    panels.rightbarTrack ? rightbarPreference : 0,
   )
   // Enhanced macOS keeps a wider native rail around the centered upstream
   // sidebar. Extended mode and other platforms retain the upstream 56px rail.
   const sidebarOwnerWidth = collapsed ? SIDEBAR_COLLAPSED : columns.sidebar
   const columnsRef = useRef(columns)
   columnsRef.current = columns
+  const rightbarWidth = useRef(normal.rightbar)
+  rightbarWidth.current = normal.rightbar
 
   const sidebarBase = useRef(0)
   const detailsBase = useRef(0)
+  const rightbarBase = useRef(0)
   const [dragging, setDragging] = useState(false)
   const onDragEnd = useCallback(() => { setDragging(false) }, [])
   const onSidebarStart = useCallback(() => {
@@ -99,12 +107,19 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
     detailsBase.current = columnsRef.current.details
     setDragging(true)
   }, [])
+  const onRightbarStart = useCallback(() => {
+    rightbarBase.current = rightbarWidth.current
+    setDragging(true)
+  }, [])
   const onSidebarDrag = useCallback((dx: number) => {
     layout.setSidebar(sidebarBase.current + dx)
   }, [layout])
   const onDetailsDrag = useCallback((dx: number) => {
     layout.setDetails(detailsBase.current - dx)
   }, [layout])
+  const onRightbarDrag = useCallback((dx: number) => {
+    layout.setRightbar(rightbarBase.current - dx, viewport)
+  }, [layout, viewport])
 
   return (
     <div
@@ -114,12 +129,11 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       data-desktop-platform={platform}
       data-sidebar-collapsed={collapsed || undefined}
       data-details-collapsed={columns.details === 0 || undefined}
-      data-terminal-open={terminalOpen || undefined}
+      data-rightbar-collapsed={columns.rightbar === 0 || undefined}
+      data-rightbar-fullscreen={panels.rightbarFullscreen || undefined}
       data-dragging={dragging || undefined}
       style={{
-        gridTemplateColumns: terminalInset > 0
-          ? `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px ${terminalInset}px`
-          : `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px`,
+        gridTemplateColumns: `${columns.sidebar}px minmax(0, 1fr) ${columns.details}px ${columns.rightbar}px`,
       }}
     >
       {mode === 'advanced' && platform === 'darwin' && <div className="dshDesktopMacCaptionRow" aria-hidden="true" />}
@@ -128,13 +142,17 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
           {renderSlot('sidebar', { collapsed, width: sidebarOwnerWidth })}
         </div>
       </aside>
-      <main className="dshDesktopConversationSurface">{renderSlot('conversation', {})}</main>
+      <main className="dshDesktopConversationSurface">
+        {renderSlot('main', {}, { entryKey: 'conversation' })}
+      </main>
       <aside className="dshDesktopDetailsSurface">
         {/* Strict session slot: the seat renders the empty branch while no
             session is current, matching the upstream AppFrame contract. */}
         <SessionProvider>{renderSlot('details', {})}</SessionProvider>
       </aside>
-      {terminalInset > 0 && <aside className="dshDesktopTerminalSurface" aria-hidden="true" />}
+      <aside className="dshDesktopRightbarSurface" data-rightbar-col>
+        {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
+      </aside>
       {/* Electron resolves app regions in DOM order; Desktop overlays must remain later. */}
       {mode === 'advanced' && platform === 'win32' && <div className="dshDesktopWindowsCaptionRow" aria-hidden="true" />}
       <div className="dshDesktopOverlay" data-shell-overlay>
@@ -152,9 +170,18 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
       {columns.details > 0 && (
         <ResizeHandle
           side="details"
-          left={layoutViewport - columns.details}
+          left={viewport - columns.details - columns.rightbar}
           onStart={onDetailsStart}
           onDrag={onDetailsDrag}
+          onEnd={onDragEnd}
+        />
+      )}
+      {panels.rightbarShown && !panels.rightbarFullscreen && normal.rightbar > 0 && (
+        <ResizeHandle
+          side="rightbar"
+          left={viewport - normal.rightbar}
+          onStart={onRightbarStart}
+          onDrag={onRightbarDrag}
           onEnd={onDragEnd}
         />
       )}
@@ -163,7 +190,7 @@ export function DesktopOwnedFrame({ layout, mode, platform, renderSlot, useSessi
 }
 
 function ResizeHandle(props: {
-  side: 'sidebar' | 'details'
+  side: 'sidebar' | 'details' | 'rightbar'
   left: number
   onStart: () => void
   onDrag: (dx: number) => void

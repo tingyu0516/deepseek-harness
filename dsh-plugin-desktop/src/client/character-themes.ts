@@ -10,9 +10,7 @@ export const HUTAO_THEME: ThemeDefinition = {
   id: 'hutao',
   colorScheme: 'dark',
   tokens: {
-    '--dsw-character-bg-image':
-      'linear-gradient(180deg, rgba(23, 16, 20, 0.2), rgba(23, 16, 20, 0.55)),'
-      + `url("${defaultCharacterWallpaperUrl('hutao')}")`,
+    '--dsw-character-bg-image': `url("${defaultCharacterWallpaperUrl('hutao')}")`,
     '--dsw-alias-bg-base': 'rgba(23, 16, 20, 0.45)',
     '--dsw-alias-bg-layer-1': 'rgba(30, 22, 27, 0.55)',
     '--dsw-alias-bg-layer-2': 'rgba(36, 26, 31, 0.65)',
@@ -91,9 +89,7 @@ export const FURINA_THEME: ThemeDefinition = {
   id: 'furina',
   colorScheme: 'dark',
   tokens: {
-    '--dsw-character-bg-image':
-      'linear-gradient(180deg, rgba(7, 16, 30, 0.2), rgba(7, 16, 30, 0.55)),'
-      + `url("${defaultCharacterWallpaperUrl('furina')}")`,
+    '--dsw-character-bg-image': `url("${defaultCharacterWallpaperUrl('furina')}")`,
     '--dsw-alias-bg-base': 'rgba(7, 16, 30, 0.45)',
     '--dsw-alias-bg-layer-1': 'rgba(11, 23, 48, 0.55)',
     '--dsw-alias-bg-layer-2': 'rgba(15, 28, 48, 0.65)',

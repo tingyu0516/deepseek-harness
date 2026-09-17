@@ -11,6 +11,13 @@ import type {
 import { DesktopWallpaperApiError } from './desktop-settings-api.ts'
 import type { DesktopSettingsLocaleKey } from './desktop-settings-locales.ts'
 import type { DesktopClientPlatform } from './environment.ts'
+import {
+  CHARACTER_THEME_BRIGHTNESS_MAX,
+  CHARACTER_THEME_BRIGHTNESS_MIN,
+  CHARACTER_THEME_OPACITY_MAX,
+  CHARACTER_THEME_OPACITY_MIN,
+  characterThemeAppearance,
+} from '../character-theme-appearance.ts'
 import type { CharacterWallpaperCatalog, CharacterWallpaperThemeId } from '../character-wallpaper-contract.ts'
 import {
   desktopBrowserAccessAvailable,
@@ -29,6 +36,8 @@ export interface DesktopShellSettings {
   readonly characterTheme: 'off' | 'hutao' | 'furina'
   readonly hutaoWallpaper: string
   readonly furinaWallpaper: string
+  readonly characterThemeBrightness: number
+  readonly characterThemeOpacity: number
 }
 
 /** Browser view of the Host `dsh-desktop-notifications` settings namespace. */
@@ -281,6 +290,43 @@ function petScaleLabel(scale: DesktopPetScale): string {
   return `${String(Math.round(scale * 100))}%`
 }
 
+function CharacterThemeSlider({
+  label,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  disabled: boolean
+  onChange: (next: number) => void
+}) {
+  const labelId = useId()
+  const valueId = useId()
+  return (
+    <label className="dshDesktopSettingsSliderRow">
+      <span id={labelId} className="dshDesktopSettingsChoiceTitle">{label}</span>
+      <input
+        className="dshDesktopSettingsSlider"
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        disabled={disabled}
+        aria-labelledby={labelId}
+        aria-describedby={valueId}
+        onChange={event => { onChange(Number(event.currentTarget.value)) }}
+      />
+      <span id={valueId} className="dshDesktopSettingsSliderValue">{`${String(value)}%`}</span>
+    </label>
+  )
+}
+
 function PetScaleField({
   label,
   value,
@@ -449,6 +495,7 @@ export function DesktopSettingsSection({
   const characterTheme = desktop.value?.characterTheme ?? 'off'
   const hutaoWallpaper = desktop.value?.hutaoWallpaper ?? 'default'
   const furinaWallpaper = desktop.value?.furinaWallpaper ?? 'default'
+  const themeAppearance = characterThemeAppearance(desktop.value)
   const notificationValue = notifications.value ?? {
     enabled: true,
     notifyOnTurnCompletion: true,
@@ -542,6 +589,12 @@ export function DesktopSettingsSection({
     void run('character-theme', async () => {
       await desktopSettings.set('characterTheme', next)
     })
+  }
+  const setCharacterThemeBrightness = (next: number): void => {
+    void desktopSettings.set('characterThemeBrightness', next)
+  }
+  const setCharacterThemeOpacity = (next: number): void => {
+    void desktopSettings.set('characterThemeOpacity', next)
   }
 
   const wallpaperTheme: CharacterWallpaperThemeId | undefined = characterTheme === 'off' ? undefined : characterTheme
@@ -837,6 +890,27 @@ export function DesktopSettingsSection({
             status={characterTheme === 'furina' ? t('selected') : undefined}
           />
         </div>
+        {characterTheme !== 'off' && (
+          <div className="dshDesktopSettingsSliderStack">
+            <p className="dshDesktopSettingsGroupIntro">{t('characterThemeAppearanceIntro')}</p>
+            <CharacterThemeSlider
+              label={t('characterThemeBrightness')}
+              value={themeAppearance.brightness}
+              min={CHARACTER_THEME_BRIGHTNESS_MIN}
+              max={CHARACTER_THEME_BRIGHTNESS_MAX}
+              disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+              onChange={setCharacterThemeBrightness}
+            />
+            <CharacterThemeSlider
+              label={t('characterThemeOpacity')}
+              value={themeAppearance.opacity}
+              min={CHARACTER_THEME_OPACITY_MIN}
+              max={CHARACTER_THEME_OPACITY_MAX}
+              disabled={!settingsWritable || busy !== undefined || restart !== 'none'}
+              onChange={setCharacterThemeOpacity}
+            />
+          </div>
+        )}
         {wallpaperTheme !== undefined && (
           <div className="dshDesktopWallpaper">
             <h3 id="dsh-desktop-wallpaper-title">{t('wallpaperTitle')}</h3>

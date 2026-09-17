@@ -1,5 +1,12 @@
 import type { ThemeDefinition } from '@deepseek-ai/dsh-client-ui-theme/client'
+import {
+  CHARACTER_THEME_OPACITY_DEFAULT,
+  characterThemeSidebarOpacity,
+} from '../character-theme-appearance.ts'
 import { CHARACTER_THEMES } from './character-themes.ts'
+
+const PANEL_OPACITY_FALLBACK = `${String(CHARACTER_THEME_OPACITY_DEFAULT)}%`
+const SIDEBAR_OPACITY_FALLBACK = `${String(characterThemeSidebarOpacity(CHARACTER_THEME_OPACITY_DEFAULT))}%`
 
 const CHARACTER_THEME_BACKGROUND_STYLES = `
 body[data-dsh-character-theme] {
@@ -16,31 +23,32 @@ body[data-dsh-character-theme]::before {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  contain: paint;
-  transform: translateZ(0);
+  filter: var(--dsh-character-wallpaper-filter, none);
 }
 body[data-dsh-character-theme] #root {
   background-color: transparent !important;
   background-image: none !important;
   z-index: 1;
 }
-body[data-dsh-character-theme] #root > *,
 body[data-dsh-character-theme] .dshDesktopFrame {
   background-color: transparent !important;
 }
+body[data-dsh-character-theme] .frame {
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) var(--dsh-character-panel-opacity, ${PANEL_OPACITY_FALLBACK}), transparent) !important;
+}
 body[data-dsh-character-theme]:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])
   .dshDesktopSidebarSurface {
-  --dsw-specific-sidebar-fill: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-3));
-  background-color: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 42%, var(--dsw-alias-bg-layer-3)) !important;
+  --dsw-specific-sidebar-fill: color-mix(in srgb, var(--dsw-alias-bg-layer-1) var(--dsh-character-sidebar-opacity, ${SIDEBAR_OPACITY_FALLBACK}), transparent);
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-layer-1) var(--dsh-character-sidebar-opacity, ${SIDEBAR_OPACITY_FALLBACK}), transparent) !important;
   border-right-color: var(--dsw-alias-border-l1);
 }
 body[data-dsh-character-theme] .dshDesktopConversationSurface,
 body[data-dsh-character-theme] .dshDesktopDetailsSurface {
-  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, transparent) !important;
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) var(--dsh-character-panel-opacity, ${PANEL_OPACITY_FALLBACK}), transparent) !important;
 }
-body[data-dsh-character-theme] .dshDesktopTerminalSurface,
-body[data-dsh-character-theme] .dshDesktopTerminalDrawer {
-  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 82%, var(--dsw-alias-bg-layer-3)) !important;
+body[data-dsh-character-theme] .dshDesktopRightbarSurface,
+body[data-dsh-character-theme] [data-dsh-panel-host] {
+  background-color: color-mix(in srgb, var(--dsw-alias-bg-base) var(--dsh-character-panel-opacity, ${PANEL_OPACITY_FALLBACK}), transparent) !important;
 }
 `
 

@@ -58,6 +58,7 @@ import {
   type DesktopMarketProvider,
   type DesktopMarketSnapshot,
 } from './desktop-market.ts'
+import { DESKTOP_LAUNCHER_PREINSTALL_PACKAGES } from './launcher-preinstall.ts'
 
 /** Persistent profile managed by the desktop launcher and the ordinary dsh plugin command. */
 export const DESKTOP_PROFILE_NAME = 'desktop'
@@ -74,10 +75,15 @@ const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)
 const OBSOLETE_DESKTOP_BUNDLE_SET = new Set(['@deepseek-ai/dsh-desktop-app'])
 const INSTALL_ANCHOR = unpackedAsarPath(fileURLToPath(new URL('../package.json', import.meta.url)))
 const DESKTOP_PATCH_PATH = fileURLToPath(new URL('../cordis.patch.yml', import.meta.url))
-const DESKTOP_LAUNCHER_PET_PACKAGES = new Set([
-  'dsh-plugin-pet-hutao',
-  'dsh-plugin-pet-furina',
-])
+
+/** Read `$DSH_HOME/cordis.patch.yml`. A missing, empty, or comment-only file is no patches. */
+function loadMachineWidePatches(home: string): PatchOptions[] {
+  const file = join(home, PROFILE_PATCH_FILENAME)
+  if (!existsSync(file)) return []
+  if (parseDocument(readFileSync(file, 'utf8')).toJSON() == null) return []
+  return loadOptionalPatches(BIN_NAME, file) ?? []
+}
+
 const DIRECTORY_PICKER_ROW_ID = 'directory-picker'
 const AUTO_PICKER_PACKAGE = '@deepseek-ai/dsh-host-directory-picker-auto'
 const BROWSE_PICKER_BACKEND = '@deepseek-ai/dsh-host-directory-picker-browse'
@@ -583,10 +589,10 @@ function rowDisabledOnPlatform(row: EntryOptions, platform: NodeJS.Platform): bo
 }
 
 /**
- * Drop launcher pet inserts when the profile already owns that bundle.
- * The character packages ship the same Loader ids; composing both copies fails startup.
+ * Drop launcher preinstall inserts when the profile already owns that bundle.
+ * Those packages ship the same Loader ids; composing both copies fails startup.
  */
-function omitLauncherPetInsertsOwnedByProfile(
+function omitLauncherPreinstallInsertsOwnedByProfile(
   patches: readonly PatchOptions[],
   profileOwnedPackages: ReadonlySet<string>,
 ): PatchOptions[] {
@@ -595,7 +601,7 @@ function omitLauncherPetInsertsOwnedByProfile(
     const insert = patch.insert.filter((row) => {
       const packageName = row.name
       return typeof packageName !== 'string'
-        || !DESKTOP_LAUNCHER_PET_PACKAGES.has(packageName)
+        || !DESKTOP_LAUNCHER_PREINSTALL_PACKAGES.has(packageName)
         || !profileOwnedPackages.has(packageName)
     })
     if (insert.length === patch.insert.length) return [patch]
@@ -838,7 +844,7 @@ export async function prepareDesktopProfile(
     ...profile.layers.map(layer => layer.packageName),
     ...disabledBundles,
   ])
-  const launcherPatches = omitLauncherPetInsertsOwnedByProfile(desktopPatches, profileOwnedPackages)
+  const launcherPatches = omitLauncherPreinstallInsertsOwnedByProfile(desktopPatches, profileOwnedPackages)
   for (const layer of activeDesktopProfileLayers(profile, providerAwareDisabledBundles)) {
     if (layer.packageName === DESKTOP_MARKET_IDENTITIES.dshMarket.packageName) {
       dshMarketPatches = layer.patches
@@ -853,7 +859,7 @@ export async function prepareDesktopProfile(
     throw new Error(`${BIN_NAME}: desktop profile is missing @deepseek-ai/dsh-web-app`)
   }
 
-  const loadedHomePatches = loadOptionalPatches(BIN_NAME, join(home, PROFILE_PATCH_FILENAME)) ?? []
+  const loadedHomePatches = loadMachineWidePatches(home)
   const { patches: homePatches, skipped: skippedOptionalEntries } = omitUnresolvedOptionalEntries(
     loadedHomePatches,
     bareModuleBaseUrl,
